@@ -1,0 +1,1185 @@
+import React, { useEffect, useState, useMemo, useCallback } from 'react';
+import {
+    Box, Typography, Paper, Chip, Button, Grid, Card, CardContent,
+    TextField, MenuItem, FormControl, InputLabel, Select, Divider,
+    Badge, Avatar, Tooltip, IconButton, Switch, FormControlLabel,
+    ToggleButton, ToggleButtonGroup, useTheme, TablePagination,
+    Stack, LinearProgress, AppBar, Toolbar, Menu, ListItemIcon, ListItemText
+} from '@mui/material';
+import { DataGrid, GridColDef, GridToolbar, GridRenderCellParams } from '@mui/x-data-grid';
+import {
+    Refresh, Check, Warning, Error as ErrorIcon, AccessTime,
+    Person, Schedule, Timer, Group, ViewList, TableChart,
+    CalendarToday, ChevronLeft, ChevronRight, Today, Event, GetApp,
+    FilterList, Save, TrendingUp, Settings, MoreVert, ExpandMore
+} from '@mui/icons-material';
+import api from '../../services/api';
+import { useTranslation } from 'react-i18next';
+import AttendanceTimeline from '../../components/hr/AttendanceTimeline';
+import MonthView from './MonthView';
+import CalendarView from './CalendarView';
+import { format, parseISO, startOfMonth, endOfMonth, startOfWeek, endOfWeek, eachDayOfInterval, isSameDay, isToday, isWeekend, subMonths, addMonths, isAfter, differenceInDays, addDays, endOfDay, differenceInMinutes } from 'date-fns';
+import { AdapterDateFns } from '@mui/x-date-pickers/AdapterDateFns';
+import { LocalizationProvider, DatePicker, DateCalendar, PickersDay, PickersDayProps } from '@mui/x-date-pickers';
+import { styled } from '@mui/material/styles';
+
+// Colors inspired by the reference image
+export const ATTENDANCE_COLORS = {
+    present: '#10B981', // Emerald 500 - for normal attendance
+    late: '#EF4444',    // Red 500 - for late arrival
+    earlyLeave: '#F59E0B', // Amber 500 - for early leave
+    absent: '#6B7280',  // Gray 500 - for absent
+    ongoing: '#3B82F6', // Blue 500 - for ongoing work
+    overtime: '#8B5CF6', // Violet 500 - for overtime
+    partial: '#F97316'  // Orange 500 - for partial work
+};
+
+const round = (val: number, precision: number) => Math.round(val * Math.pow(10, precision)) / Math.pow(10, precision);
+
+// Types
+interface Department {
+    id: string;
+    name: string;
+    description?: string;
+    manager_id?: string;
+    created_at?: string;
+}
+
+interface AttendanceRecord {
+    id: string;
+    employee_id: string;
+    employee_name: string;
+    check_in_date: string;
+    check_in: string;
+    check_out?: string;
+    break_hours?: number;
+    actual_work: number;
+    capacity: number;
+    overtime: number;
+    status: string;
+    shift_name?: string;
+    late_minutes?: number;
+    early_leave_minutes?: number;
+    timestamp?: string;
+    type?: string;
+    raw_status?: string;
+    verification_mode?: string;
+    device?: string;
+    device_ip?: string;
+    employee_pk?: string;
+}
+
+interface AttendanceSummary {
+    total_employees: number;
+    present_today: number;
+    late_today: number;
+    early_leave_today: number;
+    absent_today: number;
+}
+
+// Optimized Custom Hooks
+const useAttendanceData = (filters: any) => {
+    const [rows, setRows] = useState<AttendanceRecord[]>([]);
+    const [loading, setLoading] = useState(true);
+    const [error, setError] = useState<string | null>(null);
+
+    const fetchLogs = useCallback(async () => {
+        setLoading(true);
+        setError(null);
+        try {
+            const params = new URLSearchParams();
+            if (filters.viewMode === 'calendar') {
+                const monthStart = startOfMonth(filters.currentMonth);
+                const monthEnd = endOfMonth(filters.currentMonth);
+                params.append('start_date', format(monthStart, 'yyyy-MM-dd'));
+                params.append('end_date', format(monthEnd, 'yyyy-MM-dd'));
+            } else if (filters.viewMode === 'month') {
+                const monthStart = startOfMonth(new Date());
+                const monthEnd = endOfMonth(new Date());
+                params.append('start_date', format(monthStart, 'yyyy-MM-dd'));
+                params.append('end_date', format(monthEnd, 'yyyy-MM-dd'));
+            } else {
+                if (filters.startDate) params.append('start_date', format(filters.startDate, 'yyyy-MM-dd'));
+                if (filters.endDate) params.append('end_date', format(filters.endDate, 'yyyy-MM-dd'));
+            }
+
+            if (filters.selectedEmployee) params.append('employee_id', filters.selectedEmployee);
+            if (filters.selectedDepartment) params.append('department', filters.selectedDepartment);
+            if (filters.rawView) params.append('raw', 'true');
+
+            const res = await api.get(`/hr/attendance?${params}`);
+            setRows(res.data as AttendanceRecord[]);
+        } catch (error) {
+            console.error('Error fetching attendance:', error);
+            setError('Failed to load attendance data');
+        } finally {
+            setLoading(false);
+        }
+    }, [filters.viewMode, filters.currentMonth, filters.startDate, filters.endDate, filters.selectedEmployee, filters.selectedDepartment, filters.rawView]);
+
+    useEffect(() => {
+        fetchLogs();
+    }, [fetchLogs]);
+
+    return { rows, loading, error, refetch: fetchLogs };
+};
+
+const useAttendanceFilters = () => {
+    const [startDate, setStartDate] = useState<Date | null>(new Date());
+    const [endDate, setEndDate] = useState<Date | null>(new Date());
+    const [selectedEmployee, setSelectedEmployee] = useState('');
+    const [selectedDepartment, setSelectedDepartment] = useState('');
+    const [rawView, setRawView] = useState(false);
+    const [viewMode, setViewMode] = useState<'calendar' | 'table' | 'matrix' | 'month'>('matrix');
+    const [quickView, setQuickView] = useState<'today' | 'week' | 'month' | null>(null);
+    const [currentMonth, setCurrentMonth] = useState(new Date());
+    const [zoomLevel, setZoomLevel] = useState<'day' | 'week' | 'month' | 'range'>('day');
+
+    const handleQuickView = useCallback((view: 'today' | 'week' | 'month') => {
+        const today = new Date();
+        setQuickView(view);
+
+        switch (view) {
+            case 'today':
+                setStartDate(today);
+                setEndDate(today);
+                setZoomLevel('day');
+                break;
+            case 'week':
+                setStartDate(startOfWeek(today, { weekStartsOn: 1 }));
+                setEndDate(endOfWeek(today, { weekStartsOn: 1 }));
+                setZoomLevel('week');
+                break;
+            case 'month':
+                setStartDate(startOfMonth(today));
+                setEndDate(endOfMonth(today));
+                setZoomLevel('month');
+                break;
+        }
+    }, []);
+
+    const handleDateChange = useCallback((newDate: Date) => {
+        if (!startDate) {
+            setStartDate(newDate);
+            setQuickView(null);
+            return;
+        }
+
+        const delta = differenceInDays(newDate, startDate);
+        setStartDate(newDate);
+        if (endDate) {
+            setEndDate(addDays(endDate, delta));
+        }
+        setQuickView(null);
+    }, [startDate, endDate]);
+
+    const handleViewModeChange = useCallback((mode: typeof viewMode) => {
+        if (mode) {
+            setViewMode(mode);
+            setQuickView(null);
+            if (mode === 'month') {
+                handleQuickView('month');
+            }
+        }
+    }, [handleQuickView]);
+
+    return {
+        startDate,
+        endDate,
+        selectedEmployee,
+        selectedDepartment,
+        rawView,
+        viewMode,
+        quickView,
+        currentMonth,
+        zoomLevel,
+        setStartDate,
+        setEndDate,
+        setSelectedEmployee,
+        setSelectedDepartment,
+        setRawView,
+        setQuickView,
+        setCurrentMonth,
+        setZoomLevel,
+        handleQuickView,
+        handleDateChange,
+        handleViewModeChange
+    };
+};
+
+// Consolidated Summary Cards Component
+const AttendanceSummaryCards = React.memo(({
+    summary,
+    theme
+}: {
+    summary: AttendanceSummary;
+    theme: any;
+}) => {
+    const { t } = useTranslation();
+
+    const cards = useMemo(() => [
+        {
+            title: t('Total Employees'),
+            value: summary.total_employees,
+            icon: <Group sx={{ fontSize: 28 }} />,
+            color: theme.palette.primary.main
+        },
+        {
+            title: t('Present Today'),
+            value: summary.present_today,
+            icon: <Check sx={{ fontSize: 28 }} />,
+            color: ATTENDANCE_COLORS.present
+        },
+        {
+            title: t('Late Today'),
+            value: summary.late_today,
+            icon: <Warning sx={{ fontSize: 28 }} />,
+            color: ATTENDANCE_COLORS.late
+        },
+        {
+            title: t('Absent Today'),
+            value: summary.absent_today,
+            icon: <ErrorIcon sx={{ fontSize: 28 }} />,
+            color: ATTENDANCE_COLORS.absent
+        }
+    ], [summary, theme.palette.primary.main, t]);
+
+    return (
+        <Grid container spacing={2} sx={{ mb: 2, overflowX: 'hidden', width: '100%', ml: 0 }}>
+            {cards.map((card, index) => (
+                <Grid item xs={12} sm={6} md={3} key={index}>
+                    <Card sx={{
+                        height: '100%',
+                        border: `1px solid ${theme.palette.divider}`,
+                        borderRadius: 1,
+                        transition: 'all 0.2s ease',
+                        '&:hover': {
+                            borderColor: card.color,
+                            opacity: 0.8
+                        }
+                    }}>
+                        <CardContent sx={{ textAlign: 'center', py: 1.5 }}>
+                            <Box sx={{ color: card.color, mb: 0.5 }}>
+                                {card.icon}
+                            </Box>
+                            <Typography variant="h4" fontWeight="600" color={card.color}>
+                                {card.value}
+                            </Typography>
+                            <Typography variant="body2" color="text.secondary" fontWeight="500">
+                                {card.title}
+                            </Typography>
+                        </CardContent>
+                    </Card>
+                </Grid>
+            ))}
+        </Grid>
+    );
+});
+
+// Quick View Menu Component
+const QuickViewMenu = React.memo(({ 
+    filters,
+    theme
+}: {
+    filters: any;
+    theme: any;
+}) => {
+    const { t } = useTranslation();
+    const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null);
+    const open = Boolean(anchorEl);
+
+    const handleClick = (event: React.MouseEvent<HTMLElement>) => {
+        setAnchorEl(event.currentTarget);
+    };
+
+    const handleClose = () => {
+        setAnchorEl(null);
+    };
+
+    const getCurrentLabel = () => {
+        switch (filters.quickView) {
+            case 'today': return t('Today');
+            case 'week': return t('Week');
+            case 'month': return t('Month');
+            default: return t('Quick View');
+        }
+    };
+
+    const getCurrentIcon = () => {
+        switch (filters.quickView) {
+            case 'today': return <Today />;
+            case 'week': return <Event />;
+            case 'month': return <CalendarToday />;
+            default: return <Schedule />;
+        }
+    };
+
+    return (
+        <>
+            <Button
+                onClick={handleClick}
+                startIcon={getCurrentIcon()}
+                endIcon={<ExpandMore />}
+                variant="outlined"
+                size="small"
+                sx={{
+                    minWidth: 120,
+                    fontWeight: 500,
+                    textTransform: 'none',
+                    borderRadius: 1,
+                    borderColor: theme.palette.divider,
+                    color: theme.palette.text.primary,
+                    '&:hover': {
+                        borderColor: ATTENDANCE_COLORS.present,
+                        backgroundColor: 'action.hover'
+                    }
+                }}
+            >
+                {getCurrentLabel()}
+            </Button>
+            <Menu
+                anchorEl={anchorEl}
+                open={open}
+                onClose={handleClose}
+                anchorOrigin={{
+                    vertical: 'bottom',
+                    horizontal: 'left',
+                }}
+                transformOrigin={{
+                    vertical: 'top',
+                    horizontal: 'left',
+                }}
+            >
+                <MenuItem onClick={() => { filters.handleQuickView('today'); handleClose(); }}>
+                    <ListItemIcon>
+                        <Today fontSize="small" />
+                    </ListItemIcon>
+                    <ListItemText>{t('Today')}</ListItemText>
+                </MenuItem>
+                <MenuItem onClick={() => { filters.handleQuickView('week'); handleClose(); }}>
+                    <ListItemIcon>
+                        <Event fontSize="small" />
+                    </ListItemIcon>
+                    <ListItemText>{t('This Week')}</ListItemText>
+                </MenuItem>
+                <MenuItem onClick={() => { filters.handleQuickView('month'); handleClose(); }}>
+                    <ListItemIcon>
+                        <CalendarToday fontSize="small" />
+                    </ListItemIcon>
+                    <ListItemText>{t('This Month')}</ListItemText>
+                </MenuItem>
+            </Menu>
+        </>
+    );
+});
+
+// Action Menu Component
+const ActionMenu = React.memo(({ 
+    filters,
+    onRefresh,
+    loading,
+    theme
+}: {
+    filters: any;
+    onRefresh: () => void;
+    loading: boolean;
+    theme: any;
+}) => {
+    const { t } = useTranslation();
+    const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null);
+    const open = Boolean(anchorEl);
+
+    const handleClick = (event: React.MouseEvent<HTMLElement>) => {
+        setAnchorEl(event.currentTarget);
+    };
+
+    const handleClose = () => {
+        setAnchorEl(null);
+    };
+
+    const handleRawViewToggle = () => {
+        filters.setRawView(!filters.rawView);
+        filters.setQuickView(null);
+        handleClose();
+    };
+
+    const handleRefresh = () => {
+        onRefresh();
+        handleClose();
+    };
+
+    return (
+        <>
+            <Button
+                onClick={handleClick}
+                startIcon={<MoreVert />}
+                endIcon={<ExpandMore />}
+                variant="outlined"
+                size="small"
+                sx={{
+                    minWidth: 100,
+                    fontWeight: 500,
+                    textTransform: 'none',
+                    borderRadius: 1,
+                    borderColor: theme.palette.divider,
+                    color: theme.palette.text.primary,
+                    '&:hover': {
+                        borderColor: ATTENDANCE_COLORS.present,
+                        backgroundColor: 'action.hover'
+                    }
+                }}
+            >
+                {t('Actions')}
+            </Button>
+            <Menu
+                anchorEl={anchorEl}
+                open={open}
+                onClose={handleClose}
+                anchorOrigin={{
+                    vertical: 'bottom',
+                    horizontal: 'right',
+                }}
+                transformOrigin={{
+                    vertical: 'top',
+                    horizontal: 'right',
+                }}
+            >
+                <MenuItem 
+                    onClick={handleRawViewToggle}
+                    disabled={filters.viewMode === 'calendar' || filters.viewMode === 'matrix' || filters.viewMode === 'month'}
+                >
+                    <ListItemIcon>
+                        {filters.rawView ? <TableChart fontSize="small" /> : <ViewList fontSize="small" />}
+                    </ListItemIcon>
+                    <ListItemText>{filters.rawView ? t('Processed View') : t('Raw View')}</ListItemText>
+                </MenuItem>
+                <MenuItem onClick={handleRefresh} disabled={loading}>
+                    <ListItemIcon>
+                        <Refresh fontSize="small" />
+                    </ListItemIcon>
+                    <ListItemText>{t('Refresh Data')}</ListItemText>
+                </MenuItem>
+            </Menu>
+        </>
+    );
+});
+
+// Consolidated Controls Component
+const AttendanceControls = React.memo(({
+    filters,
+    employees,
+    departments,
+    onFilterChange,
+    onApplyFilters,
+    onRefresh,
+    loading
+}: {
+    filters: any;
+    employees: any[];
+    departments: Department[];
+    onFilterChange: (key: string, value: any) => void;
+    onApplyFilters: () => void;
+    onRefresh: () => void;
+    loading?: boolean;
+}) => {
+    const { t } = useTranslation();
+    const theme = useTheme();
+
+    return (
+        <Paper sx={{
+            p: 2,
+            mb: 2,
+            borderRadius: 1,
+            border: `1px solid ${theme.palette.divider}`,
+            backgroundColor: 'background.paper'
+        }}>
+            {/* Main Controls Row */}
+            <Stack direction="row" spacing={2} alignItems="center" sx={{ mb: 2, flexWrap: 'wrap' }}>
+                {/* View Mode Selection */}
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                    <Typography variant="subtitle2" fontWeight="600" sx={{ whiteSpace: 'nowrap' }}>
+                        {t('View Mode')}:
+                    </Typography>
+                    <ToggleButtonGroup
+                        value={filters.viewMode}
+                        exclusive
+                        onChange={(_, v) => v && filters.handleViewModeChange(v)}
+                        size="small"
+                        sx={{
+                            backgroundColor: 'background.paper',
+                            border: `1px solid ${theme.palette.divider}`,
+                            borderRadius: 1,
+                            '& .MuiToggleButton-root': {
+                                px: 1.5,
+                                py: 0.5,
+                                fontWeight: 500,
+                                textTransform: 'none',
+                                border: 'none',
+                                borderRadius: '0px !important',
+                                '&.Mui-selected': {
+                                    backgroundColor: ATTENDANCE_COLORS.present,
+                                    color: 'white'
+                                }
+                            }
+                        }}
+                    >
+                        <ToggleButton value="matrix">
+                            <Schedule sx={{ mr: 0.5, fontSize: 16 }} />
+                            {t('Matrix')}
+                        </ToggleButton>
+                        <ToggleButton value="month">
+                            <CalendarToday sx={{ mr: 0.5, fontSize: 16 }} />
+                            {t('Month')}
+                        </ToggleButton>
+                        <ToggleButton value="calendar">
+                            <Event sx={{ mr: 0.5, fontSize: 16 }} />
+                            {t('Calendar')}
+                        </ToggleButton>
+                        <ToggleButton value="table">
+                            <TableChart sx={{ mr: 0.5, fontSize: 16 }} />
+                            {t('List')}
+                        </ToggleButton>
+                    </ToggleButtonGroup>
+                </Box>
+
+                {/* Quick View Menu */}
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                    <Typography variant="subtitle2" fontWeight="600" sx={{ whiteSpace: 'nowrap' }}>
+                        {t('Quick View')}:
+                    </Typography>
+                    <QuickViewMenu filters={filters} theme={theme} />
+                </Box>
+
+                {/* Action Menu */}
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, ml: 'auto' }}>
+                    <ActionMenu 
+                        filters={filters} 
+                        onRefresh={onRefresh} 
+                        loading={loading} 
+                        theme={theme} 
+                    />
+                </Box>
+            </Stack>
+
+            {/* Filters Row */}
+            <Grid container spacing={2} alignItems="center">
+                {/* Date Range */}
+                {(filters.viewMode === 'table' || filters.viewMode === 'matrix') && (
+                    <>
+                        <Grid item xs={12} sm={6} md={2}>
+                            <DatePicker
+                                label={t('Start Date')}
+                                value={filters.startDate}
+                                onChange={(newValue) => onFilterChange('startDate', newValue)}
+                                slotProps={{
+                                    textField: {
+                                        size: 'small',
+                                        fullWidth: true,
+                                        variant: 'outlined'
+                                    }
+                                }}
+                            />
+                        </Grid>
+                        <Grid item xs={12} sm={6} md={2}>
+                            <DatePicker
+                                label={t('End Date')}
+                                value={filters.endDate}
+                                onChange={(newValue) => onFilterChange('endDate', newValue)}
+                                slotProps={{
+                                    textField: {
+                                        size: 'small',
+                                        fullWidth: true,
+                                        variant: 'outlined'
+                                    }
+                                }}
+                            />
+                        </Grid>
+                    </>
+                )}
+
+                {/* Department Filter */}
+                <Grid item xs={12} sm={6} md={filters.viewMode === 'table' || filters.viewMode === 'matrix' ? 2 : 3}>
+                    <FormControl fullWidth size="small">
+                        <InputLabel>{t('Department')}</InputLabel>
+                        <Select
+                            value={filters.selectedDepartment}
+                            onChange={(e) => onFilterChange('selectedDepartment', e.target.value)}
+                            label={t('Department')}
+                        >
+                            <MenuItem value="">{t('All Departments')}</MenuItem>
+                            {departments.map((dept, index) => (
+                                <MenuItem key={dept.id || `dept-${index}`} value={dept.id}>
+                                    {dept.name}
+                                </MenuItem>
+                            ))}
+                        </Select>
+                    </FormControl>
+                </Grid>
+
+                {/* Employee Filter */}
+                <Grid item xs={12} sm={6} md={filters.viewMode === 'table' || filters.viewMode === 'matrix' ? 2 : 3}>
+                    <FormControl fullWidth size="small">
+                        <InputLabel>{t('Employee')}</InputLabel>
+                        <Select
+                            value={filters.selectedEmployee}
+                            onChange={(e) => onFilterChange('selectedEmployee', e.target.value)}
+                            label={t('Employee')}
+                        >
+                            <MenuItem value="">{t('All Employees')}</MenuItem>
+                            {employees
+                                .filter(emp => !filters.selectedDepartment || emp.department_id === filters.selectedDepartment)
+                                .map((emp, index) => (
+                                    <MenuItem key={emp.id || emp.employee_id || `emp-${index}`} value={emp.employee_id}>
+                                        {emp.name} ({emp.employee_id})
+                                    </MenuItem>
+                                ))}
+                        </Select>
+                    </FormControl>
+                </Grid>
+
+                {/* Apply Filters Button */}
+                {(filters.viewMode === 'table' || filters.viewMode === 'matrix') && (
+                    <Grid item xs={12} md={2}>
+                        <Button
+                            fullWidth
+                            variant="contained"
+                            onClick={onApplyFilters}
+                            disabled={loading}
+                            sx={{
+                                height: '40px',
+                                backgroundColor: ATTENDANCE_COLORS.present,
+                                '&:hover': {
+                                    backgroundColor: ATTENDANCE_COLORS.present,
+                                    opacity: 0.8
+                                }
+                            }}
+                        >
+                            {t('Apply')}
+                        </Button>
+                    </Grid>
+                )}
+            </Grid>
+        </Paper>
+    );
+});
+
+// Optimized Table View Component
+const TableView = React.memo(({
+    rows,
+    columns,
+    loading,
+    totalEmployees,
+    page,
+    rowsPerPage,
+    handlePageChange,
+    handleRowsPerPageChange
+}: {
+    rows: AttendanceRecord[];
+    columns: GridColDef[];
+    loading: boolean;
+    totalEmployees: number;
+    page: number;
+    rowsPerPage: number;
+    handlePageChange: (event: React.MouseEvent<HTMLButtonElement> | null, newPage: number) => void;
+    handleRowsPerPageChange: (event: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => void;
+}) => {
+    const theme = useTheme();
+
+    return (
+        <Box sx={{ mt: 2 }}>
+            <Paper sx={{
+                height: 600,
+                width: '100%',
+                borderRadius: 1,
+                overflow: 'hidden',
+                border: `1px solid ${theme.palette.divider}`
+            }}>
+                <DataGrid
+                    rows={rows}
+                    columns={columns}
+                    loading={loading}
+                    getRowId={(row) => row.id || row.employee_pk || `${row.employee_id}-${row.check_in_date}-${row.check_in}`}
+                    slots={{ toolbar: GridToolbar }}
+                    slotProps={{
+                        toolbar: {
+                            showQuickFilter: true,
+                            quickFilterProps: { debounceMs: 500 },
+                        },
+                    }}
+                    sx={{
+                        border: 'none',
+                        '& .MuiDataGrid-cell:focus': { outline: 'none' },
+                        '& .MuiDataGrid-row:hover': {
+                            backgroundColor: 'action.hover'
+                        }
+                    }}
+                />
+            </Paper>
+            <TablePagination
+                component="div"
+                count={totalEmployees}
+                page={page}
+                onPageChange={handlePageChange}
+                rowsPerPage={rowsPerPage}
+                onRowsPerPageChange={handleRowsPerPageChange}
+                rowsPerPageOptions={[10, 25, 50, 100]}
+                sx={{ mt: 2 }}
+            />
+        </Box>
+    );
+});
+
+// Optimized Matrix View Component
+const MatrixView = React.memo(({
+    rows,
+    employees,
+    loading,
+    filters,
+    totalEmployees,
+    page,
+    rowsPerPage,
+    handlePageChange,
+    handleRowsPerPageChange,
+    handleDateChange,
+    handleZoomChange
+}: {
+    rows: AttendanceRecord[];
+    employees: any[];
+    loading: boolean;
+    filters: any;
+    totalEmployees: number;
+    page: number;
+    rowsPerPage: number;
+    handlePageChange: (event: React.MouseEvent<HTMLButtonElement> | null, newPage: number) => void;
+    handleRowsPerPageChange: (event: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => void;
+    handleDateChange: (date: Date) => void;
+    handleZoomChange: (zoom: string) => void;
+}) => {
+    return (
+        <Box sx={{ mt: 2 }}>
+            <AttendanceTimeline
+                data={rows}
+                employees={filters.selectedEmployee ? employees.filter(e => e.employee_id === filters.selectedEmployee) : employees}
+                loading={loading}
+                viewDate={filters.startDate || new Date()}
+                endDate={filters.endDate || undefined}
+                onDateChange={handleDateChange}
+                zoomLevel={filters.zoomLevel}
+                onZoomChange={handleZoomChange}
+            />
+            <TablePagination
+                component="div"
+                count={totalEmployees}
+                page={page}
+                onPageChange={handlePageChange}
+                rowsPerPage={rowsPerPage}
+                onRowsPerPageChange={handleRowsPerPageChange}
+                rowsPerPageOptions={[10, 25, 50, 100]}
+                sx={{ mt: 2 }}
+            />
+        </Box>
+    );
+});
+
+// Main AttendancePage Component - Optimized
+const AttendancePage: React.FC = () => {
+    const theme = useTheme();
+    const { t } = useTranslation();
+
+    // Custom hooks
+    const filters = useAttendanceFilters();
+    const { rows, loading, error, refetch } = useAttendanceData({
+        startDate: filters.startDate,
+        endDate: filters.endDate,
+        selectedEmployee: filters.selectedEmployee,
+        selectedDepartment: filters.selectedDepartment,
+        rawView: filters.rawView,
+        viewMode: filters.viewMode,
+        currentMonth: filters.currentMonth
+    });
+
+    const [summary, setSummary] = useState<AttendanceSummary>({
+        total_employees: 0,
+        present_today: 0,
+        late_today: 0,
+        early_leave_today: 0,
+        absent_today: 0
+    });
+
+    // State for employees and departments
+    const [employees, setEmployees] = useState<any[]>([]);
+    const [departments, setDepartments] = useState<Department[]>([]);
+    const [page, setPage] = useState(0);
+    const [rowsPerPage, setRowsPerPage] = useState(10);
+    const [totalEmployees, setTotalEmployees] = useState(0);
+
+    // Optimized data fetching
+    const fetchEmployees = useCallback(async () => {
+        try {
+            const params = new URLSearchParams();
+            params.append('page', (page + 1).toString());
+            params.append('limit', rowsPerPage.toString());
+            if (filters.selectedDepartment) params.append('department', filters.selectedDepartment);
+
+            const res = await api.get(`/hr/employees?${params}`);
+            setEmployees(res.data.employees || []);
+            setTotalEmployees(res.data.total || 0);
+        } catch (error) {
+            console.error('Error fetching employees:', error);
+        }
+    }, [page, rowsPerPage, filters.selectedDepartment]);
+
+    const fetchDepartments = useCallback(async () => {
+        try {
+            const res = await api.get('/departments');
+            setDepartments(res.data);
+        } catch (error) {
+            console.error('Error fetching departments:', error);
+        }
+    }, []);
+
+    // Optimized summary calculation with useMemo
+    const calculatedSummary = useMemo(() => {
+        if (filters.rawView) return summary;
+
+        const totalCount = totalEmployees;
+        const periods = rows;
+
+        const rangeStart = filters.startDate ? format(filters.startDate, 'yyyy-MM-dd') : format(new Date(), 'yyyy-MM-dd');
+        const rangeEnd = filters.endDate ? format(filters.endDate, 'yyyy-MM-dd') : format(new Date(), 'yyyy-MM-dd');
+
+        const rangePeriods = periods.filter((period: AttendanceRecord) =>
+            period.check_in_date >= rangeStart && period.check_in_date <= rangeEnd && period.check_out
+        );
+
+        const uniqueEmployeesInRange = new Set(rangePeriods.map((p: AttendanceRecord) => p.employee_id)).size;
+
+        return {
+            total_employees: totalCount,
+            present_today: rangePeriods.filter((p: any) => p.status === 'present').length,
+            late_today: rangePeriods.filter((p: any) => p.status === 'late').length,
+            early_leave_today: rangePeriods.filter((p: any) => p.status === 'early_leave').length,
+            absent_today: totalCount - uniqueEmployeesInRange
+        };
+    }, [filters.rawView, filters.startDate, filters.endDate, totalEmployees, rows]);
+
+    // Update summary when calculated summary changes
+    useEffect(() => {
+        setSummary(calculatedSummary);
+    }, [calculatedSummary]);
+
+    // Effects
+    useEffect(() => {
+        fetchDepartments();
+    }, [fetchDepartments]);
+
+    useEffect(() => {
+        fetchEmployees();
+    }, [fetchEmployees]);
+
+    // Update view mode effects
+    useEffect(() => {
+        if (filters.quickView) return;
+
+        if (filters.viewMode === 'month') {
+            filters.setZoomLevel('month');
+        } else if (filters.startDate && filters.endDate && isAfter(filters.endDate, filters.startDate) && filters.viewMode === 'matrix') {
+            filters.setZoomLevel('range');
+        } else if (filters.startDate && filters.endDate && isSameDay(filters.startDate, filters.endDate)) {
+            filters.setZoomLevel('day');
+        }
+    }, [filters.startDate, filters.endDate, filters.viewMode, filters.quickView, filters.setZoomLevel]);
+
+    // Optimized columns with useMemo
+    const columns: GridColDef[] = useMemo(() => {
+        if (filters.rawView) {
+            return [
+                { field: 'id', headerName: t('ID'), width: 80 },
+                { field: 'employee_id', headerName: t('Employee ID'), width: 120 },
+                { field: 'employee_name', headerName: t('Name'), width: 200, flex: 1 },
+                {
+                    field: 'timestamp',
+                    headerName: t('Timestamp'),
+                    width: 200,
+                    renderCell: (params: GridRenderCellParams) => params.value ? format(parseISO(params.value), 'yyyy-MM-dd HH:mm:ss') : ''
+                },
+                {
+                    field: 'type',
+                    headerName: t('Type'),
+                    width: 120,
+                    renderCell: (params: GridRenderCellParams) => {
+                        const isCheckIn = params.value === 'check_in';
+                        return (
+                            <Chip
+                                label={isCheckIn ? t('Check In') : t('Check Out')}
+                                color={isCheckIn ? 'success' : 'warning'}
+                                variant="outlined"
+                                size="small"
+                            />
+                        );
+                    }
+                },
+                { field: 'raw_status', headerName: t('Device Status'), width: 120 },
+                { field: 'verification_mode', headerName: t('Verification'), width: 130 },
+                { field: 'device', headerName: t('Device Name'), width: 120 },
+                { field: 'device_ip', headerName: t('Device IP'), width: 120 },
+            ];
+        }
+
+        return [
+            {
+                field: 'employee_name',
+                headerName: t('User'),
+                width: 220,
+                renderCell: (params: GridRenderCellParams) => (
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                        <Avatar sx={{ width: 28, height: 28, bgcolor: ATTENDANCE_COLORS.present, fontSize: '0.75rem' }}>
+                            {params.value?.[0]}
+                        </Avatar>
+                        <Box>
+                            <Typography variant="body2" fontWeight="500">{params.value}</Typography>
+                            <Typography variant="caption" color="text.secondary">{params.row.employee_id}</Typography>
+                        </Box>
+                    </Box>
+                )
+            },
+            {
+                field: 'check_in_date',
+                headerName: t('Date'),
+                width: 120,
+                renderCell: (params: GridRenderCellParams) => params.value ? format(parseISO(params.value), 'dd/MM/yyyy') : '-'
+            },
+            {
+                field: 'check_in',
+                headerName: t('Start'),
+                width: 100,
+                renderCell: (params: GridRenderCellParams) => params.value ? format(parseISO(params.value), 'HH:mm') : '-'
+            },
+            {
+                field: 'check_out',
+                headerName: t('End'),
+                width: 100,
+                renderCell: (params: GridRenderCellParams) => params.value ? format(parseISO(params.value), 'HH:mm') : '-'
+            },
+            {
+                field: 'break_hours',
+                headerName: t('Break'),
+                width: 100,
+                valueFormatter: (params: any) => params.value ? `${params.value}h` : '-'
+            },
+            {
+                field: 'actual_work',
+                headerName: t('Work'),
+                width: 120,
+                renderCell: (params: GridRenderCellParams) => (
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                        {params.row.actual_work < params.row.capacity && params.row.status !== 'ongoing' && (
+                            <Box
+                                sx={{
+                                    fontSize: 14,
+                                    color: ATTENDANCE_COLORS.earlyLeave,
+                                    cursor: 'pointer'
+                                }}
+                                onClick={() => alert(`${t('Under Capacity')}: ${round(params.row.capacity - params.row.actual_work, 1)}h ${t('remaining')}`)}
+                                title={`${t('Under Capacity')}: ${round(params.row.capacity - params.row.actual_work, 1)}h ${t('remaining')}`}
+                            >
+                                <Warning sx={{ fontSize: 14 }} />
+                            </Box>
+                        )}
+                        <Typography variant="body2" fontWeight="500">{params.value}h</Typography>
+                    </Box>
+                )
+            },
+            {
+                field: 'capacity',
+                headerName: t('Capacity'),
+                width: 100,
+                valueFormatter: (params: any) => params.value ? `${params.value}h` : '8.0h'
+            },
+            {
+                field: 'overtime',
+                headerName: t('Overtime'),
+                width: 120,
+                renderCell: (params: GridRenderCellParams) => (
+                    <Typography variant="body2" color={params.value > 0 ? ATTENDANCE_COLORS.present : 'text.secondary'} sx={{ fontWeight: params.value > 0 ? '600' : 'normal' }}>
+                        {params.value > 0 ? `+${params.value}h` : '-'}
+                    </Typography>
+                )
+            },
+            {
+                field: 'status',
+                headerName: t('Status'),
+                width: 120,
+                renderCell: (params: GridRenderCellParams) => {
+                    const status = params.value as string;
+                    const getStatusColor = () => {
+                        switch (status) {
+                            case 'present': return ATTENDANCE_COLORS.present;
+                            case 'late': return ATTENDANCE_COLORS.late;
+                            case 'early_leave': return ATTENDANCE_COLORS.earlyLeave;
+                            case 'ongoing': return ATTENDANCE_COLORS.ongoing;
+                            default: return ATTENDANCE_COLORS.absent;
+                        }
+                    };
+
+                    if (status?.includes('&')) {
+                        return (
+                            <Stack direction="row" spacing={0.5}>
+                                <Chip size="small" label={t('Late')} color="error" variant="outlined" />
+                                <Chip size="small" label={t('Early')} color="warning" variant="outlined" />
+                            </Stack>
+                        );
+                    }
+                    return (
+                        <Chip
+                            size="small"
+                            label={t(status || 'present')}
+                            variant="filled"
+                            sx={{
+                                backgroundColor: getStatusColor(),
+                                color: 'white',
+                                fontWeight: 500
+                            }}
+                        />
+                    );
+                }
+            }
+        ];
+    }, [filters.rawView, t]);
+
+    // Optimized handlers
+    const handleFilterChange = useCallback((key: string, value: any) => {
+        switch (key) {
+            case 'startDate':
+                filters.setStartDate(value);
+                filters.setQuickView(null);
+                break;
+            case 'endDate':
+                filters.setEndDate(value);
+                filters.setQuickView(null);
+                break;
+            case 'selectedDepartment':
+                filters.setSelectedDepartment(value);
+                filters.setQuickView(null);
+                setPage(0);
+                break;
+            case 'selectedEmployee':
+                filters.setSelectedEmployee(value);
+                filters.setQuickView(null);
+                setPage(0);
+                break;
+        }
+    }, [filters]);
+
+    const handlePageChange = useCallback((event: React.MouseEvent<HTMLButtonElement> | null, newPage: number) => {
+        setPage(newPage);
+    }, []);
+
+    const handleRowsPerPageChange = useCallback((event: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
+        setRowsPerPage(parseInt(event.target.value, 10));
+        setPage(0);
+    }, []);
+
+    if (error) {
+        return (
+            <Box sx={{ p: 3, display: 'flex', justifyContent: 'center', alignItems: 'center', height: '50vh' }}>
+                <Card sx={{ p: 3, textAlign: 'center', border: `1px solid ${theme.palette.divider}` }}>
+                    <ErrorIcon sx={{ fontSize: 48, color: 'error.main', mb: 2 }} />
+                    <Typography variant="h6" color="error.main" gutterBottom>
+                        {t('Error Loading Attendance Data')}
+                    </Typography>
+                    <Typography variant="body2" color="text.secondary" mb={2}>
+                        {error}
+                    </Typography>
+                    <Button variant="contained" onClick={refetch} startIcon={<Refresh />}>
+                        {t('Retry')}
+                    </Button>
+                </Card>
+            </Box>
+        );
+    }
+
+    return (
+        <LocalizationProvider dateAdapter={AdapterDateFns}>
+            <Box sx={{ p: 2, overflowX: 'hidden', boxSizing: 'border-box', width: '100%' }}>
+                {/* Header */}
+                <Box sx={{ mb: 3, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <Typography variant="h5" fontWeight="600">
+                        {t('Attendance Management')}
+                    </Typography>
+                </Box>
+
+                {/* Summary Cards */}
+                {!filters.rawView && (
+                    <AttendanceSummaryCards summary={summary} theme={theme} />
+                )}
+
+                {/* Consolidated Controls */}
+                <AttendanceControls
+                    filters={filters}
+                    employees={employees}
+                    departments={departments}
+                    onFilterChange={handleFilterChange}
+                    onApplyFilters={refetch}
+                    onRefresh={refetch}
+                    loading={loading}
+                />
+
+                {/* Content Area */}
+                {filters.viewMode === 'matrix' && (
+                    <MatrixView
+                        rows={rows}
+                        employees={employees}
+                        loading={loading}
+                        filters={filters}
+                        totalEmployees={totalEmployees}
+                        page={page}
+                        rowsPerPage={rowsPerPage}
+                        handlePageChange={handlePageChange}
+                        handleRowsPerPageChange={handleRowsPerPageChange}
+                        handleDateChange={filters.handleDateChange}
+                        handleZoomChange={(zoom) => {
+                            filters.setZoomLevel(zoom as 'day' | 'week' | 'month' | 'range');
+                            filters.setQuickView(null);
+                        }}
+                    />
+                )}
+
+                {filters.viewMode === 'table' && (
+                    <TableView
+                        rows={rows}
+                        columns={columns}
+                        loading={loading}
+                        totalEmployees={totalEmployees}
+                        page={page}
+                        rowsPerPage={rowsPerPage}
+                        handlePageChange={handlePageChange}
+                        handleRowsPerPageChange={handleRowsPerPageChange}
+                    />
+                )}
+
+                {filters.viewMode === 'month' && (
+                    <MonthView
+                        rows={rows}
+                        employees={employees}
+                        filters={filters}
+                        totalEmployees={totalEmployees}
+                        page={page}
+                        rowsPerPage={rowsPerPage}
+                        handlePageChange={handlePageChange}
+                        handleRowsPerPageChange={handleRowsPerPageChange}
+                    />
+                )}
+
+                {filters.viewMode === 'calendar' && (
+                    <CalendarView
+                        rows={rows}
+                        filters={filters}
+                    />
+                )}
+            </Box>
+        </LocalizationProvider>
+    );
+};
+
+export default AttendancePage;

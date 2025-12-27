@@ -177,4 +177,3 @@ const DataTable = <T extends { id: string }>({
 };
 
 export default DataTable;
-export type { Column };

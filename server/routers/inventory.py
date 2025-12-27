@@ -12,8 +12,11 @@ from ws_manager import manager
 
 router = APIRouter()
 
+import logging
+logger = logging.getLogger(__name__)
+
 # --- Warehouses ---
-@router.post("/warehouses", response_model=schemas.Warehouse)
+@router.post("/warehouses/", response_model=schemas.Warehouse)
 def create_warehouse(wh: schemas.WarehouseCreate, db: Session = Depends(get_db), user=Depends(get_current_user)):
     if user.role not in ['admin', 'manager']:
         raise HTTPException(status_code=403, detail="Not authorized")
@@ -27,7 +30,7 @@ def create_warehouse(wh: schemas.WarehouseCreate, db: Session = Depends(get_db),
         db.rollback()
         raise HTTPException(status_code=500, detail="Failed to create warehouse")
 
-@router.get("/warehouses", response_model=List[schemas.Warehouse])
+@router.get("/warehouses/", response_model=List[schemas.Warehouse])
 def get_warehouses(db: Session = Depends(get_db), current_user=Depends(require_permission("view_inventory"))):
     return db.query(core_models.Warehouse).filter(core_models.Warehouse.is_active.is_(True)).all()
 

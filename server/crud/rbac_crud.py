@@ -58,3 +58,16 @@ def get_user_roles(db: Session, user_id: str):
 
     result = db.execute(stmt).scalars().all()
     return result
+
+def check_user_permission(db: Session, user_id: str, permission_name: str):
+    """
+    Check if a user has a specific permission.
+    Returns: (bool, message)
+    """
+    # 1. Get user permissions
+    permissions = get_user_permissions(db, user_id)
+    
+    if permission_name in permissions:
+        return True, "Permission granted"
+        
+    return False, f"Permission {permission_name} not found for user"

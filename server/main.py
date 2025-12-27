@@ -173,7 +173,7 @@ def startup_event():
                 "read_shippers", "write_shippers", "read_brokers", "write_brokers", 
                 "read_conveyors", "write_conveyors", "read_articles", "write_articles", "read_payment_terms", "write_payment_terms",
                 "read_incoterms", "write_incoterms", "read_document_types", "write_document_types",
-                "view_agents", "manage_agents"
+                "view_agents", "manage_agents", "view_inventory"
             ],
             "hr_manager": [
                 "view_hr", "manage_hr"
@@ -233,16 +233,35 @@ def startup_event():
                 name="System Admin",
                 email=admin_email,
                 password=hashed_password,
-                role="admin"
+                role="admin",
+                is_active=True
             )
             db.add(default_admin)
             db.commit()
-            logger.info(f"Default admin user created: {admin_email} / {admin_password}")
+            db.refresh(default_admin)
+            
+            # Assign admin role to the user
+            admin_role = rbac_crud.get_role_by_name(db, "admin")
+            if admin_role:
+                rbac_crud.assign_role_to_user(db, default_admin.id, admin_role.id)
+                
+            logger.info(f"Default admin user created and role assigned: {admin_email} / {admin_password}")
         else:
             logger.info(f"Admin user {admin_email} already exists. Updating password...")
             admin_exists.password = get_password_hash(admin_password)
+            admin_exists.is_active = True
+            admin_exists.role = "admin"  # Ensure role is set to admin
             db.commit()
-            logger.info(f"Password for {admin_email} has been reset to default.")
+            
+            # Ensure role is assigned even if user already existed
+            admin_role = rbac_crud.get_role_by_name(db, "admin")
+            if admin_role:
+                # Check if role is already assigned
+                user_roles_list = rbac_crud.get_user_roles(db, admin_exists.id)
+                if "admin" not in user_roles_list:
+                    rbac_crud.assign_role_to_user(db, admin_exists.id, admin_role.id)
+                    
+            logger.info(f"Password for {admin_email} has been reset to default and admin role verified.")
     except Exception as e:
         logger.error(f"Startup Config Error: {e}", exc_info=True)
     finally:

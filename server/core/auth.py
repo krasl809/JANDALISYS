@@ -111,6 +111,9 @@ def get_current_user_obj(credentials: HTTPAuthorizationCredentials = Depends(sec
     """Get current user object from token (alias for get_current_user)"""
     return get_current_user(credentials, db)
 
+import logging
+logger = logging.getLogger(__name__)
+
 def require_permission(permission_name: str):
     """
     Dependency to check if the current user has the required permission.
@@ -123,12 +126,10 @@ def require_permission(permission_name: str):
              raise HTTPException(status_code=400, detail="Inactive user")
 
         if current_user.role == "admin": 
-            return current_user # Admin has all permissions? Or minimal bypass. Better to check.
-            # Usually admin has all, but strict RBAC might be better. 
-            # Given previous context, admin has all.
+            return current_user 
 
         # Check permission via RBAC Logic
-        has_perm, _ = rbac_crud.check_user_permission(db, current_user.id, permission_name)
+        has_perm, msg = rbac_crud.check_user_permission(db, current_user.id, permission_name)
         
         if not has_perm:
             raise HTTPException(

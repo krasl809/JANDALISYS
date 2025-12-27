@@ -12,7 +12,7 @@ import sys
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), 'server'))
 
 if __name__ == "__main__":
-    print("Starting Jandali ERP Server...")
+    print("Starting JANDALISYS Server...")
     print("Server will be available at: http://localhost:8000")
     print("API Documentation: http://localhost:8000/docs")
     print("Press Ctrl+C to stop the server")

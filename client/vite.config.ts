@@ -36,8 +36,8 @@ export default defineConfig({
       },
       includeAssets: ['favicon.ico', 'apple-touch-icon.png'], 
       manifest: {
-        name: 'Jandali Cashflow System',
-        short_name: 'Cashflow',
+        name: 'JANDALISYS',
+        short_name: 'JANDALISYS',
         description: 'Export & Import Contract Management System',
         theme_color: '#0F4C81',
         background_color: '#F3F4F6',

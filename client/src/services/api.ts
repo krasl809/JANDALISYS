@@ -30,10 +30,20 @@ api.interceptors.request.use(
   }
 );
 
-// Handle token expiration
+// Handle token expiration and server errors
 api.interceptors.response.use(
   (response) => response,
   (error) => {
+    // Handle Network Errors (Server Down)
+    if (!error.response) {
+      // Check if not already on offline page
+      if (!window.location.pathname.includes('/offline')) {
+        console.error('❌ Network Error: Backend server might be down');
+        window.location.href = '/offline';
+      }
+      return Promise.reject(error);
+    }
+
     if (error.response?.status === 401) {
       // Check if user is not already on login page
       if (!window.location.pathname.includes('/login')) {

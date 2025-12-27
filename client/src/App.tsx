@@ -44,6 +44,8 @@ const AddEmployeePage = lazy(() => import('./pages/employees/AddEmployeePage'));
 const EditEmployeePage = lazy(() => import('./pages/employees/EditEmployeePage'));
 const EmployeeForm = lazy(() => import('./components/employees/EmployeeForm'));
 const EmployeeImport = lazy(() => import('./pages/hr/EmployeeImport'));
+const ServerOffline = lazy(() => import('./components/pages/ServerOffline'));
+
 const LoadingFallback = () => (
   <Box display="flex" justifyContent="center" alignItems="center" height="100vh">
     <CircularProgress />
@@ -58,6 +60,7 @@ function App() {
           <Routes>
             {/* 1. Public Routes */}
             <Route path="/login" element={<Login />} />
+            <Route path="/offline" element={<ServerOffline />} />
 
             {/* 2. Protected Routes */}
             <Route element={

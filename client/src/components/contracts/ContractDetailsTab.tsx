@@ -3,22 +3,9 @@ import { Box, Card, CardContent, Grid, Typography, useTheme, alpha, Chip, Steppe
 import { ArrowForward, ImportExport, Event, EditCalendar, Map, Business, AttachMoney, Description, PriceCheck, LocalShipping, Receipt, Payment, AccountBalanceWallet, Folder, Print, Save, Send, Delete, AddCircleOutline, Remove } from '@mui/icons-material';
 import FormField from '../common/FormField';
 import DataTable, { Column } from '../common/DataTable';
+import SectionHeader from '../common/SectionHeader';
 import { v4 as uuidv4 } from 'uuid';
-import { ContractDetailsTabProps } from '../../types/contracts';
-
-const SectionHeader = ({ title, icon }: { title: string, icon: React.ReactNode }) => {
-  const theme = useTheme();
-  return (
-    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, mb: 2, pb: 1, borderBottom: `1px solid ${theme.palette.divider}` }}>
-      <Box sx={{ color: theme.palette.primary.main, display: 'flex', p: 0.5, borderRadius: 1, bgcolor: alpha(theme.palette.primary.main, 0.1) }}>
-        {icon}
-      </Box>
-      <Typography variant="subtitle1" fontWeight="700" color="text.primary">
-        {title}
-      </Typography>
-    </Box>
-  );
-};
+import { ContractDetailsTabProps, Article } from '../../types/contracts';
 
 const ContractDetailsTab: React.FC<ContractDetailsTabProps> = ({
   formData,
@@ -69,7 +56,7 @@ const ContractDetailsTab: React.FC<ContractDetailsTabProps> = ({
       type: 'autocomplete' as const,
       width: '25%',
       options: lists.articles,
-      getOptionLabel: (opt: Article) => opt.article_name,
+      getOptionLabel: (opt: Article) => opt?.article_name || '',
     },
     ...(mode === 'import' ? [{
       key: 'qty_lot',
@@ -77,7 +64,7 @@ const ContractDetailsTab: React.FC<ContractDetailsTabProps> = ({
       type: 'number' as const,
     }] : []),
     {
-      key: mode === 'export' ? 'qty_ton' : 'qty_ton',
+      key: 'qty_ton',
       label: mode === 'export' ? 'Quantity (MT)' : 'Qty (Ton)',
       type: 'number' as const,
       endAdornment: <Typography variant="caption">MT</Typography>,

@@ -1,11 +1,12 @@
 import React from 'react';
 import {
   Table, TableBody, TableCell, TableContainer, TableHead, TableRow,
-  IconButton, TextField, InputAdornment, Typography, Box, useTheme, alpha, Button
+  IconButton, TextField, InputAdornment, Typography, Box, useTheme, alpha, Button,
+  Autocomplete
 } from '@mui/material';
 import { AddCircleOutline, Remove } from '@mui/icons-material';
 
-interface Column {
+export interface Column {
   key: string;
   label: string;
   type?: 'text' | 'number' | 'autocomplete';
@@ -17,7 +18,7 @@ interface Column {
   renderCell?: (value: any, row: any, onChange: (value: any) => void) => React.ReactNode;
 }
 
-interface DataTableProps<T> {
+export interface DataTableProps<T> {
   columns: Column[];
   data: T[];
   onAdd?: () => void;
@@ -66,48 +67,51 @@ const DataTable = <T extends { id: string }>({
   };
 
   const renderCellContent = (column: Column, value: any, row: T) => {
-      if (column.renderCell) {
-        return column.renderCell(value, row, (newValue) => onChange?.(row[keyField as keyof T] as string, column.key, newValue));
-      }
-  
-      if (column.type === 'autocomplete') {
-        return (
-          <TextField
-            variant="standard"
-            select
-            value={value || ''}
-            onChange={(e) => onChange?.(row[keyField as keyof T] as string, column.key, e.target.value)}
-            sx={inputTableSx || defaultInputTableSx}
-            SelectProps={{
-              native: true,
-            }}
-          >
-            {column.options?.map((opt) => (
-              <option key={opt.id} value={opt.id}>
-                {column.getOptionLabel ? column.getOptionLabel(opt) : opt.label}
-              </option>
-            ))}
-          </TextField>
-        );
-      }
-  
-      return (
-        <TextField
-          variant="standard"
-          type={column.type || 'text'}
-          value={value || ''}
-          onChange={(e) => onChange?.(row[keyField as keyof T] as string, column.key, e.target.value)}
-          sx={inputTableSx || defaultInputTableSx}
-          InputProps={{
-            endAdornment: column.endAdornment ? (
-              <InputAdornment position="end">
-                {column.endAdornment}
-              </InputAdornment>
-            ) : undefined,
+    if (column.renderCell) {
+      return column.renderCell(value, row, (newValue) => onChange?.(row[keyField as keyof T] as string, column.key, newValue));
+    }
+
+    if (column.type === 'autocomplete') {
+      const options = column.options || [];
+      const selectedOption = options.find(opt => opt.id === value) || null;
+
+      return (            <Autocomplete
+          size="small"
+          options={options}
+          value={selectedOption}
+          onChange={(_, newValue) => {
+            onChange?.(row[keyField as keyof T] as string, column.key, newValue?.id || '');
           }}
+          getOptionLabel={(opt) => column.getOptionLabel ? column.getOptionLabel(opt) : (opt.label || opt.id || '')}
+          renderInput={(params) => (
+            <TextField 
+              {...params} 
+              variant="standard" 
+              sx={inputTableSx || defaultInputTableSx}
+            />
+          )}
+          sx={{ width: '100%' }}
         />
       );
-    };
+    }
+
+    return (
+      <TextField
+        variant="standard"
+        type={column.type || 'text'}
+        value={value || ''}
+        onChange={(e) => onChange?.(row[keyField as keyof T] as string, column.key, e.target.value)}
+        sx={inputTableSx || defaultInputTableSx}
+        InputProps={{
+          endAdornment: column.endAdornment ? (
+            <InputAdornment position="end">
+              {column.endAdornment}
+            </InputAdornment>
+          ) : undefined,
+        }}
+      />
+    );
+  };
 
   return (
     <TableContainer>

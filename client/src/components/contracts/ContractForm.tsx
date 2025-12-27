@@ -29,6 +29,8 @@ import Invoices from '../pages/Invoices';
 import Documents from '../pages/Documents'; 
 import AddEntityDialog from './AddEntityDialog'; 
 
+import SectionHeader from '../common/SectionHeader';
+
 import { 
   Entity, 
   Article, 
@@ -120,19 +122,6 @@ const AutocompleteWithAdd: React.FC<AutocompleteWithAddProps> = ({
   );
 };
 
-const SectionHeader = ({ title, icon }: { title: string, icon: React.ReactNode }) => {
-  const theme = useTheme();
-  return (
-    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, mb: 2, pb: 1, borderBottom: `1px solid ${theme.palette.divider}` }}>
-      <Box sx={{ color: theme.palette.primary.main, display: 'flex', p: 0.5, borderRadius: 1, bgcolor: alpha(theme.palette.primary.main, 0.1) }}>
-        {icon}
-      </Box>
-      <Typography variant="subtitle1" fontWeight="700" color="text.primary">
-        {title}
-      </Typography>
-    </Box>
-  );
-};
 
 const FieldLabel = ({ label, required }: { label: string, required?: boolean }) => {
   const theme = useTheme();

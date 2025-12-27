@@ -19,6 +19,7 @@ import EmploymentInfoSection from './EmploymentInfoSection';
 import DocumentsSection from './DocumentsSection';
 import SystemAccessSection from './SystemAccessSection';
 import PreviewSection from './PreviewSection';
+import SectionHeader from '../common/SectionHeader';
 import SuccessModal from './SuccessModal';
 
 interface EmployeeFormData {
@@ -177,32 +178,7 @@ const TabPanel = (props: { children?: React.ReactNode; index: number; value: num
   );
 };
 
-const SectionHeader = ({ title, icon }: { title: string, icon: React.ReactNode }) => {
-  const theme = useTheme();
-  return (
-    <Box sx={{
-      display: 'flex',
-      alignItems: 'center',
-      gap: 1.5,
-      mb: 2,
-      pb: 1,
-      borderBottom: `1px solid ${theme.palette.divider}`
-    }}>
-      <Box sx={{
-        color: theme.palette.primary.main,
-        display: 'flex',
-        p: 0.5,
-        borderRadius: 1,
-        bgcolor: alpha(theme.palette.primary.main, 0.1)
-      }}>
-        {icon}
-      </Box>
-      <Typography variant="subtitle1" fontWeight="700" color="text.primary">
-        {title}
-      </Typography>
-    </Box>
-  );
-};
+
 
 const EmployeeForm: React.FC<EmployeeFormProps> = ({ mode: propMode }) => {
   const theme = useTheme();

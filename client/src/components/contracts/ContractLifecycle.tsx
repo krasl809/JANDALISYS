@@ -3,12 +3,12 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { 
   Box, Container, Typography, Grid, Card, CardContent, Divider, Chip, 
   Stepper, Step, StepLabel, StepConnector, Button, IconButton, Stack,
-  CircularProgress, Alert
+  CircularProgress, Alert, Table, TableHead, TableBody, TableRow, TableCell
 } from '@mui/material';
 import { styled, useTheme } from '@mui/material/styles';
 import { 
   Description, LocalShipping, AccountBalance, CheckCircle, ArrowBack, 
-  Warning, Edit 
+  Warning, Edit, ReceiptLong, History
 } from '@mui/icons-material';
 import { stepConnectorClasses } from '@mui/material/StepConnector';
 import api from '../../services/api';
@@ -262,6 +262,55 @@ const ContractLifecycle = () => {
             </Card>
         </Grid>
       </Grid>
+
+      {/* 4. Financial Ledger Section */}
+      <Card elevation={0} sx={{ mt: 3, borderRadius: 4, border: `1px solid ${theme.palette.divider}`, overflow: 'hidden' }}>
+        <Box sx={{ p: 3 }}>
+          <SectionHeader title="Transaction History & Ledger" icon={<History fontSize="small" />} />
+          {ledger.length === 0 ? (
+            <Box textAlign="center" py={6}>
+              <ReceiptLong sx={{ fontSize: 48, color: 'text.disabled', mb: 1 }} />
+              <Typography color="text.secondary">No financial transactions recorded for this contract yet.</Typography>
+            </Box>
+          ) : (
+            <Box sx={{ mt: 2, overflowX: 'auto' }}>
+              <Table size="small">
+                <TableHead>
+                  <TableRow>
+                    <TableCell sx={{ fontWeight: 'bold', bgcolor: alpha(theme.palette.primary.main, 0.04) }}>Date</TableCell>
+                    <TableCell sx={{ fontWeight: 'bold', bgcolor: alpha(theme.palette.primary.main, 0.04) }}>Description</TableCell>
+                    <TableCell sx={{ fontWeight: 'bold', bgcolor: alpha(theme.palette.primary.main, 0.04) }}>Reference</TableCell>
+                    <TableCell align="right" sx={{ fontWeight: 'bold', bgcolor: alpha(theme.palette.primary.main, 0.04) }}>Debit</TableCell>
+                    <TableCell align="right" sx={{ fontWeight: 'bold', bgcolor: alpha(theme.palette.primary.main, 0.04) }}>Credit</TableCell>
+                    <TableCell align="right" sx={{ fontWeight: 'bold', bgcolor: alpha(theme.palette.primary.main, 0.04) }}>Balance</TableCell>
+                  </TableRow>
+                </TableHead>
+                <TableBody>
+                  {ledger.map((tx) => (
+                    <TableRow key={tx.id} hover>
+                      <TableCell>{tx.transaction_date}</TableCell>
+                      <TableCell>
+                        <Typography variant="body2" fontWeight="500">{tx.description}</Typography>
+                        <Typography variant="caption" color="text.secondary">{tx.type}</Typography>
+                      </TableCell>
+                      <TableCell>{tx.reference || '—'}</TableCell>
+                      <TableCell align="right" sx={{ color: 'error.main' }}>
+                        {tx.debit ? tx.debit.toLocaleString(undefined, { minimumFractionDigits: 2 }) : '—'}
+                      </TableCell>
+                      <TableCell align="right" sx={{ color: 'success.main' }}>
+                        {tx.credit ? tx.credit.toLocaleString(undefined, { minimumFractionDigits: 2 }) : '—'}
+                      </TableCell>
+                      <TableCell align="right" sx={{ fontWeight: 'bold' }}>
+                        {tx.balance?.toLocaleString(undefined, { minimumFractionDigits: 2 }) || '—'}
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </Box>
+          )}
+        </Box>
+      </Card>
     </Container>
   );
 };

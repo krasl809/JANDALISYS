@@ -8,10 +8,12 @@ import {
 import { styled, useTheme } from '@mui/material/styles';
 import { 
   Description, LocalShipping, AccountBalance, CheckCircle, ArrowBack, 
-  Download, Warning, Edit 
+  Warning, Edit 
 } from '@mui/icons-material';
 import { stepConnectorClasses } from '@mui/material/StepConnector';
 import api from '../../services/api';
+import { Contract, FinancialTransaction } from '../../types/contracts';
+import SectionHeader from '../common/SectionHeader';
 
 // Custom Styles for Pipeline
 const ColorlibConnector = styled(StepConnector)(({ theme }) => ({
@@ -32,9 +34,24 @@ const ColorlibStepIconRoot = styled('div')<{ ownerState: { completed?: boolean; 
   ...(ownerState.completed && { backgroundImage: 'linear-gradient( 136deg, rgb(74, 222, 128) 0%, rgb(34, 197, 94) 100%)' }),
 }));
 
-function ColorlibStepIcon(props: any) {
-  const icons: { [index: string]: React.ReactElement } = { 1: <Description />, 2: <LocalShipping />, 3: <AccountBalance /> };
-  return <ColorlibStepIconRoot ownerState={{ completed: props.completed, active: props.active }}>{icons[String(props.icon)]}</ColorlibStepIconRoot>;
+interface ColorlibStepIconProps {
+  active?: boolean;
+  completed?: boolean;
+  icon: React.ReactNode;
+}
+
+function ColorlibStepIcon(props: ColorlibStepIconProps) {
+  const icons: { [index: string]: React.ReactElement } = { 
+    1: <Description />, 
+    2: <LocalShipping />, 
+    3: <AccountBalance /> 
+  };
+  
+  return (
+    <ColorlibStepIconRoot ownerState={{ completed: props.completed, active: props.active }}>
+      {icons[String(props.icon)]}
+    </ColorlibStepIconRoot>
+  );
 }
 
 const ContractLifecycle = () => {
@@ -132,56 +149,89 @@ const ContractLifecycle = () => {
     );
   }
 
-  // حساب القيم المالية
+  // Calculate financial values
   const totalValue = contract.items?.reduce((sum: number, item: any) => sum + (item.total || 0), 0) || 0;
-  const currentStep = contract.status === 'draft' ? 0 : contract.status === 'confirmed' ? 1 : 2;
+  const avgPrice = contract.items?.length > 0 
+    ? contract.items.reduce((sum, item) => sum + (parseFloat(item.price) || 0), 0) / contract.items.length 
+    : 0;
+
+  const getStep = (status: string) => {
+    const s = status.toLowerCase();
+    if (s === 'draft' || s === 'pending') return 0;
+    if (s === 'active' || s === 'posted') return 1;
+    if (s === 'completed') return 2;
+    return 0;
+  };
+
+  const currentStep = getStep(contract.status);
 
   return (
-    <Container maxWidth={false} sx={{ mt: 4 }}>
+    <Container maxWidth={false} sx={{ mt: 4, pb: 4 }}>
       <Box display="flex" alignItems="center" mb={4} gap={2}>
-        <IconButton onClick={() => navigate(-1)} sx={{ border: `1px solid ${theme.palette.divider}` }}><ArrowBack /></IconButton>
+        <IconButton onClick={() => navigate(-1)} sx={{ border: `1px solid ${theme.palette.divider}`, borderRadius: 2 }}>
+          <ArrowBack />
+        </IconButton>
         <Box>
             <Box display="flex" alignItems="center" gap={2}>
-                <Typography variant="h4" fontWeight="800">{contract.contract_no || 'Draft'}</Typography>
-                <Chip label={contract.status} color="primary" sx={{ fontWeight: 'bold' }} />
+                <Typography variant="h4" fontWeight="800" color="primary.main">
+                  {contract.contract_no || 'Draft Contract'}
+                </Typography>
+                <Chip 
+                  label={contract.status.toUpperCase()} 
+                  color={contract.status === 'completed' ? 'success' : 'primary'} 
+                  sx={{ fontWeight: 'bold', borderRadius: 1.5 }} 
+                />
             </Box>
             <Typography variant="body1" color="text.secondary">
-              {contract.direction === 'import' ? 'Import' : 'Export'} — 
-              {contract.items?.[0]?.article_name || 'Not specified'}
+              {contract.direction === 'import' ? 'Import Operation' : 'Export Operation'} — 
+              {contract.items?.[0]?.article_name || 'Generic Commodity'}
             </Typography>
         </Box>
         <Box flexGrow={1} />
-        <Button variant="outlined" startIcon={<Edit />} onClick={() => navigate(`/contracts/${id}/edit`)}>Edit</Button>
+        <Stack direction="row" spacing={2}>
+          <Button 
+            variant="outlined" 
+            startIcon={<Edit />} 
+            onClick={() => navigate(`/contracts/${id}/edit`)}
+            sx={{ borderRadius: 2 }}
+          >
+            Edit Contract
+          </Button>
+        </Stack>
       </Box>
 
-      <Card sx={{ mb: 4, py: 5, borderRadius: 4 }}>
+      <Card elevation={0} sx={{ mb: 4, py: 5, borderRadius: 4, border: `1px solid ${theme.palette.divider}` }}>
         <Stepper alternativeLabel activeStep={currentStep} connector={<ColorlibConnector />}>
-          {steps.map((label) => (<Step key={label}><StepLabel StepIconComponent={ColorlibStepIcon}>{label}</StepLabel></Step>))}
+          {steps.map((label) => (
+            <Step key={label}>
+              <StepLabel StepIconComponent={ColorlibStepIcon}>{label}</StepLabel>
+            </Step>
+          ))}
         </Stepper>
       </Card>
 
       <Grid container spacing={3}>
         <Grid item xs={12} md={8}>
-            <Card sx={{ height: '100%', borderRadius: 4, p: 3 }}>
-                <Typography variant="h6" fontWeight="bold" mb={3}>Financial Summary</Typography>
-                <Box display="flex" justifyContent="space-around" textAlign="center">
+            <Card elevation={0} sx={{ height: '100%', borderRadius: 4, p: 3, border: `1px solid ${theme.palette.divider}` }}>
+                <SectionHeader title="Financial Summary" icon={<AccountBalance fontSize="small" />} />
+                <Box display="flex" justifyContent="space-around" textAlign="center" py={2}>
                     <Box>
-                      <Typography color="text.secondary">Average Price</Typography>
-                      <Typography variant="h5" fontWeight="bold">
-                        ${contract.items?.[0]?.price || 0} / MT
+                      <Typography variant="caption" color="text.secondary" fontWeight="700" sx={{ textTransform: 'uppercase' }}>Average Price</Typography>
+                      <Typography variant="h5" fontWeight="800" sx={{ mt: 1 }}>
+                        {avgPrice.toLocaleString(undefined, { minimumFractionDigits: 2 })} <Typography component="span" variant="body2" color="text.secondary">/ MT</Typography>
                       </Typography>
                     </Box>
                     <Divider orientation="vertical" flexItem />
                     <Box>
-                      <Typography color="text.secondary">Total Value</Typography>
-                      <Typography variant="h5" fontWeight="bold">
-                        ${totalValue.toLocaleString()}
+                      <Typography variant="caption" color="text.secondary" fontWeight="700" sx={{ textTransform: 'uppercase' }}>Total Value</Typography>
+                      <Typography variant="h5" fontWeight="800" color="primary.main" sx={{ mt: 1 }}>
+                        {totalValue.toLocaleString(undefined, { minimumFractionDigits: 2 })}
                       </Typography>
                     </Box>
                     <Divider orientation="vertical" flexItem />
                     <Box>
-                      <Typography color="text.secondary">Currency</Typography>
-                      <Typography variant="h5" fontWeight="bold" color="success.main">
+                      <Typography variant="caption" color="text.secondary" fontWeight="700" sx={{ textTransform: 'uppercase' }}>Currency</Typography>
+                      <Typography variant="h5" fontWeight="800" color="success.main" sx={{ mt: 1 }}>
                         {contract.contract_currency || 'USD'}
                       </Typography>
                     </Box>
@@ -189,24 +239,24 @@ const ContractLifecycle = () => {
             </Card>
         </Grid>
         <Grid item xs={12} md={4}>
-            <Card sx={{ borderRadius: 4, p: 3 }}>
-                <Typography variant="h6" fontWeight="bold" mb={2}>Contract Details</Typography>
-                <Stack spacing={2}>
-                    <Box>
-                      <Typography variant="body2" color="text.secondary">Issue Date</Typography>
-                      <Typography>{contract.issue_date || 'Not specified'}</Typography>
+            <Card elevation={0} sx={{ borderRadius: 4, p: 3, border: `1px solid ${theme.palette.divider}` }}>
+                <SectionHeader title="Key Milestones" icon={<Description fontSize="small" />} />
+                <Stack spacing={2.5} sx={{ mt: 2 }}>
+                    <Box display="flex" justifyContent="space-between">
+                      <Typography variant="body2" color="text.secondary" fontWeight="600">Issue Date</Typography>
+                      <Typography variant="body2" fontWeight="700">{contract.issue_date || '—'}</Typography>
                     </Box>
-                    <Box>
-                      <Typography variant="body2" color="text.secondary">Shipment Date</Typography>
-                      <Typography>{contract.shipment_date || 'Not specified'}</Typography>
+                    <Box display="flex" justifyContent="space-between">
+                      <Typography variant="body2" color="text.secondary" fontWeight="600">Shipment Date</Typography>
+                      <Typography variant="body2" fontWeight="700">{contract.shipment_date || '—'}</Typography>
                     </Box>
-                    <Box>
-                      <Typography variant="body2" color="text.secondary">Payment Terms</Typography>
-                      <Typography>{contract.payment_terms || 'Not specified'}</Typography>
+                    <Box display="flex" justifyContent="space-between">
+                      <Typography variant="body2" color="text.secondary" fontWeight="600">Payment Terms</Typography>
+                      <Typography variant="body2" fontWeight="700">{contract.payment_terms || '—'}</Typography>
                     </Box>
-                    <Box>
-                      <Typography variant="body2" color="text.secondary">Destination</Typography>
-                      <Typography>{contract.destination || 'Not specified'}</Typography>
+                    <Box display="flex" justifyContent="space-between">
+                      <Typography variant="body2" color="text.secondary" fontWeight="600">Destination</Typography>
+                      <Typography variant="body2" fontWeight="700">{contract.destination || '—'}</Typography>
                     </Box>
                 </Stack>
             </Card>

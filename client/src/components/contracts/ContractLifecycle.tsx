@@ -156,11 +156,21 @@ const ContractLifecycle = () => {
     : 0;
 
   const getStep = (status: string) => {
-    const s = status.toLowerCase();
-    if (s === 'draft' || s === 'pending') return 0;
-    if (s === 'active' || s === 'posted') return 1;
-    if (s === 'completed') return 2;
-    return 0;
+    const s = (status || '').toLowerCase();
+    switch (s) {
+      case 'draft':
+      case 'pending':
+        return 0;
+      case 'active':
+      case 'posted':
+        return 1;
+      case 'completed':
+        return 2;
+      case 'cancelled':
+        return -1; // Special case for cancelled
+      default:
+        return 0;
+    }
   };
 
   const currentStep = getStep(contract.status);
@@ -200,14 +210,25 @@ const ContractLifecycle = () => {
         </Stack>
       </Box>
 
-      <Card elevation={0} sx={{ mb: 4, py: 5, borderRadius: 4, border: `1px solid ${theme.palette.divider}` }}>
-        <Stepper alternativeLabel activeStep={currentStep} connector={<ColorlibConnector />}>
-          {steps.map((label) => (
-            <Step key={label}>
-              <StepLabel StepIconComponent={ColorlibStepIcon}>{label}</StepLabel>
-            </Step>
-          ))}
-        </Stepper>
+      <Card elevation={0} sx={{ 
+        mb: 4, py: 5, borderRadius: 4, 
+        border: `1px solid ${contract.status === 'cancelled' ? theme.palette.error.light : theme.palette.divider}`,
+        bgcolor: contract.status === 'cancelled' ? alpha(theme.palette.error.main, 0.02) : 'transparent'
+      }}>
+        {contract.status === 'cancelled' ? (
+          <Box textAlign="center">
+            <Warning color="error" sx={{ fontSize: 40, mb: 1 }} />
+            <Typography variant="h6" color="error.main" fontWeight="700">This contract has been cancelled</Typography>
+          </Box>
+        ) : (
+          <Stepper alternativeLabel activeStep={currentStep} connector={<ColorlibConnector />}>
+            {steps.map((label) => (
+              <Step key={label}>
+                <StepLabel StepIconComponent={ColorlibStepIcon}>{label}</StepLabel>
+              </Step>
+            ))}
+          </Stepper>
+        )}
       </Card>
 
       <Grid container spacing={3}>
@@ -306,17 +327,25 @@ const ContractLifecycle = () => {
                     </TableRow>
                   ))}
                   {/* Totals Row */}
-                  <TableRow sx={{ bgcolor: alpha(theme.palette.primary.main, 0.02) }}>
-                    <TableCell colSpan={3} sx={{ fontWeight: 'bold', textAlign: 'right', py: 2 }}>
-                      TOTALS ({contract.contract_currency})
+                  <TableRow sx={{ 
+                    bgcolor: alpha(theme.palette.primary.main, 0.05),
+                    '& td': { borderTop: `2px solid ${theme.palette.primary.main}` }
+                  }}>
+                    <TableCell colSpan={3} sx={{ fontWeight: 'bold', textAlign: 'right', py: 2, fontSize: '0.85rem' }}>
+                      SUMMARY TOTALS ({contract.contract_currency})
                     </TableCell>
-                    <TableCell align="right" sx={{ fontWeight: 'bold', color: 'error.main' }}>
+                    <TableCell align="right" sx={{ fontWeight: '800', color: 'error.main', fontSize: '0.9rem' }}>
                       {ledger.reduce((sum, tx) => sum + (tx.debit || 0), 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}
                     </TableCell>
-                    <TableCell align="right" sx={{ fontWeight: 'bold', color: 'success.main' }}>
+                    <TableCell align="right" sx={{ fontWeight: '800', color: 'success.main', fontSize: '0.9rem' }}>
                       {ledger.reduce((sum, tx) => sum + (tx.credit || 0), 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}
                     </TableCell>
-                    <TableCell align="right" sx={{ fontWeight: 'bold', bgcolor: alpha(theme.palette.primary.main, 0.05) }}>
+                    <TableCell align="right" sx={{ 
+                      fontWeight: '900', 
+                      bgcolor: alpha(theme.palette.primary.main, 0.1),
+                      color: theme.palette.primary.dark,
+                      fontSize: '1rem'
+                    }}>
                       {ledger.length > 0 ? (ledger[ledger.length - 1].balance || 0).toLocaleString(undefined, { minimumFractionDigits: 2 }) : '—'}
                     </TableCell>
                   </TableRow>

@@ -10,11 +10,13 @@ import Grid from '@mui/material/Grid2';
 import { Payment, Receipt, CheckCircle, History, Add } from '@mui/icons-material';
 import { useTheme, alpha } from '@mui/material/styles';
 import api from '../../services/api';
-import { FinancialTransaction } from '../../types/contracts';
+import SectionHeader from '../common/SectionHeader';
+import { Contract, FinancialTransaction } from '../../types/contracts';
 
-interface PaymentFormProps { 
-  contractId?: string; 
-  onSaveSuccess?: () => void; 
+interface PaymentFormProps {
+  contractId?: string;
+  isEmbedded?: boolean;
+  onSaveSuccess?: () => void;
 }
 
 // BankAccount interface
@@ -201,7 +203,7 @@ const PaymentForm: React.FC<PaymentFormProps> = ({ contractId, onSaveSuccess }) 
     fetchData();
   }, [contractId, isEmbedded]);
 
-  const handleContractChange = (contract: any) => {
+  const handleContractChange = (contract: Contract | null) => {
     if(contract) {
         setFormData({ ...formData, contract_id: contract.id, contract_no: contract.contract_no, contract_currency: contract.contract_currency || 'USD' });
         fetchPayments(contract.id); // جلب السجل عند اختيار العقد
@@ -269,8 +271,8 @@ const PaymentForm: React.FC<PaymentFormProps> = ({ contractId, onSaveSuccess }) 
         <Grid size={{ xs: 12, lg: 8 }}>
            <Card elevation={0} sx={{ border: `1px solid ${theme.palette.divider}`, borderRadius: 3 }}>
              <CardContent sx={{ p: 3 }}>
-                <Typography variant="h6" gutterBottom fontWeight="700" sx={{ mb: 3 }}>New Payment Entry</Typography>
-                <Grid container spacing={3}>
+                <SectionHeader title="New Payment Entry" icon={<Payment fontSize="small" />} />
+                <Grid container spacing={3} sx={{ mt: 1 }}>
                   {!isEmbedded && (<Grid size={{ xs: 12 }}><Typography variant="caption" fontWeight="bold" color="text.secondary">SELECT CONTRACT</Typography><Autocomplete options={contracts} getOptionLabel={(opt) => opt.contract_no} onChange={(_, val) => handleContractChange(val)} renderInput={(params) => <TextField {...params} size="small" />} /></Grid>)}
                   <Grid size={{ xs: 12, md: 6 }}><Typography variant="caption" fontWeight="bold" color="text.secondary">DATE</Typography><TextField type="date" fullWidth size="small" value={formData.payment_date} onChange={e => setFormData({...formData, payment_date: e.target.value})} /></Grid>
                   <Grid size={{ xs: 12, md: 6 }}><Typography variant="caption" fontWeight="bold" color="text.secondary">METHOD</Typography><TextField select fullWidth size="small" value={formData.payment_method} onChange={e => setFormData({...formData, payment_method: e.target.value})}>{['Bank Transfer', 'Cheque', 'Cash'].map(m => <MenuItem key={m} value={m}>{m}</MenuItem>)}</TextField></Grid>
@@ -332,11 +334,8 @@ const PaymentForm: React.FC<PaymentFormProps> = ({ contractId, onSaveSuccess }) 
 
                 {/* Payment History Table - Integrated into the same card */}
                 <Divider sx={{ my: 3 }} />
-                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 2 }}>
-                  <History fontSize="small" color="action" />
-                  <Typography variant="h6" fontWeight="bold">Transaction Ledger</Typography>
-                </Box>
-                <TableContainer sx={{ border: `1px solid ${theme.palette.divider}`, borderRadius: 2 }}>
+                <SectionHeader title="Transaction Ledger" icon={<History fontSize="small" />} />
+                <TableContainer sx={{ border: `1px solid ${theme.palette.divider}`, borderRadius: 2, mt: 2 }}>
                   <Table size="small">
                     <TableHead>
                       <TableRow sx={{ bgcolor: alpha(theme.palette.background.paper, 0.5) }}>
@@ -360,7 +359,9 @@ const PaymentForm: React.FC<PaymentFormProps> = ({ contractId, onSaveSuccess }) 
                               </Typography>
                             </TableCell>
                             <TableCell sx={{ color: 'text.secondary' }}>
-                              {row.type === 'Invoice' ? `Invoice: ${row.reference.split('-')[1] || row.reference}` : 'Payment'}
+                              {row.type === 'Invoice' 
+                                ? `Invoice: ${row.reference?.includes('-') ? row.reference.split('-')[1] : (row.reference || 'N/A')}` 
+                                : 'Payment Registration'}
                               {row.linked_transaction_id && (
                                 <Typography variant="caption" display="block" color="primary.main" sx={{ fontWeight: 'bold' }}>
                                   Linked to: {history.find(h => h.id === row.linked_transaction_id)?.reference || 'Invoice'}
@@ -399,8 +400,8 @@ const PaymentForm: React.FC<PaymentFormProps> = ({ contractId, onSaveSuccess }) 
         <Grid size={{ xs: 12, lg: 4 }}>
            <Card elevation={0} sx={{ border: `1px solid ${theme.palette.divider}`, bgcolor: alpha(theme.palette.background.paper, 0.6), borderRadius: 3, height: '100%' }}>
               <CardContent sx={{ p: 3 }}>
-                 <Box display="flex" alignItems="center" gap={1} mb={3} color="text.primary"><Receipt /><Typography variant="h6" fontWeight="bold">Payment Details</Typography></Box>
-                 <Stack spacing={2} sx={{ mb: 4 }}>
+                 <SectionHeader title="Payment Summary" icon={<Receipt fontSize="small" />} />
+                 <Stack spacing={2} sx={{ mb: 4, mt: 2 }}>
                     <Box sx={{ bgcolor: alpha(theme.palette.grey[400], 0.1), p: 2, borderRadius: 2, border: `1px solid ${alpha(theme.palette.grey[300] || theme.palette.divider, 0.3)}` }}>
                        <Box display="flex" justifyContent="space-between" alignItems="center">
                           <Typography variant="body2" sx={{ color: 'text.secondary', fontWeight: 'bold' }}>CONTRACT</Typography>

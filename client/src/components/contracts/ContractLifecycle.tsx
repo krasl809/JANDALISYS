@@ -305,6 +305,21 @@ const ContractLifecycle = () => {
                       </TableCell>
                     </TableRow>
                   ))}
+                  {/* Totals Row */}
+                  <TableRow sx={{ bgcolor: alpha(theme.palette.primary.main, 0.02) }}>
+                    <TableCell colSpan={3} sx={{ fontWeight: 'bold', textAlign: 'right', py: 2 }}>
+                      TOTALS ({contract.contract_currency})
+                    </TableCell>
+                    <TableCell align="right" sx={{ fontWeight: 'bold', color: 'error.main' }}>
+                      {ledger.reduce((sum, tx) => sum + (tx.debit || 0), 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                    </TableCell>
+                    <TableCell align="right" sx={{ fontWeight: 'bold', color: 'success.main' }}>
+                      {ledger.reduce((sum, tx) => sum + (tx.credit || 0), 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                    </TableCell>
+                    <TableCell align="right" sx={{ fontWeight: 'bold', bgcolor: alpha(theme.palette.primary.main, 0.05) }}>
+                      {ledger.length > 0 ? (ledger[ledger.length - 1].balance || 0).toLocaleString(undefined, { minimumFractionDigits: 2 }) : '—'}
+                    </TableCell>
+                  </TableRow>
                 </TableBody>
               </Table>
             </Box>

@@ -5,7 +5,7 @@ import {
   Stepper, Step, StepLabel, StepConnector, Button, IconButton, Stack,
   CircularProgress, Alert, Table, TableHead, TableBody, TableRow, TableCell
 } from '@mui/material';
-import { styled, useTheme } from '@mui/material/styles';
+import { styled, useTheme, alpha } from '@mui/material/styles';
 import { 
   Description, LocalShipping, AccountBalance, CheckCircle, ArrowBack, 
   Warning, Edit, ReceiptLong, History
@@ -150,7 +150,7 @@ const ContractLifecycle = () => {
   }
 
   // Calculate financial values
-  const totalValue = contract.items?.reduce((sum: number, item: any) => sum + (item.total || 0), 0) || 0;
+  const totalValue = contract.items?.reduce((sum: number, item: any) => sum + (Number(item.total) || 0), 0) || 0;
   const avgPrice = contract.items?.length > 0 
     ? contract.items.reduce((sum, item) => sum + (parseFloat(item.price) || 0), 0) / contract.items.length 
     : 0;
@@ -173,6 +173,19 @@ const ContractLifecycle = () => {
     }
   };
 
+  const getStatusColor = (status: string) => {
+    const s = (status || '').toLowerCase();
+    switch (s) {
+      case 'completed': return 'success';
+      case 'cancelled': return 'error';
+      case 'active':
+      case 'posted': return 'info';
+      case 'draft':
+      case 'pending': return 'warning';
+      default: return 'primary';
+    }
+  };
+
   const currentStep = getStep(contract.status);
 
   return (
@@ -188,7 +201,7 @@ const ContractLifecycle = () => {
                 </Typography>
                 <Chip 
                   label={contract.status.toUpperCase()} 
-                  color={contract.status === 'completed' ? 'success' : 'primary'} 
+                  color={getStatusColor(contract.status) as any} 
                   sx={{ fontWeight: 'bold', borderRadius: 1.5 }} 
                 />
             </Box>

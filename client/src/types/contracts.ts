@@ -120,7 +120,7 @@ export interface ContractFormData {
   loading_start_time: string;
   loading_end_date: string;
   loading_end_time: string;
-  status: 'draft' | 'posted' | 'completed';
+  status: 'draft' | 'pending' | 'active' | 'posted' | 'completed' | 'cancelled';
   pricing_status: 'pending' | 'in_review' | 'approved' | 'rejected';
 }
 

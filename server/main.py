@@ -39,7 +39,7 @@ from crud import rbac_crud
 from core.auth import authenticate_user, create_access_token, get_current_user_obj, get_password_hash, require_permission
 
 # Import routers
-from routers import contracts, conveyors, agents, financial_transactions, departments, hr, employees, notifications, dashboard, inventory, payments, bank_accounts, documents
+from routers import contracts, conveyors, agents, financial_transactions, departments, hr, notifications, dashboard, inventory, payments, bank_accounts, documents
 from rbac.rbac_main import router as rbac_router
 
 # استيراد مدير الويب سوكيت
@@ -118,7 +118,6 @@ app.include_router(agents.router, prefix="/api", tags=["agents"])
 app.include_router(financial_transactions.router, prefix="/api/financial-transactions", tags=["financial_transactions"])
 app.include_router(departments.router, prefix="/api", tags=["departments"])
 app.include_router(hr.router, prefix="/api", tags=["hr"])
-app.include_router(employees.router, prefix="/api/employees", tags=["employees"])
 app.include_router(notifications.router, prefix="/api/notifications", tags=["notifications"])
 app.include_router(dashboard.router, prefix="/api/dashboard", tags=["dashboard"])
 app.include_router(inventory.router, prefix="/api/inventory", tags=["inventory"])

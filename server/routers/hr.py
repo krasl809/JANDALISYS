@@ -72,16 +72,27 @@ def get_employees(
     offset = (page - 1) * limit
     employees = query.offset(offset).limit(limit).all()
     
+    # Pre-fetch all shift assignments for these employees in one query to avoid N+1
+    employee_ids = [emp.id for emp in employees]
+    all_assignments = db.query(hr_models.EmployeeShiftAssignment).filter(
+        hr_models.EmployeeShiftAssignment.employee_id.in_(employee_ids)
+    ).order_by(hr_models.EmployeeShiftAssignment.start_date.desc()).all()
+    
+    # Group assignments by employee_id
+    assignments_map = {}
+    for assignment in all_assignments:
+        if assignment.employee_id not in assignments_map:
+            assignments_map[assignment.employee_id] = []
+        assignments_map[assignment.employee_id].append(assignment)
+
     result = []
     for emp in employees:
-        # Get active and recent shift assignments
-        assignments = db.query(hr_models.EmployeeShiftAssignment).filter(
-            hr_models.EmployeeShiftAssignment.employee_id == emp.id
-        ).order_by(hr_models.EmployeeShiftAssignment.start_date.desc()).all()
+        # Get assignments from map
+        emp_assignments = assignments_map.get(emp.id, [])
         
         # Format assignments with shift data
         assignment_list = []
-        for assignment in assignments:
+        for assignment in emp_assignments:
             assignment_list.append({
                 "id": assignment.id,
                 "shift_id": assignment.shift_id,
@@ -98,21 +109,21 @@ def get_employees(
         
         result.append({
             "id": str(emp.id),
-            "employee_id": emp.code, # Match frontend expectation
-            "name": emp.full_name,   # Match frontend expectation
+            "employee_id": emp.code,
+            "name": emp.full_name,
             "first_name": emp.first_name,
             "last_name": emp.last_name,
-            "email": emp.work_email, # Match frontend expectation
+            "email": emp.work_email,
             "department": emp.department_name,
             "department_id": str(emp.department_id) if emp.department_id else None,
             "company": emp.company,
             "position": emp.position,
             "status": emp.status,
-            "hire_date": emp.joining_date.isoformat() if emp.joining_date else None, # Match frontend
-            "is_active": emp.status == "active", # Match frontend
+            "hire_date": emp.joining_date.isoformat() if emp.joining_date else None,
+            "is_active": emp.status == "active",
             "user_id": str(emp.user_id) if emp.user_id else None,
             "has_system_access": emp.user_id is not None,
-            "shift_assignments": assignment_list  # Include shift assignments
+            "shift_assignments": assignment_list
         })
     
     active_total = db.query(employee_models.Employee).filter(employee_models.Employee.status == "active").count()
@@ -224,6 +235,69 @@ def execute_import(
     service = EmployeeImportService(db)
     return service.execute_import(payload.get("data", []), payload.get("options", {}), current_user.id)
 
+# --- ZKTECO DEVICES ---
+
+@router.get("/devices")
+def get_devices(db: Session = Depends(get_db)):
+    devices = db.query(hr_models.ZkDevice).all()
+    return [{
+        "id": d.id,
+        "name": d.name,
+        "ip_address": d.ip_address,
+        "port": d.port,
+        "status": d.status,
+        "last_sync": d.last_sync.isoformat() if d.last_sync else None
+    } for d in devices]
+
+@router.post("/devices/sync-multiple")
+def sync_multiple_devices(
+    payload: dict,
+    db: Session = Depends(get_db),
+    current_user = Depends(require_permission(PERM_HR_WRITE))
+):
+    """Sync multiple devices at once"""
+    device_ids = payload.get("device_ids", [])
+    if not device_ids:
+        # If no IDs provided, sync all online/active devices
+        devices = db.query(hr_models.ZkDevice).all()
+        device_ids = [d.id for d in devices]
+    
+    service = ZkTecoService(db)
+    results = []
+    total_new_logs = 0
+    
+    for d_id in device_ids:
+        try:
+            res = service.sync_device(d_id)
+            results.append({
+                "device_id": d_id,
+                "status": res.get("status"),
+                "message": res.get("message"),
+                "logs_count": res.get("logs_count", 0)
+            })
+            total_new_logs += res.get("logs_count", 0)
+        except Exception as e:
+            results.append({
+                "device_id": d_id,
+                "status": "error",
+                "message": str(e)
+            })
+            
+    return {
+        "status": "success",
+        "total_new_logs": total_new_logs,
+        "details": results
+    }
+
+@router.post("/devices/{device_id}/sync")
+def sync_device(
+    device_id: int, 
+    db: Session = Depends(get_db),
+    current_user = Depends(require_permission(PERM_HR_WRITE))
+):
+    service = ZkTecoService(db)
+    return service.sync_device(device_id)
+
 # --- ATTENDANCE (Updated for new schema) ---
 
 @router.get("/attendance")
@@ -238,7 +312,7 @@ def get_attendance(
     query = db.query(
         hr_models.AttendanceLog,
         employee_models.Employee
-    ).join(
+    ).outerjoin(
         employee_models.Employee, 
         or_(
             hr_models.AttendanceLog.employee_pk == employee_models.Employee.id,
@@ -266,9 +340,9 @@ def get_attendance(
     # Format Raw Logs
     raw_results = [{
         "id": log.AttendanceLog.id,
-        "employee_id": log.Employee.code,
-        "employee_pk": str(log.Employee.id),
-        "employee_name": log.Employee.full_name,
+        "employee_id": log.Employee.code if log.Employee else log.AttendanceLog.employee_id,
+        "employee_pk": str(log.Employee.id) if log.Employee else None,
+        "employee_name": log.Employee.full_name if log.Employee else f"Unknown ({log.AttendanceLog.employee_id})",
         "timestamp": log.AttendanceLog.timestamp.isoformat(),
         "type": log.AttendanceLog.type,
         "status": log.AttendanceLog.status,
@@ -493,12 +567,6 @@ def assign_shift(assignment: dict, db: Session = Depends(get_db)):
     db.commit()
     return {"status": "success"}
 
-# --- DEVICES ---
-@router.get("/devices")
-def get_devices(db: Session = Depends(get_db)):
-    devices = db.query(hr_models.ZkDevice).all()
-    return [{"id": d.id, "name": d.name, "ip_address": d.ip_address, "port": d.port, "location": d.location, "status": d.status, "last_sync": d.last_sync} for d in devices]
-
 @router.post("/devices")
 def create_device(device: dict, db: Session = Depends(get_db), current_user = Depends(require_permission(PERM_HR_WRITE))):
     db_device = hr_models.ZkDevice(**device)
@@ -519,14 +587,8 @@ def delete_device(device_id: int, db: Session = Depends(get_db), current_user = 
     db.commit()
     return {"status": "success"}
 
-@router.post("/ping/{device_id}")
-def ping_device(device_id: int, db: Session = Depends(get_db)):
+@router.post("/devices/{device_id}/ping")
+def ping_device(device_id: int, db: Session = Depends(get_db), current_user = Depends(require_permission(PERM_HR_WRITE))):
     zk_service = ZkTecoService(db)
     result = zk_service.ping_device(device_id)
     return {"status": "success", "online": result["status"] == "online"}
-
-@router.post("/sync/{device_id}")
-def sync_device(device_id: int, db: Session = Depends(get_db)):
-    zk_service = ZkTecoService(db)
-    result = zk_service.sync_device(device_id)
-    return result

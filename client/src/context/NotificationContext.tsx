@@ -89,7 +89,7 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
 
       // WebSocket connection
       const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-      const wsUrl = `${wsProtocol}//${window.location.hostname}:8001/ws`;
+      const wsUrl = `${wsProtocol}//${window.location.host}/ws`;
       const socket = new WebSocket(wsUrl);
 
       socket.onmessage = (event) => {

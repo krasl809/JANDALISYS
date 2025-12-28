@@ -3,19 +3,21 @@ import {
     Box, Typography, Grid, Paper, Button, TextField, Dialog, DialogTitle,
     DialogContent, DialogActions, Chip, IconButton, Card, CardContent, Divider, Alert, LinearProgress
 } from '@mui/material';
-import { Add, Sync, Dns, Circle, Delete, Edit } from '@mui/icons-material';
+import { Add, Sync, Dns, Circle, Delete, Edit, CheckBox, CheckBoxOutlineBlank } from '@mui/icons-material';
 import api from '../../services/api';
 import { useTranslation } from 'react-i18next';
 
 const DevicesPage: React.FC = () => {
     const { t } = useTranslation();
     const [devices, setDevices] = useState<any[]>([]);
+    const [selectedDevices, setSelectedDevices] = useState<Set<number>>(new Set());
     const [openAdd, setOpenAdd] = useState(false);
     const [openEdit, setOpenEdit] = useState(false);
     const [editingDevice, setEditingDevice] = useState<any>(null);
     const [newDevice, setNewDevice] = useState({ name: '', ip_address: '192.168.1.201', port: 4370, location: '' });
     const [syncing, setSyncing] = useState<number | null>(null);
-    const [feedback, setFeedback] = useState<{ type: 'success' | 'error', msg: string } | null>(null);
+    const [multiSyncing, setMultiSyncing] = useState(false);
+    const [feedback, setFeedback] = useState<{ type: 'success' | 'error' | 'info', msg: string } | null>(null);
     const [pinging, setPinging] = useState<Set<number>>(new Set());
     const [progress, setProgress] = useState<{ [key: number]: number }>({});
 
@@ -45,7 +47,7 @@ const DevicesPage: React.FC = () => {
             }
         }, 50);
         try {
-            await api.post(`/hr/ping/${id}`);
+            await api.post(`/hr/devices/${id}/ping`);
             // Wait for animation to complete if not yet
             const elapsed = Date.now() - startTime;
             if (elapsed < duration) {
@@ -114,7 +116,7 @@ const DevicesPage: React.FC = () => {
         setSyncing(id);
         setFeedback(null);
         try {
-            const res = await api.post(`/hr/sync/${id}`);
+            const res = await api.post(`/hr/devices/${id}/sync`);
             if (res.data.status === 'success' || res.data.status === 'warning') {
                 setFeedback({ type: 'success', msg: res.data.message });
             } else {
@@ -128,16 +130,86 @@ const DevicesPage: React.FC = () => {
         }
     };
 
+    const handleSyncMultiple = async (all: boolean = false) => {
+        const deviceIds = all ? devices.map(d => d.id) : Array.from(selectedDevices);
+        
+        if (deviceIds.length === 0) {
+            setFeedback({ type: 'error', msg: 'No devices selected' });
+            return;
+        }
+
+        setMultiSyncing(true);
+        setFeedback({ type: 'info', msg: 'Syncing multiple devices...' });
+        
+        try {
+            const res = await api.post('/hr/devices/sync-multiple', { device_ids: deviceIds });
+            if (res.data.status === 'success') {
+                setFeedback({ 
+                    type: 'success', 
+                    msg: `Successfully synced. Total new logs: ${res.data.total_new_logs}` 
+                });
+                fetchDevices();
+            }
+        } catch (error) {
+            setFeedback({ type: 'error', msg: 'Collective sync failed' });
+        } finally {
+            setMultiSyncing(false);
+        }
+    };
+
+    const toggleSelect = (id: number) => {
+        setSelectedDevices(prev => {
+            const newSet = new Set(prev);
+            if (newSet.has(id)) newSet.delete(id);
+            else newSet.add(id);
+            return newSet;
+        });
+    };
+
+    const selectAll = () => {
+        if (selectedDevices.size === devices.length) {
+            setSelectedDevices(new Set());
+        } else {
+            setSelectedDevices(new Set(devices.map(d => d.id)));
+        }
+    };
+
     return (
         <Box sx={{ p: 3, overflowX: 'hidden', boxSizing: 'border-box', width: '100%' }}>
-            <Box sx={{ mb: 4, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <Box sx={{ mb: 4, display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 2 }}>
                 <Box>
                     <Typography variant="h4" fontWeight="bold">{t('Biometric Devices')}</Typography>
                     <Typography variant="body2" color="text.secondary">{t('Manage ZKTeco SpeedFace connections')}</Typography>
                 </Box>
-                <Button variant="contained" startIcon={<Add />} onClick={() => setOpenAdd(true)}>
-                    {t('Add Device')}
-                </Button>
+                <Box sx={{ display: 'flex', gap: 1 }}>
+                    {devices.length > 0 && (
+                        <>
+                            <Button 
+                                variant="outlined" 
+                                color="secondary"
+                                startIcon={multiSyncing ? <Sync sx={{ animation: 'spin 1s linear infinite' }} /> : <Sync />}
+                                onClick={() => handleSyncMultiple(false)}
+                                disabled={multiSyncing || selectedDevices.size === 0}
+                            >
+                                {t('Sync Selected')} ({selectedDevices.size})
+                            </Button>
+                            <Button 
+                                variant="outlined" 
+                                startIcon={multiSyncing ? <Sync sx={{ animation: 'spin 1s linear infinite' }} /> : <Sync />}
+                                onClick={() => handleSyncMultiple(true)}
+                                disabled={multiSyncing}
+                            >
+                                {t('Sync All')}
+                            </Button>
+                            <Button variant="outlined" onClick={selectAll}>
+                                {selectedDevices.size === devices.length ? t('Deselect All') : t('Select All')}
+                            </Button>
+                        </>
+                    )}
+                    <Button variant="contained" startIcon={<Add />} onClick={() => setOpenAdd(true)}>
+                        {t('Add Device')}
+                    </Button>
+                </Box>
             </Box>
 
             {feedback && <Alert severity={feedback.type} sx={{ mb: 3 }} onClose={() => setFeedback(null)}>{feedback.msg}</Alert>}
@@ -145,14 +217,27 @@ const DevicesPage: React.FC = () => {
             <Grid container spacing={3} sx={{ overflowX: 'hidden' }}>
                 {devices.map((device) => (
                     <Grid item xs={12} md={6} lg={4} key={device.id}>
-                        <Card elevation={3} sx={{ borderRadius: 3, position: 'relative', overflow: 'visible' }}>
+                        <Card elevation={3} sx={{ 
+                            borderRadius: 3, 
+                            position: 'relative', 
+                            overflow: 'visible',
+                            border: selectedDevices.has(device.id) ? '2px solid' : 'none',
+                            borderColor: 'primary.main'
+                        }}>
+                            <IconButton 
+                                sx={{ position: 'absolute', top: -10, left: -10, bgcolor: 'background.paper', boxShadow: 1, '&:hover': { bgcolor: 'background.paper' } }}
+                                onClick={() => toggleSelect(device.id)}
+                                color={selectedDevices.has(device.id) ? "primary" : "default"}
+                            >
+                                {selectedDevices.has(device.id) ? <CheckBox /> : <CheckBoxOutlineBlank />}
+                            </IconButton>
                             <Box sx={{
                                 position: 'absolute', top: 16, right: 16,
                                 width: 12, height: 12, borderRadius: '50%',
                                 bgcolor: device.status === 'online' ? '#00e676' : '#ff1744',
                                 boxShadow: `0 0 10px ${device.status === 'online' ? '#00e676' : '#ff1744'}`
                             }} />
-                            <CardContent>
+                            <CardContent onClick={() => toggleSelect(device.id)} sx={{ cursor: 'pointer' }}>
                                 <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
                                     <Box sx={{ p: 1.5, borderRadius: 2, bgcolor: 'primary.light', color: 'white', mr: 2 }}>
                                         <Dns />

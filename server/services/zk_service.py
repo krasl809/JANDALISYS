@@ -44,7 +44,9 @@ class ZkTecoService:
             new_logs_count = 0
 
             # Get Employees map for referencing by their device code
-            employees_map = {e.code: e.id for e in self.db.query(employee_models.Employee).all()}
+            # Note: We query all active employees to map device user_id to internal PK
+            employees = self.db.query(employee_models.Employee).all()
+            employees_map = {str(e.code): e.id for e in employees}
 
             for log in logs:
                 # Check if log exists

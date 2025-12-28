@@ -122,14 +122,19 @@ def require_permission(permission_name: str):
         current_user: User = Depends(get_current_user_obj),
         db: Session = Depends(get_db)
     ):
+        logger.error(f"AUTH_DEBUG: check_permission for user: {current_user.email}, role: {current_user.role}, required: {permission_name}")
+        
         if not current_user.is_active:
+             logger.error(f"AUTH_DEBUG: User {current_user.email} is inactive")
              raise HTTPException(status_code=400, detail="Inactive user")
 
         if current_user.role == "admin": 
+            logger.error(f"AUTH_DEBUG: User {current_user.email} is admin, bypassing check")
             return current_user 
 
         # Check permission via RBAC Logic
         has_perm, msg = rbac_crud.check_user_permission(db, current_user.id, permission_name)
+        logger.error(f"AUTH_DEBUG: RBAC check for {current_user.email}: {has_perm} - {msg}")
         
         if not has_perm:
             raise HTTPException(

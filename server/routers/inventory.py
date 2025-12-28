@@ -32,6 +32,7 @@ def create_warehouse(wh: schemas.WarehouseCreate, db: Session = Depends(get_db),
 
 @router.get("/warehouses/", response_model=List[schemas.Warehouse])
 def get_warehouses(db: Session = Depends(get_db), current_user=Depends(require_permission("view_inventory"))):
+    logger.error(f"DEBUG: get_warehouses called by {current_user.email}")
     return db.query(core_models.Warehouse).filter(core_models.Warehouse.is_active.is_(True)).all()
 
 # --- Stock/Inventory ---

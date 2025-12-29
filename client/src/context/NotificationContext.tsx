@@ -32,7 +32,10 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
   const [loading, setLoading] = useState(false);
 
   const fetchNotifications = useCallback(async (signal?: AbortSignal) => {
-    if (!user) return;
+    const token = localStorage.getItem('access_token');
+    if (!user?.id || !token) {
+      return;
+    }
     
     setLoading(true);
     
@@ -43,15 +46,19 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
       const countResponse = await api.get('/notifications/unread-count', { signal });
       setUnreadCount(countResponse.data.unread_count);
     } catch (error: any) {
-      if (error.name === 'AbortError' || error.name === 'CanceledError' || axios.isCancel(error)) {
-        // Request was aborted, ignore
+      if (axios.isCancel(error) || error.name === 'AbortError' || error.code === 'ERR_CANCELED') {
         return;
       }
+      
+      if (error.response?.status === 401) {
+        return; // api.ts will handle redirect
+      }
+      
       console.error('Failed to fetch notifications:', error);
     } finally {
       setLoading(false);
     }
-  }, [user]);
+  }, [user?.id]);
 
   const markAsRead = async (id: string) => {
     try {
@@ -97,25 +104,24 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
     const controller = new AbortController();
 
     const connectWebSocket = () => {
-      if (!user) return;
+      const token = localStorage.getItem('access_token');
+      if (!user?.id || !token) {
+        return;
+      }
 
       // Close existing socket if any
       if (socket) {
         try {
+          socket.onclose = null;
+          socket.onerror = null;
           socket.close();
         } catch (e) {}
       }
 
-      let wsUrl: string;
       const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
       const host = window.location.host;
+      const wsUrl = `${protocol}//${host}/ws`;
       
-      // In development, we use the Vite proxy which is at /ws
-      // Use 127.0.0.1 instead of localhost if host is localhost to avoid some proxy issues
-      const cleanHost = host.includes('localhost') ? host.replace('localhost', '127.0.0.1') : host;
-      wsUrl = `${protocol}//${cleanHost}/ws`;
-      
-      console.log('Attempting WebSocket connection to:', wsUrl);
       try {
         socket = new WebSocket(wsUrl);
 
@@ -128,29 +134,30 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
                 setNotifications(prev => [newNotif, ...prev]);
                 setUnreadCount(prev => prev + 1);
 
-                if (Notification.permission === 'granted') {
+                if ('Notification' in window && Notification.permission === 'granted') {
                   new Notification(newNotif.title, {
                     body: newNotif.message,
+                    icon: '/favicon.ico'
                   });
                 }
               }
             }
           } catch (error) {
-            console.log('WebSocket message:', event.data);
+            // Ignore non-JSON
           }
         };
 
         socket.onopen = () => {
-          console.log('✅ WebSocket connected successfully');
+          if (import.meta.env.DEV) console.log('✅ WebSocket connected');
         };
 
         socket.onerror = (error) => {
-          console.error('❌ WebSocket connection error. This might be due to server being down or proxy issues.');
+          if (!socket || socket.readyState === WebSocket.CLOSED || socket.readyState === WebSocket.CLOSING) return;
+          if (import.meta.env.DEV) console.error('❌ WebSocket error:', error);
         };
 
         socket.onclose = (event) => {
-          if (event.code !== 1000) { // Not normal closure
-            console.log(`WebSocket disconnected (Code: ${event.code}). Reconnecting in 5s...`);
+          if (event.code !== 1000 && user?.id && localStorage.getItem('access_token')) { 
             reconnectTimeout = setTimeout(connectWebSocket, 5000);
           }
         };
@@ -159,7 +166,7 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
       }
     };
 
-    if (user) {
+    if (user?.id) {
       fetchNotifications(controller.signal);
       connectWebSocket();
     } else {
@@ -170,13 +177,15 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
     return () => {
       controller.abort();
       if (socket) {
+        socket.onclose = null;
+        socket.onerror = null;
         socket.close();
       }
       if (reconnectTimeout) {
         clearTimeout(reconnectTimeout);
       }
     };
-  }, [user, fetchNotifications]);
+  }, [user?.id, fetchNotifications]);
 
   // Request notification permission on mount
   useEffect(() => {

@@ -1691,14 +1691,14 @@ const ContractForm: React.FC<ContractFormProps> = ({ mode: propMode }) => {
                                           <Divider sx={{ my: 1 }} />
                                           <Box display="flex" justifyContent="space-between" alignItems="center">
                                               <Box>
-                                                  <Typography variant="body2" fontWeight="600" color={netBalance >= 0 ? "warning.main" : "success.main"}>
+                                                  <Typography variant="body2" fontWeight="600" color={netBalance >= 0 ? "error.main" : "success.main"}>
                                                       Outstanding Balance
                                                   </Typography>
                                                   <Typography variant="caption" color="text.secondary">
                                                       {netBalance >= 0 ? 'Amount still owed' : 'Overpayment/Credit balance'}
                                                   </Typography>
                                               </Box>
-                                              <Typography variant="h5" fontWeight="800" color={netBalance >= 0 ? "warning.main" : "success.main"}>
+                                              <Typography variant="h5" fontWeight="800" color={netBalance >= 0 ? "error.main" : "success.main"}>
                                                   {formData.contract_currency} {netBalance.toLocaleString()}
                                               </Typography>
                                           </Box>

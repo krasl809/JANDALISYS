@@ -1,3 +1,4 @@
+import uuid
 from sqlalchemy.orm import Session
 from sqlalchemy import select, func
 from fastapi import HTTPException
@@ -26,7 +27,11 @@ def create_permission(db: Session, name: str):
     db.refresh(perm)
     return perm
 
-def assign_permission_to_role(db: Session, role_id: str, permission_id: str):
+def assign_permission_to_role(db: Session, role_id, permission_id):
+    # Ensure UUIDs
+    if isinstance(role_id, str): role_id = uuid.UUID(role_id)
+    if isinstance(permission_id, str): permission_id = uuid.UUID(permission_id)
+    
     exists_stmt = select(role_permissions.c.role_id).where(
         role_permissions.c.role_id == role_id,
         role_permissions.c.permission_id == permission_id
@@ -36,12 +41,29 @@ def assign_permission_to_role(db: Session, role_id: str, permission_id: str):
         db.execute(stmt)
         db.commit()
 
-def assign_role_to_user(db: Session, user_id: str, role_id: str):
-    stmt = user_roles.insert().values(user_id=user_id, role_id=role_id)
-    db.execute(stmt)
-    db.commit()
+def assign_role_to_user(db: Session, user_id, role_id):
+    # Ensure UUIDs
+    if isinstance(user_id, str): user_id = uuid.UUID(user_id)
+    if isinstance(role_id, str): role_id = uuid.UUID(role_id)
+    
+    # Check if already assigned
+    exists_stmt = select(user_roles.c.user_id).where(
+        user_roles.c.user_id == user_id,
+        user_roles.c.role_id == role_id
+    )
+    if db.execute(exists_stmt).first() is None:
+        stmt = user_roles.insert().values(user_id=user_id, role_id=role_id)
+        db.execute(stmt)
+        db.commit()
 
-def get_user_permissions(db: Session, user_id: str):
+def get_user_permissions(db: Session, user_id):
+    # Ensure UUID
+    if isinstance(user_id, str):
+        try:
+            user_id = uuid.UUID(user_id)
+        except ValueError:
+            pass # Keep as string if not a valid UUID
+            
     stmt = select(Permission.name).join(
         role_permissions, Permission.id == role_permissions.c.permission_id
     ).join(
@@ -51,7 +73,14 @@ def get_user_permissions(db: Session, user_id: str):
     result = db.execute(stmt).scalars().all()
     return result
 
-def get_user_roles(db: Session, user_id: str):
+def get_user_roles(db: Session, user_id):
+    # Ensure UUID
+    if isinstance(user_id, str):
+        try:
+            user_id = uuid.UUID(user_id)
+        except ValueError:
+            pass
+            
     stmt = select(Role.name).join(
         user_roles, Role.id == user_roles.c.role_id
     ).where(user_roles.c.user_id == user_id)
@@ -59,7 +88,7 @@ def get_user_roles(db: Session, user_id: str):
     result = db.execute(stmt).scalars().all()
     return result
 
-def check_user_permission(db: Session, user_id: str, permission_name: str):
+def check_user_permission(db: Session, user_id, permission_name: str):
     """
     Check if a user has a specific permission.
     Returns: (bool, message)

@@ -1,0 +1,29 @@
+services:
+  backend:
+    build:
+      context: .
+      dockerfile: server/Dockerfile
+    container_name: jandalisys-backend
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./server/data:/app/data
+      - ./storage:/app/storage
+    environment:
+      - DATABASE_URL=sqlite:///./data/cashflow.db
+    restart: always
+
+  frontend:
+    build:
+      context: .
+      dockerfile: client/Dockerfile
+    container_name: jandalisys-frontend
+    ports:
+      - "80:80"
+    depends_on:
+      - backend
+    restart: always
+
+volumes:
+  db_data:
+  storage_data:

@@ -74,6 +74,25 @@ const RoleManagement: React.FC = () => {
     'view_financial_reports'
   ];
 
+  const archivePermissions = [
+    'archive_read',
+    'archive_upload',
+    'archive_download',
+    'archive_delete',
+    'archive_write'
+  ];
+
+  const departmentPermissions = [
+    'view_dashboard',
+    'read_contracts',
+    'read_pricing',
+    'read_payments',
+    'view_reports',
+    'view_inventory',
+    'view_hr',
+    'view_settings'
+  ];
+
   useEffect(() => {
     fetchData();
   }, []);
@@ -297,14 +316,33 @@ const RoleManagement: React.FC = () => {
               rows={2}
             />
             
-            <Typography variant="h6">{t('financialPermissions')}</Typography>
+            <Typography variant="h6" sx={{ mt: 2 }}>{t('Archive Permissions')}</Typography>
             <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>
-              {financialPermissions.map(perm => (
+              {archivePermissions.map(perm => (
                 <Chip
                   key={perm}
-                  label={perm}
+                  label={t(perm)}
                   clickable
-                  color={selectedPermissions.includes(perm) ? 'primary' : 'default'}
+                  color={selectedPermissions.includes(perm) ? 'secondary' : 'default'}
+                  onClick={() => {
+                    setSelectedPermissions(prev =>
+                      prev.includes(perm) 
+                        ? prev.filter(p => p !== perm)
+                        : [...prev, perm]
+                    );
+                  }}
+                />
+              ))}
+            </Box>
+
+            <Typography variant="h6" sx={{ mt: 2 }}>{t('Departmental Access')}</Typography>
+            <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>
+              {departmentPermissions.map(perm => (
+                <Chip
+                  key={perm}
+                  label={t(perm)}
+                  clickable
+                  color={selectedPermissions.includes(perm) ? 'success' : 'default'}
                   onClick={() => {
                     setSelectedPermissions(prev =>
                       prev.includes(perm) 

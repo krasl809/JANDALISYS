@@ -7,11 +7,14 @@ from core.database import get_db
 from models import archive_models, core_models
 import schemas.schemas as schemas
 from core.auth import get_current_user_obj, require_permission, get_user_from_raw_token
+from crud import rbac_crud
 import os
 import shutil
 import uuid
 import datetime
 import urllib.parse
+import subprocess
+import platform
 from typing import List, Optional
 
 router = APIRouter(prefix="/archive", tags=["Archive Management"])
@@ -51,7 +54,7 @@ def ensure_storage(db: Session):
     db.commit()
 
 @router.get("/init")
-def init_archive(db: Session = Depends(get_db), current_user = Depends(get_current_user_obj)):
+def init_archive(db: Session = Depends(get_db), current_user = Depends(require_permission("archive_write"))):
     ensure_storage(db)
     return {"status": "initialized"}
 
@@ -59,7 +62,7 @@ def init_archive(db: Session = Depends(get_db), current_user = Depends(get_curre
 def get_folders(
     parent_id: Optional[int] = Query(None),
     db: Session = Depends(get_db),
-    current_user = Depends(get_current_user_obj)
+    current_user = Depends(require_permission("archive_read"))
 ):
     query = db.query(archive_models.ArchiveFolder).filter(archive_models.ArchiveFolder.parent_id == parent_id)
     return query.all()
@@ -68,7 +71,7 @@ def get_folders(
 def create_folder(
     folder_data: schemas.ArchiveFolderCreate,
     db: Session = Depends(get_db),
-    current_user = Depends(get_current_user_obj)
+    current_user = Depends(require_permission("archive_upload"))
 ):
     ensure_storage(db)
     # Get parent path
@@ -100,7 +103,7 @@ def create_folder(
 def get_files(
     folder_id: int,
     db: Session = Depends(get_db),
-    current_user = Depends(get_current_user_obj)
+    current_user = Depends(require_permission("archive_read"))
 ):
     return db.query(archive_models.ArchiveFile).filter(archive_models.ArchiveFile.folder_id == folder_id).all()
 
@@ -121,6 +124,10 @@ def view_file(
         
     try:
         current_user = get_user_from_raw_token(token, db)
+        # Check permission
+        has_perm, _ = rbac_crud.check_user_permission(db, str(current_user.id), "archive_read")
+        if not has_perm:
+            raise HTTPException(status_code=403, detail="Permission archive_read required")
         print(f"DEBUG: Auth success for {current_user.email}")
     except Exception as e:
         print(f"DEBUG: Auth failed: {str(e)}")
@@ -172,6 +179,10 @@ def download_file(
         
     try:
         current_user = get_user_from_raw_token(token, db)
+        # Check permission
+        has_perm, _ = rbac_crud.check_user_permission(db, str(current_user.id), "archive_download")
+        if not has_perm:
+            raise HTTPException(status_code=403, detail="Permission archive_download required")
     except Exception as e:
         raise HTTPException(status_code=401, detail=f"Auth failed: {str(e)}")
 
@@ -203,7 +214,7 @@ def download_file(
 def search_archive(
     q: str = Query(...),
     db: Session = Depends(get_db),
-    current_user = Depends(get_current_user_obj)
+    current_user = Depends(require_permission("archive_read"))
 ):
     # Search in folders and files
     folders = db.query(archive_models.ArchiveFolder).filter(
@@ -223,30 +234,130 @@ def search_archive(
         "files": files
     }
 
+@router.get("/stats")
+def get_archive_stats(
+    db: Session = Depends(get_db),
+    current_user = Depends(require_permission("archive_read"))
+):
+    try:
+        total_folders = db.query(func.count(archive_models.ArchiveFolder.id)).scalar()
+        total_files = db.query(func.count(archive_models.ArchiveFile.id)).scalar()
+        
+        # Calculate total size
+        total_size = db.query(func.sum(archive_models.ArchiveFile.file_size)).scalar() or 0
+        
+        # Files by extension (top 5)
+        files_by_ext_raw = db.query(
+            archive_models.ArchiveFile.file_type, 
+            func.count(archive_models.ArchiveFile.id)
+        ).group_by(archive_models.ArchiveFile.file_type).order_by(func.count(archive_models.ArchiveFile.id).desc()).limit(5).all()
+        
+        files_by_ext = [{"ext": ext or "Unknown", "count": count} for ext, count in files_by_ext_raw]
+        
+        # Recent activity (last 5 files)
+        recent_files = db.query(archive_models.ArchiveFile).order_by(archive_models.ArchiveFile.created_at.desc()).limit(5).all()
+        activity = []
+        for f in recent_files:
+            activity.append({
+                "id": f.id,
+                "name": f.name,
+                "created_at": f.created_at,
+                "type": "file_upload"
+            })
+            
+        # Files per month (last 6 months)
+        six_months_ago = datetime.datetime.now() - datetime.timedelta(days=180)
+        monthly_stats_raw = db.query(
+            func.strftime('%Y-%m', archive_models.ArchiveFile.created_at).label('month'),
+            func.count(archive_models.ArchiveFile.id)
+        ).filter(archive_models.ArchiveFile.created_at >= six_months_ago).group_by('month').all()
+        
+        monthly_stats = [{"month": m, "count": c} for m, c in monthly_stats_raw]
+
+        return {
+            "total_folders": total_folders,
+            "total_files": total_files,
+            "total_size": total_size,
+            "files_by_ext": files_by_ext,
+            "activity": activity,
+            "monthly_stats": monthly_stats
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to fetch archive stats: {str(e)}")
+
+@router.post("/folders/{folder_id}/explore")
+def explore_folder(
+    folder_id: int,
+    db: Session = Depends(get_db),
+    current_user = Depends(require_permission("archive_read"))
+):
+    folder = db.query(archive_models.ArchiveFolder).get(folder_id)
+    if not folder:
+        raise HTTPException(status_code=404, detail="Folder not found")
+        
+    normalized_path = os.path.normpath(folder.path)
+    
+    if not os.path.exists(normalized_path):
+        raise HTTPException(status_code=404, detail="Physical folder not found")
+        
+    try:
+        if platform.system() == "Windows":
+            os.startfile(normalized_path)
+        elif platform.system() == "Darwin": # macOS
+            subprocess.run(["open", normalized_path])
+        else: # Linux
+            subprocess.run(["xdg-open", normalized_path])
+        return {"status": "success", "path": normalized_path}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to open folder: {str(e)}")
+
 @router.post("/upload")
 async def upload_file(
     folder_id: int = Form(...),
-    name: Optional[str] = Form(None), # Added name for renaming before save
+    name: Optional[str] = Form(None), 
     description: Optional[str] = Form(None),
     file: UploadFile = File(...),
     db: Session = Depends(get_db),
-    current_user = Depends(get_current_user_obj)
+    current_user = Depends(require_permission("archive_upload"))
 ):
     ensure_storage(db)
     folder = db.query(archive_models.ArchiveFolder).get(folder_id)
     if not folder:
         raise HTTPException(status_code=404, detail="Folder not found")
         
+    # Get original filename and extension
+    orig_filename, orig_ext = os.path.splitext(file.filename)
+    
     # Use provided name or original filename
-    final_name = name if name else file.filename
-    # Ensure extension matches
-    orig_ext = os.path.splitext(file.filename)[1]
-    if not final_name.lower().endswith(orig_ext.lower()):
-        final_name += orig_ext
-
-    # Generate unique filename for storage
-    unique_filename = f"{datetime.date.today()}_{uuid.uuid4().hex}{orig_ext}"
-    file_path = os.path.join(folder.path, unique_filename)
+    base_name = name if name else orig_filename
+    
+    # Sanitize base_name for filesystem
+    import re
+    base_name = re.sub(r'[\\/*?:"<>|]', "", base_name)
+    
+    # Prepare final storage filename: [Date]_[Name]_[Description if exists][Ext]
+    date_str = datetime.date.today().strftime("%Y-%m-%d")
+    
+    storage_filename = f"{date_str}_{base_name}"
+    if description:
+        # Sanitize description
+        clean_desc = re.sub(r'[\\/*?:"<>|]', "", description)[:50] # Limit desc length in filename
+        storage_filename += f"_{clean_desc}"
+    
+    # Add extension
+    storage_filename += orig_ext
+    
+    # Ensure filename is unique in the physical folder
+    file_path = os.path.join(folder.path, storage_filename)
+    counter = 1
+    while os.path.exists(file_path):
+        unique_name = f"{date_str}_{base_name}"
+        if description:
+            unique_name += f"_{clean_desc}"
+        unique_name += f"_{counter}{orig_ext}"
+        file_path = os.path.join(folder.path, unique_name)
+        storage_filename = unique_name
+        counter += 1
     
     # Save file
     with open(file_path, "wb") as buffer:
@@ -254,7 +365,7 @@ async def upload_file(
         
     new_file = archive_models.ArchiveFile(
         folder_id=folder_id,
-        name=final_name,
+        name=storage_filename, # Use the storage filename as the record name for consistency
         original_name=file.filename,
         file_type=orig_ext.replace(".", ""),
         file_size=os.path.getsize(file_path),
@@ -271,7 +382,7 @@ async def upload_file(
 def delete_file(
     file_id: int,
     db: Session = Depends(get_db),
-    current_user = Depends(get_current_user_obj)
+    current_user = Depends(require_permission("archive_delete"))
 ):
     file = db.query(archive_models.ArchiveFile).get(file_id)
     if not file:
@@ -289,7 +400,7 @@ def delete_file(
 def delete_folder(
     folder_id: int,
     db: Session = Depends(get_db),
-    current_user = Depends(get_current_user_obj)
+    current_user = Depends(require_permission("archive_delete"))
 ):
     folder = db.query(archive_models.ArchiveFolder).get(folder_id)
     if not folder:
@@ -317,7 +428,7 @@ class BulkActionRequest(BaseModel):
 def bulk_delete(
     request: BulkActionRequest,
     db: Session = Depends(get_db),
-    current_user = Depends(get_current_user_obj)
+    current_user = Depends(require_permission("archive_delete"))
 ):
     # Delete files
     for file_id in request.file_ids:
@@ -342,7 +453,7 @@ def bulk_delete(
 def bulk_move(
     request: BulkActionRequest,
     db: Session = Depends(get_db),
-    current_user = Depends(get_current_user_obj)
+    current_user = Depends(require_permission("archive_write"))
 ):
     target_folder = db.query(archive_models.ArchiveFolder).get(request.target_folder_id)
     if not target_folder:
@@ -395,7 +506,7 @@ def bulk_move(
 def bulk_copy(
     request: BulkActionRequest,
     db: Session = Depends(get_db),
-    current_user = Depends(get_current_user_obj)
+    current_user = Depends(require_permission("archive_upload"))
 ):
     target_folder = db.query(archive_models.ArchiveFolder).get(request.target_folder_id)
     if not target_folder:
@@ -406,61 +517,81 @@ def bulk_copy(
         file = db.query(archive_models.ArchiveFile).get(file_id)
         if file:
             old_path = file.file_path
-            # Ensure unique filename if copying to same folder
+            if not os.path.exists(old_path):
+                continue
+                
             filename_base = os.path.basename(old_path)
-            new_path = os.path.join(target_folder.path, f"copy_{filename_base}")
+            orig_name, orig_ext = os.path.splitext(filename_base)
             
-            if os.path.exists(old_path):
-                shutil.copy2(old_path, new_path)
-                new_file = archive_models.ArchiveFile(
-                    folder_id=request.target_folder_id,
-                    name=f"Copy of {file.name}",
-                    original_name=file.original_name,
-                    file_type=file.file_type,
-                    file_size=file.file_size,
-                    file_path=new_path,
-                    description=file.description,
-                    created_by=current_user.id
-                )
-                db.add(new_file)
+            # Ensure unique filename
+            new_filename = f"copy_{filename_base}"
+            new_path = os.path.join(target_folder.path, new_filename)
+            counter = 1
+            while os.path.exists(new_path):
+                new_filename = f"copy_{counter}_{filename_base}"
+                new_path = os.path.join(target_folder.path, new_filename)
+                counter += 1
+            
+            shutil.copy2(old_path, new_path)
+            new_file = archive_models.ArchiveFile(
+                folder_id=request.target_folder_id,
+                name=new_filename,
+                original_name=file.original_name,
+                file_type=file.file_type,
+                file_size=file.file_size,
+                file_path=new_path,
+                description=file.description,
+                ocr_text=file.ocr_text,
+                created_by=current_user.id
+            )
+            db.add(new_file)
 
     # Copy folders
     for folder_id in request.folder_ids:
         folder = db.query(archive_models.ArchiveFolder).get(folder_id)
         if folder:
             old_path = folder.path
-            new_path = os.path.join(target_folder.path, f"Copy of {folder.name}")
-            
-            if os.path.exists(old_path):
-                shutil.copytree(old_path, new_path)
+            if not os.path.exists(old_path):
+                continue
                 
-                def clone_folder(old_fld, new_parent_id, new_base_path):
-                    cloned = archive_models.ArchiveFolder(
-                        name=f"Copy of {old_fld.name}" if new_parent_id == request.target_folder_id else old_fld.name,
-                        path=new_base_path,
-                        parent_id=new_parent_id,
-                        description=old_fld.description,
+            new_folder_name = f"Copy of {folder.name}"
+            new_path = os.path.join(target_folder.path, new_folder_name)
+            counter = 1
+            while os.path.exists(new_path):
+                new_folder_name = f"Copy of {folder.name} ({counter})"
+                new_path = os.path.join(target_folder.path, new_folder_name)
+                counter += 1
+            
+            shutil.copytree(old_path, new_path)
+            
+            def clone_folder(old_fld, new_parent_id, new_base_path, is_root=False):
+                cloned = archive_models.ArchiveFolder(
+                    name=new_folder_name if is_root else old_fld.name,
+                    path=new_base_path,
+                    parent_id=new_parent_id,
+                    description=old_fld.description,
+                    created_by=current_user.id
+                )
+                db.add(cloned)
+                db.flush() # Get ID
+                
+                for sub in old_fld.subfolders:
+                    clone_folder(sub, cloned.id, os.path.join(new_base_path, sub.name))
+                for fl in old_fld.files:
+                    new_fl = archive_models.ArchiveFile(
+                        folder_id=cloned.id,
+                        name=fl.name,
+                        original_name=fl.original_name,
+                        file_type=fl.file_type,
+                        file_size=fl.file_size,
+                        file_path=os.path.join(new_base_path, os.path.basename(fl.file_path)),
+                        description=fl.description,
+                        ocr_text=fl.ocr_text,
                         created_by=current_user.id
                     )
-                    db.add(cloned)
-                    db.flush() # Get ID
-                    
-                    for sub in old_fld.subfolders:
-                        clone_folder(sub, cloned.id, os.path.join(new_base_path, sub.name))
-                    for fl in old_fld.files:
-                        new_fl = archive_models.ArchiveFile(
-                            folder_id=cloned.id,
-                            name=fl.name,
-                            original_name=fl.original_name,
-                            file_type=fl.file_type,
-                            file_size=fl.file_size,
-                            file_path=os.path.join(new_base_path, os.path.basename(fl.file_path)),
-                            description=fl.description,
-                            created_by=current_user.id
-                        )
-                        db.add(new_fl)
-                
-                clone_folder(folder, request.target_folder_id, new_path)
+                    db.add(new_fl)
+            
+            clone_folder(folder, request.target_folder_id, new_path, is_root=True)
 
     db.commit()
     return {"status": "success"}
@@ -470,7 +601,7 @@ def bulk_copy(
 @router.get("/scanners", response_model=List[schemas.ScannerDevice])
 def get_scanners(
     db: Session = Depends(get_db),
-    current_user = Depends(get_current_user_obj)
+    current_user = Depends(require_permission("archive_read"))
 ):
     return db.query(archive_models.ScannerDevice).all()
 
@@ -478,7 +609,7 @@ def get_scanners(
 def create_scanner(
     scanner: schemas.ScannerDeviceCreate,
     db: Session = Depends(get_db),
-    current_user = Depends(get_current_user_obj)
+    current_user = Depends(require_permission("archive_write"))
 ):
     db_scanner = archive_models.ScannerDevice(
         **scanner.dict(),
@@ -494,7 +625,7 @@ def update_scanner(
     scanner_id: int,
     scanner: schemas.ScannerDeviceCreate,
     db: Session = Depends(get_db),
-    current_user = Depends(get_current_user_obj)
+    current_user = Depends(require_permission("archive_write"))
 ):
     db_scanner = db.query(archive_models.ScannerDevice).get(scanner_id)
     if not db_scanner:
@@ -511,7 +642,7 @@ def update_scanner(
 def delete_scanner(
     scanner_id: int,
     db: Session = Depends(get_db),
-    current_user = Depends(get_current_user_obj)
+    current_user = Depends(require_permission("archive_write"))
 ):
     db_scanner = db.query(archive_models.ScannerDevice).get(scanner_id)
     if not db_scanner:
@@ -530,7 +661,7 @@ async def perform_scan(
     filename: str = Form(...),
     description: Optional[str] = Form(None),
     db: Session = Depends(get_db),
-    current_user = Depends(get_current_user_obj)
+    current_user = Depends(require_permission("archive_upload"))
 ):
     scanner = db.query(archive_models.ScannerDevice).get(scanner_id)
     if not scanner:
@@ -544,12 +675,33 @@ async def perform_scan(
     # or call a local scanning service. For this implementation, 
     # we will simulate the scan by creating a dummy image file.
     
-    # Generate filename
-    if not filename.lower().endswith(('.jpg', '.jpeg', '.png', '.pdf')):
-        filename += ".jpg"
+    # Prepare final storage filename: [Date]_[Name]_[Description if exists][Ext]
+    orig_filename, orig_ext = os.path.splitext(filename)
+    if not orig_ext:
+        orig_ext = ".jpg"
         
-    unique_filename = f"{datetime.date.today()}_{uuid.uuid4().hex}_{filename}"
-    file_path = os.path.join(folder.path, unique_filename)
+    import re
+    base_name = re.sub(r'[\\/*?:"<>|]', "", orig_filename)
+    date_str = datetime.date.today().strftime("%Y-%m-%d")
+    
+    storage_filename = f"{date_str}_{base_name}"
+    if description:
+        clean_desc = re.sub(r'[\\/*?:"<>|]', "", description)[:50]
+        storage_filename += f"_{clean_desc}"
+    
+    storage_filename += orig_ext
+    
+    # Ensure filename is unique in the physical folder
+    file_path = os.path.join(folder.path, storage_filename)
+    counter = 1
+    while os.path.exists(file_path):
+        unique_name = f"{date_str}_{base_name}"
+        if description:
+            unique_name += f"_{clean_desc}"
+        unique_name += f"_{counter}{orig_ext}"
+        file_path = os.path.join(folder.path, unique_name)
+        storage_filename = unique_name
+        counter += 1
     
     # Simulate scanning (creating a 1x1 empty file or copying a placeholder)
     # In production, this would be: data = scanner_service.scan(scanner.connection_string)
@@ -558,9 +710,9 @@ async def perform_scan(
         
     new_file = archive_models.ArchiveFile(
         folder_id=folder_id,
-        name=filename,
+        name=storage_filename,
         original_name=filename,
-        file_type=filename.split('.')[-1],
+        file_type=orig_ext.replace(".", ""),
         file_size=os.path.getsize(file_path),
         file_path=file_path,
         description=description,

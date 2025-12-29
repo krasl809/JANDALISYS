@@ -41,6 +41,7 @@ const EmployeeList = lazy(() => import('./pages/hr/EmployeeList'));
 // Employee Management Imports
 const EmployeesPage = lazy(() => import('./pages/employees/EmployeesPage'));
 const ArchiveBrowser = lazy(() => import('./pages/archive/ArchiveBrowser'));
+const ArchiveDashboard = lazy(() => import('./pages/archive/ArchiveDashboard'));
 const ArchiveSettings = lazy(() => import('./pages/archive/ArchiveSettings'));
 const AddEmployeePage = lazy(() => import('./pages/employees/AddEmployeePage'));
 const EditEmployeePage = lazy(() => import('./pages/employees/EditEmployeePage'));
@@ -111,6 +112,7 @@ function App() {
 
               {/* Archive Module */}
               <Route path="/archive" element={<ProtectedRoute><ArchiveBrowser /></ProtectedRoute>} />
+              <Route path="/archive/dashboard" element={<ProtectedRoute><ArchiveDashboard /></ProtectedRoute>} />
               <Route path="/archive/settings" element={<ProtectedRoute><ArchiveSettings /></ProtectedRoute>} />
 
               {/* Employee Management - New System */}

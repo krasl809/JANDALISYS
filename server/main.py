@@ -183,7 +183,8 @@ def startup_event():
                 "read_shippers", "write_shippers", "read_brokers", "write_brokers", 
                 "read_conveyors", "write_conveyors", "read_articles", "write_articles", "read_payment_terms", "write_payment_terms",
                 "read_incoterms", "write_incoterms", "read_document_types", "write_document_types",
-                "view_agents", "manage_agents", "view_inventory", "archive_read", "archive_write"
+                "view_agents", "manage_agents", "view_inventory", 
+                "archive_read", "archive_upload", "archive_download", "archive_delete", "archive_write"
             ],
             "hr_manager": [
                 "view_hr", "manage_hr"
@@ -209,13 +210,20 @@ def startup_event():
                 "view_dashboard", "view_inventory",
                 "read_contracts", "write_contracts",
                 "read_sellers", "read_buyers", "read_shippers", "read_brokers", "read_conveyors", "read_articles",
-                "read_payment_terms", "read_incoterms", "archive_read"
+                "read_payment_terms", "read_incoterms", 
+                "archive_read", "archive_download"
             ],
             "viewer": [
                 "view_dashboard",
                 "read_contracts",
                 "read_sellers", "read_buyers", "read_shippers", "read_brokers", "read_conveyors", "read_articles",
                 "read_payment_terms", "read_incoterms"
+            ],
+            "archive_admin": [
+                "archive_read", "archive_upload", "archive_download", "archive_delete", "archive_write"
+            ],
+            "archive_viewer": [
+                "archive_read", "archive_download"
             ]
         }
         
@@ -272,6 +280,53 @@ def startup_event():
                     rbac_crud.assign_role_to_user(db, admin_exists.id, admin_role.id)
                     
             logger.info(f"Password for {admin_email} has been reset to default and admin role verified.")
+
+        # Create 6 default archive users
+        archive_users = [
+            {"name": "م. سايد شهوان", "email": "said.shahwan@archive.com", "role": "archive_admin"},
+            {"name": "أ. نازك الجندلي", "email": "nazik.jandali@archive.com", "role": "archive_admin"},
+            {"name": "أ. ماهر الريحاوي", "email": "maher.rehayi@archive.com", "role": "archive_admin"},
+            {"name": "أ . غزوان البيك", "email": "ghazwan.baik@archive.com", "role": "archive_admin"},
+            {"name": "أ . عبيدة الحامد", "email": "obada.hamed@archive.com", "role": "archive_admin"},
+            {"name": "Archive Viewer", "email": "viewer@archive.com", "role": "archive_viewer"}
+        ]
+        
+        default_password = get_password_hash("Archive@123")
+        
+        for u_data in archive_users:
+            u_exists = db.query(core_models.User).filter(core_models.User.email == u_data["email"]).first()
+            if not u_exists:
+                logger.info(f"Creating archive user: {u_data['email']}")
+                new_u = core_models.User(
+                    name=u_data["name"],
+                    email=u_data["email"],
+                    password=default_password,
+                    role=u_data["role"],
+                    is_active=True
+                )
+                db.add(new_u)
+                db.commit()
+                db.refresh(new_u)
+                
+                # Assign role
+                u_role = rbac_crud.get_role_by_name(db, u_data["role"])
+                if u_role:
+                    rbac_crud.assign_role_to_user(db, new_u.id, u_role.id)
+            else:
+                # Update password and role to ensure they match requirements
+                u_exists.password = default_password
+                u_exists.role = u_data["role"]
+                db.commit()
+                
+                # Ensure role assignment
+                u_role = rbac_crud.get_role_by_name(db, u_data["role"])
+                if u_role:
+                    user_roles_list = rbac_crud.get_user_roles(db, u_exists.id)
+                    if u_data["role"] not in user_roles_list:
+                        rbac_crud.assign_role_to_user(db, u_exists.id, u_role.id)
+        
+        logger.info("Archive users initialized successfully")
+
     except Exception as e:
         logger.error(f"Startup Config Error: {e}", exc_info=True)
     finally:

@@ -322,7 +322,7 @@ const EmployeesPage: React.FC = () => {
           <Card elevation={0}>
             <CardContent>
               <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-                <Avatar sx={{ bgcolor: 'warning.main' }}>
+                <Avatar sx={{ bgcolor: 'secondary.main' }}>
                   <FilterList />
                 </Avatar>
                 <Box>

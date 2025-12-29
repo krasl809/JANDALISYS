@@ -219,7 +219,7 @@ const RiskRadar = () => {
           <Box p={1} borderRadius="50%" bgcolor={alpha(theme.palette.warning.main, 0.1)}>
             <Warning color="warning" />
           </Box>
-          <Typography variant="h6" fontWeight="bold" color="warning.main">Risk Alerts</Typography>
+          <Typography variant="h6" fontWeight="bold" color="text.primary">Risk Alerts</Typography>
         </Box>
         <Stack spacing={2}>
           {alerts.map((alert) => (
@@ -492,7 +492,7 @@ const OperationalDashboard = () => {
                     <OperationalStatCard title="Tasks Today" value={stats.tasks_today.toString()} icon={<AccessTime />} color={theme.palette.primary.main} />
                 </Grid>
                 <Grid item xs={12} sm={6} md={3}>
-                    <OperationalStatCard title="Review Pending" value={stats.review_pending.toString()} icon={<Warning />} color={theme.palette.warning.main} />
+                    <OperationalStatCard title="Review Pending" value={stats.review_pending.toString()} icon={<Warning />} color={theme.palette.secondary.main} />
                 </Grid>
                 <Grid item xs={12} sm={6} md={3}>
                     <OperationalStatCard title="Arriving" value={stats.arriving.toString()} icon={<LocalShipping />} color={theme.palette.info.main} />

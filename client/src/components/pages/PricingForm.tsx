@@ -321,7 +321,7 @@ const PricingForm: React.FC<PricingFormProps> = ({ contractId, onSaveSuccess }) 
                              <Typography variant="caption" color="text.secondary">MT</Typography>
                            </TableCell>
                            <TableCell sx={{...cellSx, textAlign: 'center'}}>
-                             <Typography fontWeight="bold" fontSize="0.9rem" color={item.qty_remaining > 0 ? 'warning.main' : 'success.main'}>{item.qty_remaining.toLocaleString()}</Typography>
+                             <Typography fontWeight="bold" fontSize="0.9rem" color={item.qty_remaining > 0 ? 'primary.main' : 'success.main'}>{item.qty_remaining.toLocaleString()}</Typography>
                              <Typography variant="caption" color="text.secondary">MT</Typography>
                            </TableCell>
                            <TableCell sx={{...cellSx, textAlign: 'center'}}>

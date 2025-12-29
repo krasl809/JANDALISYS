@@ -78,11 +78,13 @@ const UserGrid: React.FC<UserGridProps> = ({ users, onEdit, onDelete, onViewProf
             <Box sx={{
                 mb: 3,
                 display: 'flex',
+                flexDirection: { xs: 'column', sm: 'row' },
                 justifyContent: 'space-between',
-                alignItems: 'center',
+                alignItems: { xs: 'stretch', sm: 'center' },
                 backgroundColor: 'background.paper',
                 p: 2,
                 borderRadius: 2,
+                gap: 2,
                 boxShadow: '0 2px 10px rgba(0,0,0,0.05)'
             }}>
                 <Box sx={{
@@ -92,7 +94,7 @@ const UserGrid: React.FC<UserGridProps> = ({ users, onEdit, onDelete, onViewProf
                     padding: '4px 12px',
                     display: 'flex',
                     alignItems: 'center',
-                    width: '300px'
+                    width: { xs: '100%', sm: '300px' }
                 }}>
                     <Search sx={{ color: 'text.secondary', mr: 1 }} />
                     <InputBase
@@ -103,7 +105,7 @@ const UserGrid: React.FC<UserGridProps> = ({ users, onEdit, onDelete, onViewProf
                     />
                 </Box>
 
-                <Box>
+                <Box sx={{ display: 'flex', justifyContent: 'flex-end' }}>
                     <Tooltip title={t('filter')}>
                         <IconButton>
                             <FilterList />
@@ -116,16 +118,21 @@ const UserGrid: React.FC<UserGridProps> = ({ users, onEdit, onDelete, onViewProf
             <TableContainer component={Paper} elevation={0} sx={{
                 boxShadow: '0 4px 20px rgba(0,0,0,0.05)',
                 borderRadius: 3,
-                overflow: 'hidden'
+                overflow: 'auto',
+                width: '100%'
             }}>
-                <Table>
+                <Table sx={{ minWidth: { xs: 600, md: '100%' } }}>
                     <TableHead sx={{ bgcolor: alpha(theme.palette.primary.main, 0.05) }}>
                         <TableRow>
-                            <TableCell sx={{ fontWeight: 'bold', color: 'text.primary', pl: 3 }}>User</TableCell>
-                            <TableCell sx={{ fontWeight: 'bold', color: 'text.primary' }}>Role</TableCell>
-                            <TableCell sx={{ fontWeight: 'bold', color: 'text.primary' }}>Department</TableCell>
-                            <TableCell sx={{ fontWeight: 'bold', color: 'text.primary' }}>Status</TableCell>
-                            <TableCell align="right" sx={{ fontWeight: 'bold', color: 'text.primary', pr: 3 }}>Actions</TableCell>
+                            <TableCell sx={{ fontWeight: 'bold', color: 'text.primary', pl: 3 }}>{t('User')}</TableCell>
+                            <TableCell sx={{ fontWeight: 'bold', color: 'text.primary' }}>{t('Role')}</TableCell>
+                            <TableCell sx={{ 
+                                fontWeight: 'bold', 
+                                color: 'text.primary',
+                                display: { xs: 'none', md: 'table-cell' } 
+                            }}>{t('Department')}</TableCell>
+                            <TableCell sx={{ fontWeight: 'bold', color: 'text.primary' }}>{t('Status')}</TableCell>
+                            <TableCell align="right" sx={{ fontWeight: 'bold', color: 'text.primary', pr: 3 }}>{t('Actions')}</TableCell>
                         </TableRow>
                     </TableHead>
                     <TableBody>
@@ -145,19 +152,19 @@ const UserGrid: React.FC<UserGridProps> = ({ users, onEdit, onDelete, onViewProf
                                         <Avatar
                                             sx={{
                                                 bgcolor: theme.palette.primary.main,
-                                                width: 40,
-                                                height: 40,
-                                                fontSize: '1rem',
+                                                width: { xs: 32, md: 40 },
+                                                height: { xs: 32, md: 40 },
+                                                fontSize: { xs: '0.875rem', md: '1rem' },
                                                 fontWeight: 'bold'
                                             }}
                                         >
                                             {user.name.charAt(0).toUpperCase()}
                                         </Avatar>
                                         <Box>
-                                            <Typography variant="subtitle2" fontWeight="600">
+                                            <Typography variant="subtitle2" fontWeight="600" sx={{ fontSize: { xs: '0.75rem', md: '0.875rem' } }}>
                                                 {user.name}
                                             </Typography>
-                                            <Typography variant="caption" color="text.secondary" sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                                            <Typography variant="caption" color="text.secondary" sx={{ display: { xs: 'none', sm: 'flex' }, alignItems: 'center', gap: 0.5 }}>
                                                 {user.email}
                                             </Typography>
                                         </Box>
@@ -168,11 +175,11 @@ const UserGrid: React.FC<UserGridProps> = ({ users, onEdit, onDelete, onViewProf
                                         label={user.role}
                                         size="small"
                                         color={getRoleColor(user.role) as any}
-                                        variant="filled" // Updated to filled for more pop
-                                        sx={{ fontWeight: 500 }}
+                                        variant="filled"
+                                        sx={{ fontWeight: 500, fontSize: { xs: '0.7rem', md: '0.8125rem' } }}
                                     />
                                 </TableCell>
-                                <TableCell>
+                                <TableCell sx={{ display: { xs: 'none', md: 'table-cell' } }}>
                                     <Typography variant="body2" color="text.secondary">
                                         {user.department || '-'}
                                     </Typography>
@@ -185,11 +192,16 @@ const UserGrid: React.FC<UserGridProps> = ({ users, onEdit, onDelete, onViewProf
                                 <TableCell>
                                     <Chip
                                         icon={user.is_active ? <CheckCircle fontSize="small" /> : <Block fontSize="small" />}
-                                        label={user.is_active ? 'Active' : 'Inactive'}
+                                        label={user.is_active ? t('active') : t('inactive')}
                                         size="small"
                                         color={user.is_active ? 'success' : 'default'}
                                         variant="outlined"
-                                        sx={{ border: 'none', bgcolor: user.is_active ? alpha(theme.palette.success.main, 0.1) : alpha(theme.palette.grey[500], 0.1) }}
+                                        sx={{ 
+                                            borderRadius: 1.5,
+                                            fontWeight: 'bold',
+                                            fontSize: { xs: '0.7rem', md: '0.8125rem' },
+                                            bgcolor: user.is_active ? alpha(theme.palette.success.main, 0.05) : alpha(theme.palette.grey[500], 0.05) 
+                                        }}
                                     />
                                 </TableCell>
                                 <TableCell align="right" sx={{ pr: 3 }} onClick={(e) => e.stopPropagation()}>

@@ -111,7 +111,7 @@ const ContractReview: React.FC = () => {
       {/* KPI Cards */}
       <Grid container spacing={3} sx={{ mb: 4 }}>
         <Grid size={{ xs: 12, md: 4 }}>
-           <Card sx={{ borderLeft: `4px solid ${theme.palette.warning.main}`, boxShadow: 'none', border: `1px solid ${theme.palette.divider}` }}>
+           <Card sx={{ borderLeft: `4px solid ${theme.palette.primary.main}`, boxShadow: 'none', border: `1px solid ${theme.palette.divider}` }}>
              <CardContent>
                <Typography variant="subtitle2" fontWeight="700" color="text.secondary" sx={{ textTransform: 'uppercase' }}>Pending Pricing</Typography>
                <Typography variant="h4" fontWeight="800" sx={{ mt: 1, color: 'text.primary' }}>

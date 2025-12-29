@@ -8,8 +8,13 @@ export const PERMISSIONS = {
     VIEW_SETTINGS: 'view_settings',
     VIEW_HR: 'view_hr',
     MANAGE_HR: 'manage_hr', // For devices and sync
+    
+    // Archive System Permissions
     VIEW_ARCHIVE: 'archive_read',
-    MANAGE_ARCHIVE: 'archive_write',
+    UPLOAD_ARCHIVE: 'archive_upload',
+    DOWNLOAD_ARCHIVE: 'archive_download',
+    DELETE_ARCHIVE: 'archive_delete',
+    MANAGE_ARCHIVE: 'archive_write', // Includes settings and folder management
 };
 
 export const ROUTE_PERMISSIONS: Record<string, string> = {
@@ -32,4 +37,5 @@ export const ROUTE_PERMISSIONS: Record<string, string> = {
     '/employees/edit/:id': PERMISSIONS.MANAGE_HR,
     '/employees/:id': PERMISSIONS.VIEW_HR,
     '/archive': PERMISSIONS.VIEW_ARCHIVE,
+    '/archive/dashboard': PERMISSIONS.VIEW_ARCHIVE,
 };

@@ -55,11 +55,19 @@ import {
   Search,
   Home,
   Refresh,
-  Info
-} from '@mui/icons-material';
+  Info,
+  Explore,
+  ZoomIn,
+  ZoomOut,
+  RestartAlt,
+    Print
+  } from '@mui/icons-material';
 import { useNavigate } from 'react-router-dom';
 import api from '../../services/api';
 import { useTranslation } from 'react-i18next';
+import { motion, useAnimation } from 'framer-motion';
+import { useAuth } from '../../context/AuthContext';
+import { PERMISSIONS } from '../../config/permissions';
 import { 
   Checkbox, 
   Tooltip, 
@@ -95,6 +103,7 @@ const ArchiveBrowser: React.FC = () => {
   const { t } = useTranslation();
   const theme = useTheme();
   const navigate = useNavigate();
+  const { user, hasPermission } = useAuth();
   const [folders, setFolders] = useState<ArchiveFolder[]>([]);
   const [files, setFiles] = useState<ArchiveFile[]>([]);
   const [currentFolder, setCurrentFolder] = useState<ArchiveFolder | null>(null);
@@ -115,9 +124,38 @@ const ArchiveBrowser: React.FC = () => {
   const [uploading, setUploading] = useState(false);
   const [uploadName, setUploadName] = useState(''); // Added for renaming before save
   const [uploadDescription, setUploadDescription] = useState('');
+
+  const canUpload = hasPermission(PERMISSIONS.UPLOAD_ARCHIVE) || hasPermission(PERMISSIONS.MANAGE_ARCHIVE);
+  const canDelete = hasPermission(PERMISSIONS.DELETE_ARCHIVE) || hasPermission(PERMISSIONS.MANAGE_ARCHIVE);
+  const canDownload = hasPermission(PERMISSIONS.DOWNLOAD_ARCHIVE) || hasPermission(PERMISSIONS.MANAGE_ARCHIVE);
+  const canManage = hasPermission(PERMISSIONS.MANAGE_ARCHIVE);
   const [previewOpen, setPreviewOpen] = useState(false);
   const [previewFile, setPreviewFile] = useState<ArchiveFile | null>(null);
   const [previewTab, setPreviewTab] = useState(0);
+
+  // Print support
+  const printIframeRef = React.useRef<HTMLIFrameElement>(null);
+
+  const handlePrint = (fileId: number) => {
+    const url = getFilePreviewUrl(fileId);
+    if (printIframeRef.current) {
+      printIframeRef.current.src = url;
+    }
+  };
+
+  const onIframeLoad = () => {
+    if (printIframeRef.current && printIframeRef.current.src) {
+      try {
+        printIframeRef.current.contentWindow?.print();
+      } catch (e) {
+        console.error("Print failed", e);
+        window.open(printIframeRef.current.src, '_blank');
+      }
+    }
+  };
+  const [zoom, setZoom] = useState(1);
+  const [zoomMode, setZoomMode] = useState<'in' | 'out' | 'none'>('none');
+  const [touchStartDist, setTouchStartDist] = useState<number | null>(null);
   
   // Copy/Move Dialog
   const [openTargetDialog, setOpenTargetDialog] = useState(false);
@@ -177,6 +215,10 @@ const ArchiveBrowser: React.FC = () => {
   };
 
   const handleBulkDelete = async () => {
+    if (!canDelete) {
+      alert(t('You do not have permission to delete items'));
+      return;
+    }
     if (!window.confirm(t('Are you sure you want to delete selected items?'))) return;
     
     setLoading(true);
@@ -217,6 +259,17 @@ const ArchiveBrowser: React.FC = () => {
     }
   };
 
+  const handleExploreFolder = async (folderId?: number) => {
+    const id = folderId || currentFolder?.id;
+    if (!id) return;
+    try {
+      await api.post(`/archive/folders/${id}/explore`);
+    } catch (error) {
+      console.error("Explore folder failed", error);
+      alert(t('Failed to open local storage'));
+    }
+  };
+
   const filteredFolders = folders.filter(f => f.name.toLowerCase().includes(searchQuery.toLowerCase()));
   const filteredFiles = files.filter(f => f.name.toLowerCase().includes(searchQuery.toLowerCase()));
 
@@ -245,6 +298,10 @@ const ArchiveBrowser: React.FC = () => {
   };
 
   const handleDownload = (file: ArchiveFile) => {
+    if (!canDownload) {
+      alert(t('You do not have permission to download files'));
+      return;
+    }
     const baseUrl = api.defaults.baseURL || '';
     const token = localStorage.getItem('access_token');
     const cleanBaseUrl = baseUrl.endsWith('/') ? baseUrl.slice(0, -1) : baseUrl;
@@ -264,6 +321,10 @@ const ArchiveBrowser: React.FC = () => {
   };
 
   const handleDeleteFile = async (fileId: number) => {
+    if (!canDelete) {
+      alert(t('You do not have permission to delete files'));
+      return;
+    }
     if (!window.confirm(t('Are you sure?'))) return;
     try {
       await api.delete(`/archive/files/${fileId}`);
@@ -275,6 +336,10 @@ const ArchiveBrowser: React.FC = () => {
 
   const handleDeleteFolder = async (folder: ArchiveFolder) => {
     if ((folder as any).is_system) return;
+    if (!canDelete) {
+      alert(t('You do not have permission to delete folders'));
+      return;
+    }
     if (!window.confirm(t('Are you sure?'))) return;
     try {
       await api.delete(`/archive/folders/${folder.id}`);
@@ -304,6 +369,65 @@ const ArchiveBrowser: React.FC = () => {
   const handleFileClick = (file: ArchiveFile) => {
     setPreviewFile(file);
     setPreviewOpen(true);
+    setZoom(1);
+  };
+
+  const handleZoomIn = () => {
+    setZoom(prev => Math.min(prev + 0.2, 5));
+    setZoomMode('in');
+  };
+  const handleZoomOut = () => {
+    setZoom(prev => Math.max(prev - 0.2, 0.5));
+    setZoomMode('out');
+  };
+  const handleResetZoom = () => {
+    setZoom(1);
+    setZoomMode('none');
+  };
+
+  const handlePreviewClick = (e: React.MouseEvent) => {
+    if (zoomMode === 'in') {
+      setZoom(prev => Math.min(prev + 0.5, 5));
+    } else if (zoomMode === 'out') {
+      setZoom(prev => Math.max(prev - 0.5, 0.5));
+    }
+  };
+
+  const handleWheel = (e: React.WheelEvent) => {
+    if (previewTab !== 0) return;
+    
+    // Only zoom images with wheel, or PDF if we want (but user said PDF wheel is for scroll)
+    if (isImage(previewFile?.file_type || '')) {
+      const delta = e.deltaY > 0 ? -0.1 : 0.1;
+      setZoom(prev => Math.min(Math.max(prev + delta, 0.5), 5));
+    }
+    // For PDFs, we let the default scroll behavior happen
+  };
+
+  const handleTouchStart = (e: React.TouchEvent) => {
+    if (e.touches.length === 2) {
+      const dist = Math.hypot(
+        e.touches[0].pageX - e.touches[1].pageX,
+        e.touches[0].pageY - e.touches[1].pageY
+      );
+      setTouchStartDist(dist);
+    }
+  };
+
+  const handleTouchMove = (e: React.TouchEvent) => {
+    if (e.touches.length === 2 && touchStartDist !== null) {
+      const dist = Math.hypot(
+        e.touches[0].pageX - e.touches[1].pageX,
+        e.touches[0].pageY - e.touches[1].pageY
+      );
+      const delta = (dist - touchStartDist) / 100;
+      setZoom(prev => Math.min(Math.max(prev + delta, 0.5), 5));
+      setTouchStartDist(dist);
+    }
+  };
+
+  const handleTouchEnd = () => {
+    setTouchStartDist(null);
   };
 
   const getFilePreviewUrl = (fileId: number) => {
@@ -325,7 +449,15 @@ const ArchiveBrowser: React.FC = () => {
     return ['jpg', 'jpeg', 'png', 'gif', 'webp'].includes(fileType.toLowerCase());
   };
 
+  const isZoomable = (fileType: string) => {
+    return isImage(fileType) || fileType.toLowerCase() === 'pdf';
+  };
+
   const handleCreateFolder = async () => {
+    if (!canUpload) {
+      alert(t('You do not have permission to create folders'));
+      return;
+    }
     try {
       await api.post('/archive/folders', {
         name: newFolderName,
@@ -361,6 +493,10 @@ const ArchiveBrowser: React.FC = () => {
     };
 
     const handleScan = async () => {
+        if (!canUpload) {
+            alert(t('You do not have permission to scan files'));
+            return;
+        }
         if (!scanData.scanner_id || !scanData.filename) {
             alert(t('Please select a scanner and enter a filename'));
             return;
@@ -386,6 +522,10 @@ const ArchiveBrowser: React.FC = () => {
         }
     };
     const handleUpload = async () => {
+        if (!canUpload) {
+            alert(t('You do not have permission to upload files'));
+            return;
+        }
         if (!uploadFile || !currentFolder) return;
 
         setUploading(true);
@@ -432,37 +572,50 @@ const ArchiveBrowser: React.FC = () => {
             </Typography>
           </Box>
           <Box sx={{ display: 'flex', gap: 1 }}>
-            <Tooltip title={t('Settings')}>
-              <IconButton color="primary" onClick={() => navigate('/archive/settings')}>
-                <Settings />
-              </IconButton>
-            </Tooltip>
-            <Button
-              variant="outlined"
-              startIcon={<CreateNewFolder />}
-              onClick={() => setOpenFolderDialog(true)}
-            >
-              {t('New Folder')}
-            </Button>
-            <Button
-              variant="outlined"
-              startIcon={<Scanner />}
-              onClick={() => {
-                fetchScanners();
-                setOpenScanDialog(true);
-              }}
-              disabled={!currentFolder}
-            >
-              {t('Scan')}
-            </Button>
-            <Button
-              variant="contained"
-              startIcon={<CloudUpload />}
-              onClick={() => setOpenUploadDialog(true)}
-              disabled={!currentFolder}
-            >
-              {t('Upload')}
-            </Button>
+            {canManage && (
+              <Tooltip title={t('Settings')}>
+                <IconButton color="primary" onClick={() => navigate('/archive/settings')}>
+                  <Settings />
+                </IconButton>
+              </Tooltip>
+            )}
+            {currentFolder && (
+              <Tooltip title={t('Explore in Local Storage')}>
+                <IconButton color="primary" onClick={() => handleExploreFolder()}>
+                  <Explore />
+                </IconButton>
+              </Tooltip>
+            )}
+            {canUpload && (
+              <>
+                <Button
+                  variant="outlined"
+                  startIcon={<CreateNewFolder />}
+                  onClick={() => setOpenFolderDialog(true)}
+                >
+                  {t('New Folder')}
+                </Button>
+                <Button
+                  variant="outlined"
+                  startIcon={<Scanner />}
+                  onClick={() => {
+                    fetchScanners();
+                    setOpenScanDialog(true);
+                  }}
+                  disabled={!currentFolder}
+                >
+                  {t('Scan')}
+                </Button>
+                <Button
+                  variant="contained"
+                  startIcon={<CloudUpload />}
+                  onClick={() => setOpenUploadDialog(true)}
+                  disabled={!currentFolder}
+                >
+                  {t('Upload')}
+                </Button>
+              </>
+            )}
           </Box>
         </Box>
 
@@ -699,13 +852,20 @@ const ArchiveBrowser: React.FC = () => {
                     }}
                   />
                   <IconButton 
-                    size="small" 
-                    onClick={(e) => handleMenuOpen(e, 'file', file)}
-                    sx={{ bgcolor: alpha(theme.palette.background.paper, 0.7) }}
-                  >
-                    <MoreVert fontSize="small" />
-                  </IconButton>
-                </Box>
+                      size="small" 
+                      onClick={(e) => handleMenuOpen(e, 'file', file)}
+                      sx={{ bgcolor: alpha(theme.palette.background.paper, 0.7) }}
+                    >
+                      <MoreVert fontSize="small" />
+                    </IconButton>
+                    <IconButton 
+                      size="small" 
+                      onClick={(e) => { e.stopPropagation(); handlePrint(file.id); }}
+                      sx={{ bgcolor: alpha(theme.palette.background.paper, 0.7), ml: 0.5 }}
+                    >
+                      <Print fontSize="small" />
+                    </IconButton>
+                  </Box>
                 {isImage(file.file_type) ? (
                   <Box
                     component="img"
@@ -827,6 +987,12 @@ const ArchiveBrowser: React.FC = () => {
                     <IconButton size="small" onClick={(e) => handleMenuOpen(e, 'file', file)}>
                       <MoreVert fontSize="small" />
                     </IconButton>
+                    <IconButton size="small" color="primary" onClick={(e) => {
+                      e.stopPropagation();
+                      handlePrint(file.id);
+                    }}>
+                      <Print fontSize="small" />
+                    </IconButton>
                   </TableCell>
                 </TableRow>
               ))}
@@ -883,29 +1049,46 @@ const ArchiveBrowser: React.FC = () => {
         open={Boolean(anchorEl)}
         onClose={handleMenuClose}
       >
+        {selectedItem?.type === 'folder' && (
+          <MenuItem onClick={() => {
+            handleExploreFolder(selectedItem.id);
+            handleMenuClose();
+          }}>
+            <ListItemIcon><Explore fontSize="small" /></ListItemIcon>
+            <ListItemText>{t('Explore Local')}</ListItemText>
+          </MenuItem>
+        )}
         {selectedItem?.type === 'file' && (
           <Box>
             <MenuItem onClick={() => { handleFileClick(selectedItem.data); handleMenuClose(); }}>
               <ListItemIcon><InsertDriveFile fontSize="small" /></ListItemIcon>
               <ListItemText>{t('Open')}</ListItemText>
             </MenuItem>
-            <MenuItem onClick={() => { handleDownload(selectedItem.data); handleMenuClose(); }}>
-              <ListItemIcon><Download fontSize="small" /></ListItemIcon>
-              <ListItemText>{t('Download')}</ListItemText>
+            {canDownload && (
+              <MenuItem onClick={() => { handleDownload(selectedItem.data); handleMenuClose(); }}>
+                <ListItemIcon><Download fontSize="small" /></ListItemIcon>
+                <ListItemText>{t('Download')}</ListItemText>
+              </MenuItem>
+            )}
+            <MenuItem onClick={() => { handlePrint(selectedItem.id); handleMenuClose(); }}>
+              <ListItemIcon><Print fontSize="small" /></ListItemIcon>
+              <ListItemText>{t('Print')}</ListItemText>
             </MenuItem>
           </Box>
         )}
-        <MenuItem 
-          onClick={() => { 
-            if (selectedItem?.type === 'file') handleDeleteFile(selectedItem.id);
-            else if (selectedItem?.type === 'folder') handleDeleteFolder(selectedItem.data);
-            handleMenuClose();
-          }}
-          sx={{ color: 'error.main' }}
-        >
-          <ListItemIcon><Delete fontSize="small" color="error" /></ListItemIcon>
-          <ListItemText>{t('Delete')}</ListItemText>
-        </MenuItem>
+        {canDelete && (
+          <MenuItem 
+            onClick={() => { 
+              if (selectedItem?.type === 'file') handleDeleteFile(selectedItem.id);
+              else if (selectedItem?.type === 'folder') handleDeleteFolder(selectedItem.data);
+              handleMenuClose();
+            }}
+            sx={{ color: 'error.main' }}
+          >
+            <ListItemIcon><Delete fontSize="small" color="error" /></ListItemIcon>
+            <ListItemText>{t('Delete')}</ListItemText>
+          </MenuItem>
+        )}
       </Menu>
 
       {/* Preview Dialog */}
@@ -925,10 +1108,51 @@ const ArchiveBrowser: React.FC = () => {
               {previewFile?.name}
             </Typography>
           </Box>
-          <Box>
-            <IconButton onClick={() => previewFile && handleDownload(previewFile)} color="inherit" size="small" sx={{ mr: 1 }}>
-              <Download />
-            </IconButton>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+            {previewTab === 0 && isZoomable(previewFile?.file_type || '') && (
+              <>
+                <Tooltip title={t('Zoom Out')}>
+                  <IconButton 
+                    onClick={handleZoomOut} 
+                    color={zoomMode === 'out' ? 'secondary' : 'inherit'} 
+                    size="small"
+                    sx={{ bgcolor: zoomMode === 'out' ? alpha(theme.palette.secondary.main, 0.2) : 'transparent' }}
+                  >
+                    <ZoomOut />
+                  </IconButton>
+                </Tooltip>
+                <Typography variant="body2" sx={{ minWidth: 40, textAlign: 'center' }}>
+                  {Math.round(zoom * 100)}%
+                </Typography>
+                <Tooltip title={t('Zoom In')}>
+                  <IconButton 
+                    onClick={handleZoomIn} 
+                    color={zoomMode === 'in' ? 'secondary' : 'inherit'} 
+                    size="small"
+                    sx={{ bgcolor: zoomMode === 'in' ? alpha(theme.palette.secondary.main, 0.2) : 'transparent' }}
+                  >
+                    <ZoomIn />
+                  </IconButton>
+                </Tooltip>
+                <Tooltip title={t('Reset Zoom')}>
+                  <IconButton onClick={handleResetZoom} color="inherit" size="small" sx={{ mr: 1 }}>
+                    <RestartAlt />
+                  </IconButton>
+                </Tooltip>
+              </>
+            )}
+            {canDownload && (
+              <Tooltip title={t('Print')}>
+                <IconButton onClick={() => { if (previewFile) handlePrint(previewFile.id); }} color="inherit" size="small" sx={{ mr: 1 }}>
+                  <Print />
+                </IconButton>
+              </Tooltip>
+            )}
+            {canDownload && (
+              <IconButton onClick={() => previewFile && handleDownload(previewFile)} color="inherit" size="small" sx={{ mr: 1 }}>
+                <Download />
+              </IconButton>
+            )}
             <IconButton onClick={() => setPreviewOpen(false)} color="inherit" size="small">
               <Close />
             </IconButton>
@@ -942,46 +1166,88 @@ const ArchiveBrowser: React.FC = () => {
           </Tabs>
         </Box>
 
-        <DialogContent dividers sx={{ p: 0, display: 'flex', flexDirection: 'column', bgcolor: '#f5f5f5' }}>
+        <DialogContent dividers sx={{ p: 0, display: 'flex', flexDirection: 'column', bgcolor: '#f5f5f5', overflow: 'hidden' }}>
           {previewFile && (
             previewTab === 0 ? (
-              <Box sx={{ flexGrow: 1, display: 'flex', justifyContent: 'center', alignItems: 'center', overflow: 'auto', p: 2 }}>
-                {isImage(previewFile.file_type) ? (
-                  <Box
-                    component="img"
-                    src={getFilePreviewUrl(previewFile.id)}
-                    sx={{
-                      maxWidth: '100%',
-                      maxHeight: '100%',
-                      objectFit: 'contain',
-                      boxShadow: 3,
-                      borderRadius: 1
-                    }}
-                  />
-                ) : previewFile.file_type === 'pdf' ? (
-                  <iframe
-                    src={getFilePreviewUrl(previewFile.id)}
-                    width="100%"
-                    height="100%"
-                    title={previewFile.name}
-                    style={{ border: 'none', backgroundColor: 'white' }}
-                  />
-                ) : (
-                  <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', p: 5 }}>
-                    <InsertDriveFile sx={{ fontSize: 100, color: 'text.secondary', mb: 2 }} />
-                    <Typography variant="h6" color="text.secondary">
-                      {t('Preview not available for this file type')}
-                    </Typography>
-                    <Button 
-                      variant="contained" 
-                      startIcon={<Download />} 
-                      onClick={() => handleDownload(previewFile)}
-                      sx={{ mt: 2 }}
-                    >
-                      {t('Download to view')}
-                    </Button>
-                  </Box>
-                )}
+              <Box 
+                sx={{ 
+                  flexGrow: 1, 
+                  display: 'flex', 
+                  justifyContent: 'center', 
+                  alignItems: 'center', 
+                  overflow: 'auto', // Allow scroll if zoomed
+                  p: 2,
+                  position: 'relative',
+                  touchAction: 'none',
+                  cursor: zoomMode === 'in' ? 'zoom-in' : zoomMode === 'out' ? 'zoom-out' : 'default'
+                }}
+                onWheel={handleWheel}
+                onTouchStart={handleTouchStart}
+                onTouchMove={handleTouchMove}
+                onTouchEnd={handleTouchEnd}
+                onClick={handlePreviewClick}
+               >
+                <Box
+                  component={motion.div}
+                  drag={zoom > 1}
+                  dragMomentum={false}
+                  dragElastic={0.1}
+                  animate={{ scale: zoom }}
+                  transition={{ type: 'spring', damping: 25, stiffness: 200 }}
+                  sx={{
+                    display: 'flex',
+                    justifyContent: 'center',
+                    alignItems: 'center',
+                    width: '100%',
+                    height: '100%',
+                    transformOrigin: 'center center'
+                  }}
+                >
+                  {isImage(previewFile.file_type) ? (
+                    <Box
+                      component="img"
+                      src={getFilePreviewUrl(previewFile.id)}
+                      sx={{
+                        maxWidth: '100%',
+                        maxHeight: '100%',
+                        objectFit: 'contain',
+                        boxShadow: 3,
+                        borderRadius: 1,
+                        pointerEvents: zoomMode === 'none' ? 'auto' : 'none'
+                      }}
+                    />
+                  ) : previewFile.file_type === 'pdf' ? (
+                    <iframe
+                      src={getFilePreviewUrl(previewFile.id)}
+                      width="100%"
+                      height="100%"
+                      title={previewFile.name}
+                      style={{ 
+                        border: 'none', 
+                        backgroundColor: 'white', 
+                        minHeight: '80vh',
+                        pointerEvents: zoomMode === 'none' ? 'auto' : 'none'
+                      }}
+                    />
+                  ) : (
+                    <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', p: 5 }}>
+                      <InsertDriveFile sx={{ fontSize: 100, color: 'text.secondary', mb: 2 }} />
+                      <Typography variant="h6" color="text.secondary">
+                        {t('Preview not available for this file type')}
+                      </Typography>
+                      {canDownload && (
+                      <Button 
+                        variant="contained" 
+                        startIcon={<Download />} 
+                        onClick={() => handleDownload(previewFile)}
+                        sx={{ mt: 2 }}
+                      >
+                        {t('Download to view')}
+                      </Button>
+                    )}
+                    </Box>
+                  )}
+                </Box>
               </Box>
             ) : (
               <Box sx={{ p: 3, bgcolor: 'white', height: '100%', overflow: 'auto' }}>
@@ -1176,6 +1442,13 @@ const ArchiveBrowser: React.FC = () => {
           </Button>
         </DialogActions>
       </Dialog>
+      {/* Hidden iframe for printing */}
+      <iframe
+        ref={printIframeRef}
+        style={{ display: 'none' }}
+        title="print-iframe"
+        onLoad={onIframeLoad}
+      />
     </Box>
   );
 };

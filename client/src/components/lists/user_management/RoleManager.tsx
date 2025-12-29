@@ -143,130 +143,277 @@ const RoleManager: React.FC = () => {
         }
     };
 
-    if (loading) return <CircularProgress />;
+    const getPermissionGroup = (permId: string) => {
+        if (permId.startsWith('archive_')) return t('Electronic Archive');
+        if (permId.includes('hr') || permId.includes('employee')) return t('Human Resources');
+        if (permId.includes('contract') || permId.includes('pricing') || permId.includes('payment')) return t('Operations');
+        if (permId.includes('inventory')) return t('Inventory');
+        return t('General');
+    };
+
+    const getPermissionDescription = (permId: string) => {
+        const descriptions: Record<string, string> = {
+            'view_dashboard': 'الوصول إلى لوحة التحكم الرئيسية وملخص البيانات.',
+            'view_settings': 'إدارة إعدادات النظام العامة والمستخدمين.',
+            'view_reports': 'عرض وتصدير التقارير التحليلية.',
+            'read_contracts': 'عرض وتصفح عقود النظام.',
+            'read_pricing': 'عرض قوائم الأسعار والتكاليف.',
+            'read_payments': 'متابعة الدفعات والتحصيلات المالية.',
+            'view_inventory': 'الوصول إلى المخازن ومستويات المخزون.',
+            'view_hr': 'عرض بيانات الموظفين وسجلات الحضور.',
+            'manage_hr': 'إدارة أجهزة البصمة، المزامنة، وإضافة الموظفين.',
+            'archive_read': 'تصفح وفتح الملفات في الأرشيف الإلكتروني.',
+            'archive_upload': 'رفع ملفات جديدة وإنشاء مجلدات في الأرشيف.',
+            'archive_download': 'تحميل وحفظ نسخة من ملفات الأرشيف.',
+            'archive_delete': 'حذف الملفات والمجلدات من الأرشيف.',
+            'archive_write': 'إدارة إعدادات الأرشيف وصلاحيات المجلدات.'
+        };
+        return descriptions[permId] || t('صلاحية عامة للنظام.');
+    };
+
+    const groupedPermissions = permissions.reduce((acc, perm) => {
+        const group = getPermissionGroup(perm.id);
+        if (!acc[group]) acc[group] = [];
+        acc[group].push(perm);
+        return acc;
+    }, {} as Record<string, Permission[]>);
+
+    if (loading) return (
+        <Box sx={{ display: 'flex', justifyContent: 'center', p: 10 }}>
+            <CircularProgress />
+        </Box>
+    );
 
     return (
-        <Grid container spacing={3} sx={{ height: '100%' }}>
+        <Grid container spacing={0} sx={{ 
+            minHeight: '600px',
+            height: { xs: 'auto', md: '700px' }, 
+            border: 1, 
+            borderColor: 'divider', 
+            borderRadius: 3, 
+            overflow: 'hidden',
+            bgcolor: 'background.paper',
+            boxShadow: theme.palette.mode === 'dark' ? '0 4px 20px rgba(0,0,0,0.4)' : '0 4px 20px rgba(0,0,0,0.05)'
+        }}>
             {/* Left Panel: Roles List */}
-            <Grid item xs={12} md={4}>
-                <Paper elevation={0} sx={{ height: '100%', border: 1, borderColor: 'divider', overflow: 'hidden' }}>
-                    <Box sx={{ p: 2, bgcolor: alpha(theme.palette.primary.main, 0.05), borderBottom: 1, borderColor: 'divider' }}>
-                        <Typography variant="h6" display="flex" alignItems="center" gap={1}>
-                            <AdminPanelSettings color="primary" />
-                            Roles
-                        </Typography>
-                    </Box>
-                    <List sx={{ overflowY: 'auto', maxHeight: '600px' }}>
-                        {roles.map((role) => (
-                            <ListItemButton
-                                key={role.id}
-                                selected={selectedRole?.id === role.id}
-                                onClick={() => setSelectedRole(role)}
-                                sx={{
-                                    '&.Mui-selected': {
-                                        bgcolor: alpha(theme.palette.primary.main, 0.1),
-                                        borderLeft: `4px solid ${theme.palette.primary.main}`
-                                    }
+            <Grid item xs={12} md={3.5} sx={{ 
+                borderRight: { xs: 0, md: 1 }, 
+                borderBottom: { xs: 1, md: 0 },
+                borderColor: 'divider', 
+                bgcolor: theme.palette.mode === 'dark' ? alpha(theme.palette.background.paper, 0.2) : alpha(theme.palette.background.default, 0.5),
+                maxHeight: { xs: '300px', md: '100%' },
+                overflowY: 'auto'
+            }}>
+                <Box sx={{ 
+                    p: 2, 
+                    borderBottom: 1, 
+                    borderColor: 'divider', 
+                    display: 'flex', 
+                    alignItems: 'center', 
+                    gap: 1, 
+                    position: 'sticky', 
+                    top: 0, 
+                    bgcolor: theme.palette.mode === 'dark' ? '#1e1e1e' : alpha(theme.palette.background.default, 0.8), 
+                    zIndex: 2 
+                }}>
+                    <AdminPanelSettings color="primary" />
+                    <Typography variant="h6" fontWeight="bold">{t('Roles')}</Typography>
+                </Box>
+                <List sx={{ p: 0 }}>
+                    {roles.map((role) => (
+                        <ListItemButton
+                            key={role.id}
+                            selected={selectedRole?.id === role.id}
+                            onClick={() => setSelectedRole(role)}
+                            sx={{
+                                py: 2,
+                                borderBottom: '1px solid',
+                                borderColor: 'divider',
+                                transition: 'all 0.2s',
+                                '&.Mui-selected': {
+                                    bgcolor: alpha(theme.palette.primary.main, theme.palette.mode === 'dark' ? 0.15 : 0.08),
+                                    borderLeft: `4px solid ${theme.palette.primary.main}`,
+                                    '&:hover': { bgcolor: alpha(theme.palette.primary.main, 0.15) }
+                                },
+                                '&:hover': {
+                                    bgcolor: alpha(theme.palette.primary.main, 0.04)
+                                }
+                            }}
+                        >
+                            <ListItemIcon>
+                                <Security color={selectedRole?.id === role.id ? 'primary' : 'action'} />
+                            </ListItemIcon>
+                            <ListItemText
+                                primary={role.name}
+                                secondary={role.description}
+                                primaryTypographyProps={{ 
+                                    fontWeight: selectedRole?.id === role.id ? 800 : 500,
+                                    color: selectedRole?.id === role.id ? 'primary.main' : 'text.primary'
                                 }}
-                            >
-                                <ListItemIcon>
-                                    <Security color={selectedRole?.id === role.id ? 'primary' : 'action'} />
-                                </ListItemIcon>
-                                <ListItemText
-                                    primary={role.name}
-                                    secondary={role.description || 'No description'}
-                                    primaryTypographyProps={{ fontWeight: selectedRole?.id === role.id ? 'bold' : 'medium' }}
-                                />
-                            </ListItemButton>
-                        ))}
-                    </List>
-                </Paper>
+                                secondaryTypographyProps={{
+                                    sx: { opacity: 0.7 }
+                                }}
+                            />
+                        </ListItemButton>
+                    ))}
+                </List>
             </Grid>
 
             {/* Right Panel: Permissions Matrix */}
-            <Grid item xs={12} md={8}>
-                <Paper elevation={0} sx={{ height: '100%', border: 1, borderColor: 'divider', p: 0, display: 'flex', flexDirection: 'column' }}>
-                    {selectedRole ? (
-                        <>
-                            {/* Header */}
-                            <Box sx={{ p: 3, borderBottom: 1, borderColor: 'divider', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                                <Box>
-                                    <Typography variant="h5" gutterBottom>
-                                        Editing: {selectedRole.name}
-                                    </Typography>
-                                    <Typography variant="body2" color="text.secondary">
-                                        Select the permissions this role should have.
-                                    </Typography>
-                                </Box>
-                                <Button
-                                    variant="contained"
-                                    startIcon={<Save />}
-                                    onClick={handleSave}
-                                    disabled={saving}
-                                >
-                                    {saving ? 'Saving...' : 'Save Changes'}
-                                </Button>
+            <Grid item xs={12} md={8.5} sx={{ 
+                display: 'flex', 
+                flexDirection: 'column', 
+                bgcolor: 'background.paper',
+                height: { xs: 'auto', md: '100%' },
+                minHeight: { xs: '500px', md: 'auto' }
+            }}>
+                {selectedRole ? (
+                    <>
+                        {/* Header */}
+                        <Box sx={{ 
+                            p: { xs: 2, md: 3 }, 
+                            borderBottom: 1, 
+                            borderColor: 'divider', 
+                            display: 'flex', 
+                            flexDirection: { xs: 'column', sm: 'row' },
+                            justifyContent: 'space-between', 
+                            alignItems: { xs: 'flex-start', sm: 'center' },
+                            gap: 2,
+                            bgcolor: theme.palette.mode === 'dark' ? alpha(theme.palette.background.paper, 0.4) : 'transparent'
+                        }}>
+                            <Box>
+                                <Typography variant="h5" fontWeight="800" gutterBottom color="primary" sx={{ fontSize: { xs: '1.25rem', md: '1.5rem' } }}>
+                                    {t('Editing')}: {selectedRole.name}
+                                </Typography>
+                                <Typography variant="body2" color="text.secondary">
+                                    {t('Select the permissions this role should have.')}
+                                </Typography>
                             </Box>
-
-                            {/* Feedback Alert */}
-                            {feedback && (
-                                <Alert severity={feedback.type} sx={{ m: 2 }}>
-                                    {feedback.message}
-                                </Alert>
-                            )}
-
-                            {/* Permissions Grid */}
-                            <Box sx={{ p: 3, flexGrow: 1, overflowY: 'auto' }}>
-                                <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
-                                    <Typography variant="subtitle2" sx={{ textTransform: 'uppercase', color: 'text.secondary', fontWeight: 'bold' }}>
-                                        Available Permissions
-                                    </Typography>
-                                    <Box>
-                                        <Button size="small" onClick={() => setRolePermissions(permissions.map(p => p.id))}>
-                                            Select All
-                                        </Button>
-                                        <Button size="small" onClick={() => setRolePermissions([])} color="error" sx={{ ml: 1 }}>
-                                            Clear
-                                        </Button>
-                                    </Box>
-                                </Box>
-
-                                <Grid container spacing={2}>
-                                    {permissions.map((perm) => (
-                                        <Grid item xs={12} sm={6} md={4} key={perm.id}>
-                                            <Card variant="outlined"
-                                                sx={{
-                                                    cursor: 'pointer',
-                                                    borderColor: rolePermissions.includes(perm.id) ? 'primary.main' : 'divider',
-                                                    bgcolor: rolePermissions.includes(perm.id) ? alpha(theme.palette.primary.main, 0.02) : 'transparent',
-                                                    transition: 'all 0.2s'
-                                                }}
-                                                onClick={() => togglePermission(perm.id)}
-                                            >
-                                                <CardContent sx={{ p: '16px !important', display: 'flex', alignItems: 'center', gap: 1 }}>
-                                                    <Checkbox
-                                                        checked={rolePermissions.includes(perm.id)}
-                                                        tabIndex={-1}
-                                                        disableRipple
-                                                    />
-                                                    <Box>
-                                                        <Typography variant="body2" fontWeight="bold">
-                                                            {perm.name}
-                                                        </Typography>
-                                                    </Box>
-                                                </CardContent>
-                                            </Card>
-                                        </Grid>
-                                    ))}
-                                </Grid>
-                            </Box>
-                        </>
-                    ) : (
-                        <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%' }}>
-                            <Typography color="text.secondary">Select a role to edit permissions</Typography>
+                            <Button
+                                variant="contained"
+                                startIcon={<Save />}
+                                onClick={handleSave}
+                                disabled={saving}
+                                sx={{ 
+                                    borderRadius: 2, 
+                                    px: 3,
+                                    width: { xs: '100%', sm: 'auto' },
+                                    boxShadow: theme.shadows[4]
+                                }}
+                            >
+                                {saving ? t('Saving...') : t('Save Changes')}
+                            </Button>
                         </Box>
-                    )}
-                </Paper>
+
+                        {/* Feedback Alert */}
+                        {feedback && (
+                            <Alert severity={feedback.type} sx={{ m: 2, borderRadius: 2 }}>
+                                {feedback.message}
+                            </Alert>
+                        )}
+
+                        {/* Permissions Grid */}
+                        <Box sx={{ p: { xs: 2, md: 3 }, flexGrow: 1, overflowY: 'auto' }}>
+                            <Box sx={{ 
+                                display: 'flex', 
+                                flexDirection: { xs: 'column', sm: 'row' },
+                                justifyContent: 'space-between', 
+                                alignItems: { xs: 'flex-start', sm: 'center' }, 
+                                mb: 3,
+                                gap: 2
+                            }}>
+                                <Typography variant="subtitle2" sx={{ textTransform: 'uppercase', color: 'text.secondary', fontWeight: 'bold', letterSpacing: 1 }}>
+                                    {t('Available Permissions')}
+                                </Typography>
+                                <Box sx={{ display: 'flex', gap: 1, width: { xs: '100%', sm: 'auto' } }}>
+                                    <Button 
+                                        size="small" 
+                                        variant="outlined"
+                                        fullWidth
+                                        onClick={() => setRolePermissions(permissions.map(p => p.id))}
+                                        sx={{ borderRadius: 1.5 }}
+                                    >
+                                        {t('Select All')}
+                                    </Button>
+                                    <Button 
+                                        size="small" 
+                                        variant="outlined"
+                                        color="error"
+                                        fullWidth
+                                        onClick={() => setRolePermissions([])}
+                                        sx={{ borderRadius: 1.5 }}
+                                    >
+                                        {t('Clear')}
+                                    </Button>
+                                </Box>
+                            </Box>
+
+                            {Object.entries(groupedPermissions).map(([groupName, perms]) => (
+                                <Box key={groupName} sx={{ mb: 4 }}>
+                                    <Typography 
+                                        variant="subtitle1" 
+                                        fontWeight="bold" 
+                                        sx={{ 
+                                            mb: 2, 
+                                            display: 'flex', 
+                                            alignItems: 'center', 
+                                            gap: 1,
+                                            color: 'text.primary',
+                                            '&:after': { content: '""', flexGrow: 1, height: '1px', bgcolor: 'divider', ml: 2 }
+                                        }}
+                                    >
+                                        {groupName}
+                                    </Typography>
+                                    <Grid container spacing={2}>
+                                        {perms.map((perm) => (
+                                            <Grid item xs={12} sm={6} lg={4} key={perm.id}>
+                                                <Card 
+                                                    variant="outlined"
+                                                    sx={{
+                                                        cursor: 'pointer',
+                                                        borderColor: rolePermissions.includes(perm.id) ? 'primary.main' : 'divider',
+                                                        bgcolor: rolePermissions.includes(perm.id) 
+                                                            ? alpha(theme.palette.primary.main, theme.palette.mode === 'dark' ? 0.1 : 0.05) 
+                                                            : 'transparent',
+                                                        transition: 'all 0.2s',
+                                                        height: '100%',
+                                                        '&:hover': {
+                                                            borderColor: 'primary.main',
+                                                            bgcolor: alpha(theme.palette.primary.main, theme.palette.mode === 'dark' ? 0.05 : 0.02)
+                                                        }
+                                                    }}
+                                                    onClick={() => togglePermission(perm.id)}
+                                                >
+                                                    <CardContent sx={{ p: 1.5, display: 'flex', gap: 1.5, alignItems: 'flex-start' }}>
+                                                        <Checkbox
+                                                            checked={rolePermissions.includes(perm.id)}
+                                                            tabIndex={-1}
+                                                            disableRipple
+                                                            sx={{ p: 0.5, mt: -0.5 }}
+                                                        />
+                                                        <Box>
+                                                            <Typography variant="body2" fontWeight="700" gutterBottom color="text.primary" sx={{ lineHeight: 1.2 }}>
+                                                                {perm.name}
+                                                            </Typography>
+                                                            <Typography variant="caption" color="text.secondary" sx={{ display: 'block', lineHeight: 1.3, opacity: 0.8 }}>
+                                                                {getPermissionDescription(perm.id)}
+                                                            </Typography>
+                                                        </Box>
+                                                    </CardContent>
+                                                </Card>
+                                            </Grid>
+                                        ))}
+                                    </Grid>
+                                </Box>
+                            ))}
+                        </Box>
+                    </>
+                ) : (
+                    <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100%', py: 10, gap: 2 }}>
+                        <VpnKey sx={{ fontSize: 60, color: 'text.disabled', opacity: 0.3 }} />
+                        <Typography color="text.secondary" variant="h6">{t('Select a role to edit permissions')}</Typography>
+                    </Box>
+                )}
             </Grid>
         </Grid>
     );

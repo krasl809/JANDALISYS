@@ -44,6 +44,7 @@ const Navigation: React.FC<NavProps> = ({ width, mobileOpen, handleDrawerToggle 
     { text: t('contracts'), path: '/contracts', icon: <Description />, permission: PERMISSIONS.VIEW_CONTRACTS },
     { text: t('pricing'), path: '/pricing', icon: <PriceCheck />, permission: PERMISSIONS.VIEW_PRICING },
     { text: t('payments'), path: '/payments', icon: <Payment />, permission: PERMISSIONS.VIEW_PAYMENTS },
+    { text: t('Archive Dashboard'), path: '/archive/dashboard', icon: <Dashboard />, permission: PERMISSIONS.VIEW_ARCHIVE },
     { text: t('Electronic Archive'), path: '/archive', icon: <FolderSpecial />, permission: PERMISSIONS.VIEW_ARCHIVE },
     { text: t('Reports & Analytics'), path: '/reports', icon: <Assessment />, permission: PERMISSIONS.VIEW_REPORTS },
   ];

@@ -30,6 +30,9 @@ from core.database import Base
 from models.core_models import *
 from models.department_models import *
 from models.rbac_models import *
+from models.hr_models import *
+from models.employee_models import *
+from models.company_models import *
 
 target_metadata = Base.metadata
 

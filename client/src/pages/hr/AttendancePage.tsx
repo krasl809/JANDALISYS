@@ -11,11 +11,13 @@ import {
     Refresh, Check, Warning, Error as ErrorIcon, AccessTime,
     Person, Schedule, Timer, Group, ViewList, TableChart,
     CalendarToday, ChevronLeft, ChevronRight, Today, Event, GetApp,
-    FilterList, Save, TrendingUp, Settings, MoreVert, ExpandMore
+    FilterList, Save, TrendingUp, Settings, MoreVert, ExpandMore,
+    FiberManualRecord
 } from '@mui/icons-material';
 import api from '../../services/api';
 import { useTranslation } from 'react-i18next';
 import AttendanceTimeline from '../../components/hr/AttendanceTimeline';
+import AttendanceAnalytics from '../../components/hr/AttendanceAnalytics';
 import MonthView from './MonthView';
 import CalendarView from './CalendarView';
 import { format, parseISO, startOfMonth, endOfMonth, startOfWeek, endOfWeek, eachDayOfInterval, isSameDay, isToday, isWeekend, subMonths, addMonths, isAfter, differenceInDays, addDays, endOfDay, differenceInMinutes } from 'date-fns';
@@ -29,6 +31,7 @@ export const ATTENDANCE_COLORS = {
     late: '#EF4444',    // Red 500 - for late arrival
     earlyLeave: '#F59E0B', // Amber 500 - for early leave
     absent: '#6B7280',  // Gray 500 - for absent
+    holiday: '#8B5CF6', // Violet 500 - for paid holiday
     ongoing: '#3B82F6', // Blue 500 - for ongoing work
     overtime: '#8B5CF6', // Violet 500 - for overtime
     partial: '#F97316'  // Orange 500 - for partial work
@@ -75,6 +78,7 @@ interface AttendanceSummary {
     late_today: number;
     early_leave_today: number;
     absent_today: number;
+    currently_in: number; // New field
 }
 
 // Optimized Custom Hooks
@@ -130,7 +134,7 @@ const useAttendanceFilters = () => {
     const [selectedEmployee, setSelectedEmployee] = useState('');
     const [selectedDepartment, setSelectedDepartment] = useState('');
     const [rawView, setRawView] = useState(false);
-    const [viewMode, setViewMode] = useState<'calendar' | 'table' | 'matrix' | 'month'>('matrix');
+    const [viewMode, setViewMode] = useState<'calendar' | 'table' | 'matrix' | 'month' | 'analytics'>('matrix');
     const [quickView, setQuickView] = useState<'today' | 'week' | 'month' | null>(null);
     const [currentMonth, setCurrentMonth] = useState(new Date());
     const [zoomLevel, setZoomLevel] = useState<'day' | 'week' | 'month' | 'range'>('day');
@@ -241,13 +245,28 @@ const AttendanceSummaryCards = React.memo(({
             value: summary.absent_today,
             icon: <ErrorIcon sx={{ fontSize: 28 }} />,
             color: ATTENDANCE_COLORS.absent
+        },
+        {
+            title: t('Currently In'),
+            value: summary.currently_in,
+            icon: <FiberManualRecord sx={{ fontSize: 16, color: ATTENDANCE_COLORS.present, animation: 'pulse 2s infinite' }} />,
+            color: ATTENDANCE_COLORS.ongoing
         }
     ], [summary, theme.palette.primary.main, t]);
 
     return (
         <Grid container spacing={2} sx={{ mb: 2, overflowX: 'hidden', width: '100%', ml: 0 }}>
+            <style>
+                {`
+                    @keyframes pulse {
+                        0% { opacity: 1; transform: scale(1); }
+                        50% { opacity: 0.5; transform: scale(1.2); }
+                        100% { opacity: 1; transform: scale(1); }
+                    }
+                `}
+            </style>
             {cards.map((card, index) => (
-                <Grid item xs={12} sm={6} md={3} key={index}>
+                <Grid item xs={12} sm={6} md={2.4} key={index}>
                     <Card sx={{
                         height: '100%',
                         border: `1px solid ${theme.palette.divider}`,
@@ -374,22 +393,24 @@ const QuickViewMenu = React.memo(({
 });
 
 // Action Menu Component
-const ActionMenu = React.memo(({ 
+const ActionMenu = React.memo(({
     filters,
     onRefresh,
     loading,
-    theme
+    theme,
+    rows // Pass rows for export
 }: {
     filters: any;
     onRefresh: () => void;
-    loading: boolean;
+    loading?: boolean;
     theme: any;
+    rows: any[];
 }) => {
     const { t } = useTranslation();
     const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null);
     const open = Boolean(anchorEl);
 
-    const handleClick = (event: React.MouseEvent<HTMLElement>) => {
+    const handleClick = (event: React.MouseEvent<HTMLButtonElement>) => {
         setAnchorEl(event.currentTarget);
     };
 
@@ -405,6 +426,52 @@ const ActionMenu = React.memo(({
 
     const handleRefresh = () => {
         onRefresh();
+        handleClose();
+    };
+
+    const handleExport = () => {
+        if (!rows || rows.length === 0) return;
+
+        const headers = filters.rawView 
+            ? ['ID', 'Employee ID', 'Name', 'Timestamp', 'Type', 'Status', 'Device']
+            : ['Employee ID', 'Name', 'Date', 'Check In', 'Check Out', 'Work Hours', 'Status'];
+
+        const csvContent = [
+            headers.join(','),
+            ...rows.map(row => {
+                if (filters.rawView) {
+                    return [
+                        row.id,
+                        row.employee_id,
+                        `"${row.employee_name}"`,
+                        row.timestamp,
+                        row.type,
+                        row.raw_status,
+                        `"${row.device}"`
+                    ].join(',');
+                } else {
+                    return [
+                        row.employee_id,
+                        `"${row.employee_name}"`,
+                        row.check_in_date,
+                        row.check_in ? format(parseISO(row.check_in), 'HH:mm') : '-',
+                        row.check_out ? format(parseISO(row.check_out), 'HH:mm') : '-',
+                        row.actual_work,
+                        row.status
+                    ].join(',');
+                }
+            })
+        ].join('\n');
+
+        const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+        const link = document.createElement('a');
+        const url = URL.createObjectURL(blob);
+        link.setAttribute('href', url);
+        link.setAttribute('download', `attendance_export_${format(new Date(), 'yyyy-MM-dd')}.csv`);
+        link.style.visibility = 'hidden';
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
         handleClose();
     };
 
@@ -446,12 +513,18 @@ const ActionMenu = React.memo(({
             >
                 <MenuItem 
                     onClick={handleRawViewToggle}
-                    disabled={filters.viewMode === 'calendar' || filters.viewMode === 'matrix' || filters.viewMode === 'month'}
+                    disabled={filters.viewMode === 'calendar' || filters.viewMode === 'matrix' || filters.viewMode === 'month' || filters.viewMode === 'analytics'}
                 >
                     <ListItemIcon>
                         {filters.rawView ? <TableChart fontSize="small" /> : <ViewList fontSize="small" />}
                     </ListItemIcon>
                     <ListItemText>{filters.rawView ? t('Processed View') : t('Raw View')}</ListItemText>
+                </MenuItem>
+                <MenuItem onClick={handleExport} disabled={loading || !rows || rows.length === 0}>
+                    <ListItemIcon>
+                        <GetApp fontSize="small" />
+                    </ListItemIcon>
+                    <ListItemText>{t('Export CSV')}</ListItemText>
                 </MenuItem>
                 <MenuItem onClick={handleRefresh} disabled={loading}>
                     <ListItemIcon>
@@ -472,7 +545,8 @@ const AttendanceControls = React.memo(({
     onFilterChange,
     onApplyFilters,
     onRefresh,
-    loading
+    loading,
+    rows
 }: {
     filters: any;
     employees: any[];
@@ -481,6 +555,7 @@ const AttendanceControls = React.memo(({
     onApplyFilters: () => void;
     onRefresh: () => void;
     loading?: boolean;
+    rows: any[];
 }) => {
     const { t } = useTranslation();
     const theme = useTheme();
@@ -539,6 +614,10 @@ const AttendanceControls = React.memo(({
                             <TableChart sx={{ mr: 0.5, fontSize: 16 }} />
                             {t('List')}
                         </ToggleButton>
+                        <ToggleButton value="analytics">
+                            <TrendingUp sx={{ mr: 0.5, fontSize: 16 }} />
+                            {t('Analytics')}
+                        </ToggleButton>
                     </ToggleButtonGroup>
                 </Box>
 
@@ -557,6 +636,7 @@ const AttendanceControls = React.memo(({
                         onRefresh={onRefresh} 
                         loading={loading} 
                         theme={theme} 
+                        rows={rows}
                     />
                 </Box>
             </Stack>
@@ -564,7 +644,7 @@ const AttendanceControls = React.memo(({
             {/* Filters Row */}
             <Grid container spacing={2} alignItems="center">
                 {/* Date Range */}
-                {(filters.viewMode === 'table' || filters.viewMode === 'matrix') && (
+                {(filters.viewMode === 'table' || filters.viewMode === 'matrix' || filters.viewMode === 'analytics') && (
                     <>
                         <Grid item xs={12} sm={6} md={2}>
                             <DatePicker
@@ -598,7 +678,7 @@ const AttendanceControls = React.memo(({
                 )}
 
                 {/* Department Filter */}
-                <Grid item xs={12} sm={6} md={filters.viewMode === 'table' || filters.viewMode === 'matrix' ? 2 : 3}>
+                <Grid item xs={12} sm={6} md={filters.viewMode === 'table' || filters.viewMode === 'matrix' || filters.viewMode === 'analytics' ? 2 : 3}>
                     <FormControl fullWidth size="small">
                         <InputLabel>{t('Department')}</InputLabel>
                         <Select
@@ -617,7 +697,7 @@ const AttendanceControls = React.memo(({
                 </Grid>
 
                 {/* Employee Filter */}
-                <Grid item xs={12} sm={6} md={filters.viewMode === 'table' || filters.viewMode === 'matrix' ? 2 : 3}>
+                <Grid item xs={12} sm={6} md={filters.viewMode === 'table' || filters.viewMode === 'matrix' || filters.viewMode === 'analytics' ? 2 : 3}>
                     <FormControl fullWidth size="small">
                         <InputLabel>{t('Employee')}</InputLabel>
                         <Select
@@ -638,7 +718,7 @@ const AttendanceControls = React.memo(({
                 </Grid>
 
                 {/* Apply Filters Button */}
-                {(filters.viewMode === 'table' || filters.viewMode === 'matrix') && (
+                {(filters.viewMode === 'table' || filters.viewMode === 'matrix' || filters.viewMode === 'analytics') && (
                     <Grid item xs={12} md={2}>
                         <Button
                             fullWidth
@@ -803,7 +883,8 @@ const AttendancePage: React.FC = () => {
         present_today: 0,
         late_today: 0,
         early_leave_today: 0,
-        absent_today: 0
+        absent_today: 0,
+        currently_in: 0
     });
 
     // State for employees and departments
@@ -853,13 +934,20 @@ const AttendancePage: React.FC = () => {
         );
 
         const uniqueEmployeesInRange = new Set(rangePeriods.map((p: AttendanceRecord) => p.employee_id)).size;
+        
+        // Currently in: Check-in today but no check-out
+        const todayStr = format(new Date(), 'yyyy-MM-dd');
+        const currentlyIn = periods.filter((p: any) => 
+            p.check_in_date === todayStr && !p.check_out
+        ).length;
 
         return {
             total_employees: totalCount,
             present_today: rangePeriods.filter((p: any) => p.status === 'present').length,
             late_today: rangePeriods.filter((p: any) => p.status === 'late').length,
             early_leave_today: rangePeriods.filter((p: any) => p.status === 'early_leave').length,
-            absent_today: totalCount - uniqueEmployeesInRange
+            absent_today: totalCount - uniqueEmployeesInRange,
+            currently_in: currentlyIn
         };
     }, [filters.rawView, filters.startDate, filters.endDate, totalEmployees, rows]);
 
@@ -1012,15 +1100,35 @@ const AttendancePage: React.FC = () => {
                 width: 120,
                 renderCell: (params: GridRenderCellParams) => {
                     const status = params.value as string;
+                    const isTodayRecord = isToday(parseISO(params.row.check_in_date));
+                    const isMissingExit = !params.row.check_out && !isTodayRecord;
+
                     const getStatusColor = () => {
+                        if (isMissingExit) return ATTENDANCE_COLORS.absent;
                         switch (status) {
                             case 'present': return ATTENDANCE_COLORS.present;
                             case 'late': return ATTENDANCE_COLORS.late;
                             case 'early_leave': return ATTENDANCE_COLORS.earlyLeave;
+                            case 'holiday': return ATTENDANCE_COLORS.holiday;
                             case 'ongoing': return ATTENDANCE_COLORS.ongoing;
                             default: return ATTENDANCE_COLORS.absent;
                         }
                     };
+
+                    if (isMissingExit) {
+                        return (
+                            <Chip
+                                size="small"
+                                label={t('Missing Exit')}
+                                variant="filled"
+                                sx={{
+                                    backgroundColor: ATTENDANCE_COLORS.absent,
+                                    color: 'white',
+                                    fontWeight: 600
+                                }}
+                            />
+                        );
+                    }
 
                     if (status?.includes('&')) {
                         return (
@@ -1123,9 +1231,19 @@ const AttendancePage: React.FC = () => {
                     onApplyFilters={refetch}
                     onRefresh={refetch}
                     loading={loading}
+                    rows={rows}
                 />
 
                 {/* Content Area */}
+                {filters.viewMode === 'analytics' && (
+                    <AttendanceAnalytics 
+                        data={rows} 
+                        employees={employees} 
+                        startDate={filters.startDate || new Date()} 
+                        endDate={filters.endDate || new Date()} 
+                    />
+                )}
+
                 {filters.viewMode === 'matrix' && (
                     <MatrixView
                         rows={rows}

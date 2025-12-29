@@ -84,25 +84,27 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
   };
 
   useEffect(() => {
-    if (user) {
-      fetchNotifications();
+    let socket: WebSocket | null = null;
+    let reconnectTimeout: NodeJS.Timeout;
 
-      // WebSocket connection
+    const connectWebSocket = () => {
+      if (!user) return;
+
       const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
       const wsUrl = `${wsProtocol}//${window.location.host}/ws`;
-      const socket = new WebSocket(wsUrl);
+      
+      console.log('Attempting WebSocket connection to:', wsUrl);
+      socket = new WebSocket(wsUrl);
 
       socket.onmessage = (event) => {
         try {
           const message = JSON.parse(event.data);
           if (message.type === 'notification') {
             const newNotif = message.data;
-            // Only add if it belongs to the current user
             if (newNotif.user_id === user.id) {
               setNotifications(prev => [newNotif, ...prev]);
               setUnreadCount(prev => prev + 1);
 
-              // Show browser notification if permitted
               if (Notification.permission === 'granted') {
                 new Notification(newNotif.title, {
                   body: newNotif.message,
@@ -111,28 +113,51 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
             }
           }
         } catch (error) {
-          // Handle plain string messages (like "CONTRACT_UPDATED")
           const message = event.data;
           if (typeof message === 'string') {
             console.log('WebSocket message:', message);
-            // For now, just log the message. Could trigger other actions here.
           } else {
             console.error('WebSocket message parsing error:', error);
           }
         }
       };
 
-      socket.onopen = () => console.log('WebSocket connected');
-      socket.onerror = (error) => console.error('WebSocket error:', error);
-      socket.onclose = () => console.log('WebSocket disconnected');
-
-      return () => {
-        socket.close();
+      socket.onopen = () => {
+        console.log('✅ WebSocket connected');
       };
+
+      socket.onerror = (error) => {
+        console.error('❌ WebSocket error details:', {
+          url: wsUrl,
+          readyState: socket?.readyState,
+          timestamp: new Date().toISOString()
+        });
+      };
+
+      socket.onclose = (event) => {
+        console.log(`WebSocket disconnected (Code: ${event.code}). Reconnecting in 5s...`);
+        if (user) {
+          reconnectTimeout = setTimeout(connectWebSocket, 5000);
+        }
+      };
+    };
+
+    if (user) {
+      fetchNotifications();
+      connectWebSocket();
     } else {
       setNotifications([]);
       setUnreadCount(0);
     }
+
+    return () => {
+      if (socket) {
+        socket.close();
+      }
+      if (reconnectTimeout) {
+        clearTimeout(reconnectTimeout);
+      }
+    };
   }, [user, fetchNotifications]);
 
   // Request notification permission on mount

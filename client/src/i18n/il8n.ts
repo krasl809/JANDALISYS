@@ -192,7 +192,21 @@ const resources = {
       "Devices": "Devices",
       "pricing": "Pricing",
       "payments": "Payments",
-      "Reports & Analytics": "Reports & Analytics"
+      "Reports & Analytics": "Reports & Analytics",
+      "Analytics": "Analytics",
+      "Attendance Trends": "Attendance Trends",
+      "Attendance Rate (%)": "Attendance Rate (%)",
+      "Distribution by Status": "Distribution by Status",
+      "Department Performance": "Department Performance",
+      "Avg Rate (%)": "Avg Rate (%)",
+      "Export CSV": "Export CSV",
+      "Currently In": "Currently In",
+      "Missing Exit": "Missing Exit",
+      "Actions": "Actions",
+      "Refresh Data": "Refresh Data",
+      "Weekly Holidays": "Weekly Holidays",
+      "Holidays are Paid": "Holidays are Paid",
+      "Administrative Shift": "Administrative Shift"
     }
   },
   ar: {
@@ -329,6 +343,10 @@ const resources = {
       "Collective sync failed": "فشل السحب الجماعي",
       "Syncing multiple devices...": "جاري سحب البيانات من عدة أجهزة...",
       "Successfully synced. Total new logs: ": "تم السحب بنجاح. إجمالي السجلات الجديدة: ",
+      "Sync failed for all devices. Check connections.": "فشل السحب لجميع الأجهزة. تأكد من الاتصالات.",
+      "Synced some devices, but some failed. Total new logs: ": "تم سحب البيانات من بعض الأجهزة وفشل البعض الآخر. إجمالي السجلات: ",
+      "Successfully synced devices. Total new logs: ": "تم سحب البيانات بنجاح من الأجهزة. إجمالي السجلات: ",
+      "Failed": "فشل",
       "Employee Directory": "دليل الموظفين",
       "Manage system users and employees": "إدارة مستخدمي النظام والموظفين",
       "Importing...": "جاري الاستيراد...",
@@ -393,7 +411,21 @@ const resources = {
       "Devices": "الأجهزة",
       "pricing": "التسعير",
       "payments": "المدفوعات",
-      "Reports & Analytics": "التقارير والتحليلات"
+      "Reports & Analytics": "التقارير والتحليلات",
+      "Analytics": "التحليلات",
+      "Attendance Trends": "اتجاهات الحضور",
+      "Attendance Rate (%)": "معدل الحضور (%)",
+      "Distribution by Status": "التوزيع حسب الحالة",
+      "Department Performance": "أداء الأقسام",
+      "Avg Rate (%)": "متوسط المعدل (%)",
+      "Export CSV": "تصدير CSV",
+      "Currently In": "متواجد حالياً",
+      "Missing Exit": "نقص تسجيل خروج",
+      "Actions": "إجراءات",
+      "Refresh Data": "تحديث البيانات",
+      "Weekly Holidays": "العطلات الأسبوعية",
+      "Holidays are Paid": "العطلات مأجورة",
+      "Administrative Shift": "الشفت الإداري"
     }
   }
 };

@@ -24,9 +24,12 @@ class ZkTecoService:
 
         if not ZK_AVAILABLE:
             # Fake sync for testing UI if lib not installed
-            logger.warning("zkteco library not found. Installing mock data for demo.")
-            self._create_mock_logs(device)
-            return {"status": "warning", "message": "Library 'zkteco' missing. Mock data generated.", "logs_count": 5}
+            if any(device.ip_address.startswith(prefix) for prefix in ["192.", "10.", "127."]):
+                logger.warning("zkteco library not found. Installing mock data for demo.")
+                self._create_mock_logs(device)
+                return {"status": "warning", "message": "Library 'zkteco' missing. Mock data generated.", "logs_count": 5}
+            else:
+                return {"status": "error", "message": "Device unreachable (Mock Mode: Invalid IP range)"}
 
         # Real Connection Logic
         zk = ZK(device.ip_address, port=device.port, timeout=5)
@@ -126,9 +129,9 @@ class ZkTecoService:
             return {"status": "error", "message": "Device not found"}
 
         if not ZK_AVAILABLE:
-            # Simulate ping for demo
-            import random
-            is_online = random.choice([True, False])
+            # Simulate ping for demo - only "online" if IP starts with 192 or 10 (common local IPs)
+            # or if it's a specific test IP
+            is_online = any(device.ip_address.startswith(prefix) for prefix in ["192.", "10.", "127."])
             device.status = "online" if is_online else "offline"
             self.db.commit()
             return {"status": "online" if is_online else "offline"}

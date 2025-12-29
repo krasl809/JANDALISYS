@@ -68,6 +68,7 @@ class WorkShift(Base):
     grace_period_in = Column(Integer, default=15)  # minutes
     grace_period_out = Column(Integer, default=15) # minutes
     ot_threshold = Column(Integer, default=30)     # minutes before OT starts
+    end_day_offset = Column(Integer, default=0)    # 0: same day, 1: next day, 2: day after next
     
     # Overtime Multipliers
     multiplier_normal = Column(Float, default=1.5)
@@ -75,7 +76,12 @@ class WorkShift(Base):
     
     # Configuration
     holiday_days = Column(JSON, default=list) # ["Friday"]
-    rotation_pattern = Column(JSON, nullable=True) # {"sequence": ["8h", "16h", "off"], "days": 3}
+    is_holiday_paid = Column(Boolean, default=True) # Whether holidays are paid when absent
+    distribute_holiday_bonus = Column(Boolean, default=False) # For rotational: distribute holiday pay across work days
+    min_days_for_paid_holiday = Column(Integer, default=4) # Min working days in last 7 days to get paid holiday
+    
+    # Advanced Rotation: [{"start": "08:00", "end": "16:00", "hours": 8, "offset": 0}, {"start": "16:00", "end": "08:00", "hours": 16, "offset": 1}, "OFF"]
+    rotation_pattern = Column(JSON, nullable=True) 
     
     is_active = Column(Boolean, default=True)
 

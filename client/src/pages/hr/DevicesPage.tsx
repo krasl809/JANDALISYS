@@ -17,7 +17,7 @@ const DevicesPage: React.FC = () => {
     const [newDevice, setNewDevice] = useState({ name: '', ip_address: '192.168.1.201', port: 4370, location: '' });
     const [syncing, setSyncing] = useState<number | null>(null);
     const [multiSyncing, setMultiSyncing] = useState(false);
-    const [feedback, setFeedback] = useState<{ type: 'success' | 'error' | 'info', msg: string } | null>(null);
+    const [feedback, setFeedback] = useState<{ type: 'success' | 'error' | 'info' | 'warning', msg: string } | null>(null);
     const [pinging, setPinging] = useState<Set<number>>(new Set());
     const [progress, setProgress] = useState<{ [key: number]: number }>({});
 
@@ -144,10 +144,34 @@ const DevicesPage: React.FC = () => {
         try {
             const res = await api.post('/hr/devices/sync-multiple', { device_ids: deviceIds });
             if (res.data.status === 'success') {
-                setFeedback({ 
-                    type: 'success', 
-                    msg: `Successfully synced. Total new logs: ${res.data.total_new_logs}` 
-                });
+                const total = res.data.total_new_logs;
+                const details = res.data.details || [];
+                const failedDetails = details.filter((d: any) => d.status === 'error');
+                const failed = failedDetails.length;
+                const succeeded = details.filter((d: any) => d.status === 'success' || d.status === 'warning').length;
+
+                if (failed > 0 && succeeded === 0) {
+                    setFeedback({ 
+                        type: 'error', 
+                        msg: t('Sync failed for all devices. Check connections.')
+                    });
+                } else if (failed > 0) {
+                    // Get names of failed devices
+                    const failedNames = failedDetails.map((fd: any) => {
+                        const device = devices.find(d => d.id === fd.device_id);
+                        return device ? device.name : fd.device_id;
+                    }).join(', ');
+
+                    setFeedback({ 
+                        type: 'warning', 
+                        msg: `${t('Synced some devices, but some failed. Total new logs: ')} ${total} (${t('Failed')}: ${failedNames})` 
+                    });
+                } else {
+                    setFeedback({ 
+                        type: 'success', 
+                        msg: `${t('Successfully synced devices. Total new logs: ')} ${total}` 
+                    });
+                }
                 fetchDevices();
             }
         } catch (error) {

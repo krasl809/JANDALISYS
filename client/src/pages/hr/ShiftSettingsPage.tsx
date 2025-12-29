@@ -4,11 +4,12 @@ import {
     DialogContent, DialogActions, Chip, IconButton, Card, CardContent, Divider,
     Alert, Tab, Tabs, FormControl, InputLabel, Select, MenuItem, Checkbox,
     FormControlLabel, FormGroup, Stack, Avatar, List, ListItem, ListItemText, ListItemAvatar,
-    alpha, useTheme, Tooltip, Badge, CircularProgress, Snackbar
+    alpha, useTheme, Tooltip, Badge, CircularProgress, Snackbar, FormHelperText
 } from '@mui/material';
 import {
     Add, Edit, Delete, Schedule, AssignmentInd, AccessTime,
-    Info, RotateRight, CheckCircle, Warning, FilterList, Refresh
+    Info, RotateRight, CheckCircle, Warning, FilterList, Refresh, AutoFixHigh,
+    AddCircle, RemoveCircle, PlayArrow, DragIndicator
 } from '@mui/icons-material';
 import api from '../../services/api';
 import { useTranslation } from 'react-i18next';
@@ -44,7 +45,21 @@ const ShiftSettingsPage: React.FC = () => {
         multiplier_normal: 1.5,
         multiplier_holiday: 2.0,
         holiday_days: ['Friday'],
-        rotation_pattern: { sequence: [], days: 0 }
+        is_holiday_paid: true,
+        min_days_for_paid_holiday: 4,
+        end_day_offset: 0,
+        temp_rotation_hours: 8,
+        temp_rotation_offset: 0,
+        distribute_holiday_bonus: false,
+        rotation_pattern: { 
+            sequence: [], 
+            days: 0,
+            slots: {
+                A: { start: '08:00', end: '16:00', hours: 8 },
+                B: { start: '16:00', end: '00:00', hours: 8 },
+                C: { start: '00:00', end: '08:00', hours: 8 }
+            }
+        }
     });
 
     // Assignment States
@@ -102,8 +117,8 @@ const ShiftSettingsPage: React.FC = () => {
             errors.end_time = t('End time is required');
         }
         
-        if (shift.start_time && shift.end_time && shift.start_time >= shift.end_time) {
-            errors.time_range = t('End time must be after start time');
+        if (shift.start_time && shift.end_time && shift.start_time >= shift.end_time && (!shift.end_day_offset || shift.end_day_offset === 0)) {
+            errors.time_range = t('End time must be after start time for same-day shifts');
         }
         
         if (!shift.expected_hours || shift.expected_hours <= 0) {
@@ -190,6 +205,7 @@ const ShiftSettingsPage: React.FC = () => {
     const handleEditShift = (shift: any) => {
         setNewShift({
             ...shift,
+            end_day_offset: shift.end_day_offset,
             rotation_pattern: shift.rotation_pattern || { sequence: [], days: 0 }
         });
         setEditingShiftId(shift.id);
@@ -207,14 +223,28 @@ const ShiftSettingsPage: React.FC = () => {
             start_time: '08:00',
             end_time: '17:00',
             expected_hours: 8,
-            grace_period_in: 15,
-            grace_period_out: 15,
-            ot_threshold: 30,
-            multiplier_normal: 1.5,
-            multiplier_holiday: 2.0,
-            holiday_days: ['Friday'],
-            rotation_pattern: { sequence: [], days: 0 }
-        });
+        grace_period_in: 15,
+        grace_period_out: 15,
+        ot_threshold: 30,
+        multiplier_normal: 1.5,
+        multiplier_holiday: 2.0,
+        holiday_days: ['Friday'],
+        is_holiday_paid: true,
+        min_days_for_paid_holiday: 4,
+        end_day_offset: 0,
+        temp_rotation_hours: 8,
+        temp_rotation_offset: 0,
+        distribute_holiday_bonus: false,
+        rotation_pattern: { 
+            sequence: [], 
+            days: 0,
+            slots: {
+                A: { start: '08:00', end: '16:00', hours: 8 },
+                B: { start: '16:00', end: '00:00', hours: 8 },
+                C: { start: '00:00', end: '08:00', hours: 8 }
+            }
+        }
+    });
         setRotationInput('');
     };
 
@@ -375,9 +405,10 @@ const ShiftSettingsPage: React.FC = () => {
                                             </Typography>
                                             <Stack direction="row" spacing={0.5} flexWrap="wrap" gap={0.5}>
                                                 {shift.shift_type === 'rotational' ? (
-                                                    (shift.rotation_pattern?.sequence || []).map((step: string, i: number) => (
-                                                        <Chip key={i} label={step} size="small" variant="outlined" color="secondary" sx={{ fontSize: '0.65rem', height: 20 }} />
-                                                    ))
+                                                    (shift.rotation_pattern?.sequence || []).map((step: any, i: number) => {
+                                                        const label = typeof step === 'string' ? step : step.label;
+                                                        return <Chip key={i} label={label} size="small" variant="outlined" color="secondary" sx={{ fontSize: '0.65rem', height: 20 }} />;
+                                                    })
                                                 ) : (
                                                     shift.holiday_days?.map((day: string) => (
                                                         <Chip key={day} label={day} size="small" sx={{ fontSize: '0.65rem', height: 20 }} />
@@ -568,6 +599,24 @@ const ShiftSettingsPage: React.FC = () => {
                             />
                         </Grid>
 
+                        <Grid item xs={12}>
+                            <FormControl fullWidth size="small">
+                                <InputLabel>{t('Shift Ends On')}</InputLabel>
+                                <Select
+                                    value={newShift.end_day_offset || 0}
+                                    label={t('Shift Ends On')}
+                                    onChange={(e) => setNewShift({ ...newShift, end_day_offset: Number(e.target.value) })}
+                                >
+                                    <MenuItem value={0}>{t('Same Day')}</MenuItem>
+                                    <MenuItem value={1}>{t('Next Day')}</MenuItem>
+                                    <MenuItem value={2}>{t('After 2 Days')}</MenuItem>
+                                </Select>
+                                <FormHelperText>
+                                    {t('Select if the shift spans across multiple days (e.g., 16h or 48h shifts)')}
+                                </FormHelperText>
+                            </FormControl>
+                        </Grid>
+
                         {validationErrors.time_range && (
                             <Grid item xs={12}>
                                 <Alert severity="error">{validationErrors.time_range}</Alert>
@@ -617,7 +666,44 @@ const ShiftSettingsPage: React.FC = () => {
                         </Grid>
 
                         <Grid item xs={12}>
-                            <Typography variant="subtitle2" sx={{ mb: 1, fontWeight: 'bold' }}>{t('Holiday Days (2.0x Multiplier)')}</Typography>
+                            <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 1 }}>
+                                <Typography variant="subtitle2" sx={{ fontWeight: 'bold' }}>{t('Weekly Holidays & Eligibility')}</Typography>
+                                <FormControlLabel
+                                    control={
+                                        <Checkbox 
+                                            checked={newShift.is_holiday_paid ?? true} 
+                                            onChange={(e) => setNewShift({ ...newShift, is_holiday_paid: e.target.checked })}
+                                            color="primary"
+                                        />
+                                    }
+                                    label={<Typography variant="body2" sx={{ fontWeight: 'bold' }}>{t('Holidays are Paid')}</Typography>}
+                                />
+                            </Box>
+                            
+                            {newShift.is_holiday_paid && (
+                                <Box sx={{ mb: 2, p: 2, bgcolor: alpha(theme.palette.primary.main, 0.05), borderRadius: 2, border: `1px dashed ${theme.palette.primary.main}` }}>
+                                    <Grid container spacing={2} alignItems="center">
+                                        <Grid item xs={12} md={8}>
+                                            <Typography variant="body2" color="text.secondary">
+                                                {t('Minimum working days required in the last 7 days to qualify for a paid holiday')}
+                                            </Typography>
+                                        </Grid>
+                                        <Grid item xs={12} md={4}>
+                                            <TextField
+                                                label={t('Minimum Work Units (Shifts/Days) for Holiday Eligibility')}
+                                                helperText={t('Number of attendance records required in the last 7 days to qualify for a paid holiday')}
+                                                type="number"
+                                                size="small"
+                                                fullWidth
+                                                value={newShift.min_days_for_paid_holiday ?? 4}
+                                                onChange={(e) => setNewShift({ ...newShift, min_days_for_paid_holiday: Number(e.target.value) })}
+                                                inputProps={{ min: 0, max: 21 }}
+                                            />
+                                        </Grid>
+                                    </Grid>
+                                </Box>
+                            )}
+
                             <FormGroup row>
                                 {daysOfWeek.map(day => (
                                     <FormControlLabel
@@ -641,54 +727,309 @@ const ShiftSettingsPage: React.FC = () => {
 
                         {newShift.shift_type === 'rotational' && (
                             <Grid item xs={12}>
-                                <Divider sx={{ mb: 2 }}><Chip label={t('Rotation Cycle')} size="small" /></Divider>
-                                <Box sx={{ p: 2, border: `1px dashed ${theme.palette.divider}`, borderRadius: 4 }}>
-                                    <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 2 }}>
-                                        {t('Add work hours or OFF to define the sequence (e.g., 8h, 8h, 16h, OFF)')}
-                                    </Typography>
-                                    <Stack direction="row" spacing={1} alignItems="center" sx={{ mb: 2 }}>
-                                        <TextField
-                                            size="small"
-                                            placeholder={t('Add step (e.g. 8h)')}
-                                            value={rotationInput}
-                                            onChange={(e) => setRotationInput(e.target.value)}
-                                            onKeyPress={(e) => {
-                                                if (e.key === 'Enter') {
-                                                    e.preventDefault();
-                                                    if (!rotationInput) return;
-                                                    const seq = [...(newShift.rotation_pattern?.sequence || []), rotationInput];
-                                                    setNewShift({ ...newShift, rotation_pattern: { ...newShift.rotation_pattern, sequence: seq } });
-                                                    setRotationInput('');
-                                                }
-                                            }}
-                                        />
-                                        <Button
-                                            variant="outlined"
-                                            size="small"
+                                <Divider sx={{ mb: 2 }}><Chip label={t('Rotational Shift Designer (A/B/C)')} size="small" /></Divider>
+                                <Box sx={{ p: 2, border: `1px solid ${alpha(theme.palette.secondary.main, 0.2)}`, borderRadius: 4, bgcolor: alpha(theme.palette.secondary.main, 0.02) }}>
+                                    
+                                    {/* Slot Definitions */}
+                                    <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
+                                        <Typography variant="subtitle2" sx={{ fontWeight: 'bold' }}>{t('1. Define Time Slots')}</Typography>
+                                        <Button 
+                                            size="small" 
+                                            startIcon={<AddCircle />} 
                                             onClick={() => {
-                                                if (!rotationInput) return;
-                                                const seq = [...(newShift.rotation_pattern?.sequence || []), rotationInput];
-                                                setNewShift({ ...newShift, rotation_pattern: { ...newShift.rotation_pattern, sequence: seq } });
-                                                setRotationInput('');
+                                                const slots = { ...newShift.rotation_pattern?.slots || {} };
+                                                const nextKey = String.fromCharCode(65 + Object.keys(slots).length); // A, B, C...
+                                                slots[nextKey] = { start: '08:00', end: '16:00', hours: 8 };
+                                                setNewShift({ ...newShift, rotation_pattern: { ...newShift.rotation_pattern, slots } });
                                             }}
                                         >
-                                            {t('Add')}
+                                            {t('Add Slot')}
+                                        </Button>
+                                    </Box>
+                                    <Grid container spacing={2} sx={{ mb: 3 }}>
+                                        {Object.entries(newShift.rotation_pattern?.slots || {}).map(([slot, data]: [string, any]) => (
+                                            <Grid item xs={12} md={4} key={slot}>
+                                                <Paper variant="outlined" sx={{ p: 1.5, borderRadius: 3, position: 'relative' }}>
+                                                    <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1 }}>
+                                                        <Typography variant="caption" fontWeight="bold" color="secondary">{t('Slot')} {slot}</Typography>
+                                                        <IconButton 
+                                                            size="small" 
+                                                            color="error" 
+                                                            onClick={() => {
+                                                                const slots = { ...newShift.rotation_pattern.slots };
+                                                                delete slots[slot];
+                                                                setNewShift({ ...newShift, rotation_pattern: { ...newShift.rotation_pattern, slots } });
+                                                            }}
+                                                        >
+                                                            <RemoveCircle sx={{ fontSize: 16 }} />
+                                                        </IconButton>
+                                                    </Box>
+                                                    <Stack direction="row" spacing={1}>
+                                                        <TextField
+                                                            size="small"
+                                                            label={t('Start')}
+                                                            type="time"
+                                                            value={data.start || '08:00'}
+                                                            onChange={(e) => {
+                                                                const slots = { ...newShift.rotation_pattern.slots };
+                                                                slots[slot] = { ...slots[slot], start: e.target.value };
+                                                                setNewShift({ ...newShift, rotation_pattern: { ...newShift.rotation_pattern, slots } });
+                                                            }}
+                                                            InputLabelProps={{ shrink: true }}
+                                                        />
+                                                        <TextField
+                                                            size="small"
+                                                            label={t('End')}
+                                                            type="time"
+                                                            value={data.end || '16:00'}
+                                                            onChange={(e) => {
+                                                                const slots = { ...newShift.rotation_pattern.slots };
+                                                                slots[slot] = { ...slots[slot], end: e.target.value };
+                                                                setNewShift({ ...newShift, rotation_pattern: { ...newShift.rotation_pattern, slots } });
+                                                            }}
+                                                            InputLabelProps={{ shrink: true }}
+                                                        />
+                                                    </Stack>
+                                                </Paper>
+                                            </Grid>
+                                        ))}
+                                    </Grid>
+
+                                    {/* Sequence Builder */}
+                                    <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 1 }}>
+                                        <Typography variant="subtitle2" sx={{ fontWeight: 'bold' }}>{t('2. Build Sequence')}</Typography>
+                                        <Box>
+                                            <Button 
+                                                variant="text" 
+                                                size="small" 
+                                                startIcon={<AutoFixHigh fontSize="small" />}
+                                                onClick={() => {
+                                                    setNewShift({
+                                                        ...newShift,
+                                                        name: t('ABC Rotation (8-16-OFF)'),
+                                                        distribute_holiday_bonus: true,
+                                                        rotation_pattern: {
+                                                            ...newShift.rotation_pattern,
+                                                            sequence: [
+                                                                { label: 'A', slots: ['A'], hours: 8, offset: 0 },
+                                                                { label: 'B+C', slots: ['B', 'C'], hours: 16, offset: 1 },
+                                                                'OFF'
+                                                            ]
+                                                        }
+                                                    });
+                                                }}
+                                            >
+                                                {t('Template: 8-16-OFF')}
+                                            </Button>
+                                            <Button 
+                                                variant="text" 
+                                                size="small" 
+                                                startIcon={<AutoFixHigh fontSize="small" />}
+                                                onClick={() => {
+                                                    setNewShift({
+                                                        ...newShift,
+                                                        name: t('Standard 48h Week'),
+                                                        min_days_for_paid_holiday: 6,
+                                                        holiday_days: ['Friday'],
+                                                        rotation_pattern: {
+                                                            ...newShift.rotation_pattern,
+                                                            sequence: [
+                                                                { label: 'A', slots: ['A'], hours: 8, offset: 0 },
+                                                                { label: 'A', slots: ['A'], hours: 8, offset: 0 },
+                                                                { label: 'A', slots: ['A'], hours: 8, offset: 0 },
+                                                                { label: 'A', slots: ['A'], hours: 8, offset: 0 },
+                                                                { label: 'A', slots: ['A'], hours: 8, offset: 0 },
+                                                                { label: 'A', slots: ['A'], hours: 8, offset: 0 },
+                                                                'OFF'
+                                                            ]
+                                                        }
+                                                    });
+                                                }}
+                                            >
+                                                {t('Template: 48h/6-Days')}
+                                            </Button>
+                                        </Box>
+                                    </Stack>
+                                    <Typography variant="caption" color="text.secondary" sx={{ mb: 2, display: 'block' }}>
+                                        {t('The sequence will repeat automatically after the last day.')}
+                                    </Typography>
+                                    
+                                    <Stack direction="row" spacing={1} sx={{ mb: 3 }}>
+                                        <Button 
+                                            variant="outlined" 
+                                            color="secondary" 
+                                            size="small"
+                                            startIcon={<AddCircle />}
+                                            onClick={() => {
+                                                const seq = [...(newShift.rotation_pattern?.sequence || []), { label: '', slots: [], hours: 0, offset: 0 }];
+                                                setNewShift({ ...newShift, rotation_pattern: { ...newShift.rotation_pattern, sequence: seq } });
+                                            }}
+                                        >
+                                            {t('Add Work Day')}
+                                        </Button>
+                                        <Button 
+                                            variant="outlined" 
+                                            color="error" 
+                                            size="small"
+                                            startIcon={<RemoveCircle />}
+                                            onClick={() => {
+                                                const seq = [...(newShift.rotation_pattern?.sequence || []), 'OFF'];
+                                                setNewShift({ ...newShift, rotation_pattern: { ...newShift.rotation_pattern, sequence: seq } });
+                                            }}
+                                        >
+                                            {t('Add OFF Day')}
+                                        </Button>
+                                        <Button 
+                                            variant="text" 
+                                            color="error" 
+                                            size="small"
+                                            onClick={() => {
+                                                setNewShift({ ...newShift, rotation_pattern: { ...newShift.rotation_pattern, sequence: [] } });
+                                            }}
+                                        >
+                                            {t('Clear')}
                                         </Button>
                                     </Stack>
-                                    <Stack direction="row" spacing={1} flexWrap="wrap" gap={1}>
-                                        {(newShift.rotation_pattern?.sequence || []).map((step: string, i: number) => (
-                                            <Chip
-                                                key={i}
-                                                label={step}
-                                                onDelete={() => {
-                                                    const seq = [...newShift.rotation_pattern.sequence];
-                                                    seq.splice(i, 1);
-                                                    setNewShift({ ...newShift, rotation_pattern: { ...newShift.rotation_pattern, sequence: seq } });
-                                                }}
-                                                color="secondary"
-                                            />
-                                        ))}
-                                    </Stack>
+
+                                    {/* Sequence Display */}
+                                    <Box sx={{ minHeight: 100, p: 2, bgcolor: alpha(theme.palette.background.paper, 0.5), borderRadius: 3, border: `1px dashed ${theme.palette.divider}` }}>
+                                        <Stack spacing={2}>
+                                            {(newShift.rotation_pattern?.sequence || []).map((step: any, i: number) => {
+                                                const isOff = typeof step === 'string' && step === 'OFF';
+                                                return (
+                                                    <Paper 
+                                                        key={i} 
+                                                        variant="outlined" 
+                                                        sx={{ 
+                                                            p: 1.5, 
+                                                            borderRadius: 2, 
+                                                            bgcolor: isOff ? alpha(theme.palette.error.main, 0.02) : 'background.paper',
+                                                            borderColor: isOff ? alpha(theme.palette.error.main, 0.2) : 'divider'
+                                                        }}
+                                                    >
+                                                        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
+                                                                <DragIndicator sx={{ color: 'text.disabled', cursor: 'grab' }} />
+                                                                <Typography variant="subtitle2" fontWeight="bold">
+                                                                    {t('Day')} {i + 1}
+                                                                </Typography>
+                                                                {isOff ? (
+                                                                    <Chip label={t('OFF')} size="small" color="error" variant="outlined" />
+                                                                ) : (
+                                                                    <Stack direction="row" spacing={0.5}>
+                                                                        {Object.keys(newShift.rotation_pattern?.slots || {}).map(slotKey => {
+                                                                            const isSelected = step.slots?.includes(slotKey);
+                                                                            return (
+                                                                                <Chip
+                                                                                    key={slotKey}
+                                                                                    label={slotKey}
+                                                                                    size="small"
+                                                                                    color={isSelected ? "secondary" : "default"}
+                                                                                    variant={isSelected ? "filled" : "outlined"}
+                                                                                    onClick={() => {
+                                                                                        const seq = [...newShift.rotation_pattern.sequence];
+                                                                                        const daySlots = [...(step.slots || [])];
+                                                                                        const idx = daySlots.indexOf(slotKey);
+                                                                                        if (idx > -1) daySlots.splice(idx, 1);
+                                                                                        else daySlots.push(slotKey);
+                                                                                        
+                                                                                        // Calculate total hours and offset
+                                                                                        let totalHours = 0;
+                                                                                        let maxOffset = 0;
+                                                                                        daySlots.forEach(s => {
+                                                                                            const slotData = newShift.rotation_pattern.slots[s];
+                                                                                            // Calculate hours if not set (rough estimation for UI)
+                                                                                            const start = slotData.start || '08:00';
+                                                                                            const end = slotData.end || '16:00';
+                                                                                            const startH = parseInt(start.split(':')[0]);
+                                                                                            const endH = parseInt(end.split(':')[0]);
+                                                                                            let h = endH - startH;
+                                                                                            if (h < 0) {
+                                                                                                h += 24;
+                                                                                                maxOffset = 1;
+                                                                                            }
+                                                                                            totalHours += h;
+                                                                                        });
+
+                                                                                        seq[i] = { 
+                                                                                            ...seq[i], 
+                                                                                            slots: daySlots, 
+                                                                                            hours: totalHours, 
+                                                                                            offset: maxOffset,
+                                                                                            label: daySlots.join('+') || t('No Slot')
+                                                                                        };
+                                                                                        setNewShift({ ...newShift, rotation_pattern: { ...newShift.rotation_pattern, sequence: seq } });
+                                                                                    }}
+                                                                                />
+                                                                            );
+                                                                        })}
+                                                                    </Stack>
+                                                                )}
+                                                            </Box>
+                                                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+                                                                {!isOff && (
+                                                                    <Typography variant="caption" color="text.secondary" fontWeight="bold">
+                                                                        {step.hours || 0}h {step.offset > 0 ? `(+${step.offset}d)` : ''}
+                                                                    </Typography>
+                                                                )}
+                                                                <IconButton 
+                                                                    size="small" 
+                                                                    color="primary"
+                                                                    onClick={() => {
+                                                                        const seq = [...newShift.rotation_pattern.sequence];
+                                                                        const newStep = typeof step === 'string' ? step : { ...step, slots: [...(step.slots || [])] };
+                                                                        seq.splice(i + 1, 0, newStep);
+                                                                        setNewShift({ ...newShift, rotation_pattern: { ...newShift.rotation_pattern, sequence: seq } });
+                                                                    }}
+                                                                >
+                                                                    <RotateRight fontSize="small" sx={{ fontSize: 16 }} />
+                                                                </IconButton>
+                                                                <IconButton 
+                                                                    size="small" 
+                                                                    color="error"
+                                                                    onClick={() => {
+                                                                        const seq = [...newShift.rotation_pattern.sequence];
+                                                                        seq.splice(i, 1);
+                                                                        setNewShift({ ...newShift, rotation_pattern: { ...newShift.rotation_pattern, sequence: seq } });
+                                                                    }}
+                                                                >
+                                                                    <Delete fontSize="small" />
+                                                                </IconButton>
+                                                            </Box>
+                                                        </Box>
+                                                    </Paper>
+                                                );
+                                            })}
+                                            {(newShift.rotation_pattern?.sequence || []).length === 0 && (
+                                                <Typography variant="caption" color="text.secondary" align="center" sx={{ py: 2 }}>
+                                                    {t('Sequence is empty. Add work days or off days above.')}
+                                                </Typography>
+                                            )}
+                                        </Stack>
+                                    </Box>
+
+                                    {/* Holiday Bonus Option */}
+                                    <Box sx={{ mt: 3, p: 2, bgcolor: alpha(theme.palette.success.main, 0.05), borderRadius: 3, border: `1px solid ${alpha(theme.palette.success.main, 0.2)}` }}>
+                                        <FormControlLabel
+                                            control={
+                                                <Checkbox 
+                                                    checked={newShift.distribute_holiday_bonus || false}
+                                                    onChange={(e) => setNewShift({ ...newShift, distribute_holiday_bonus: e.target.checked })}
+                                                    color="success"
+                                                />
+                                            }
+                                            label={
+                                                <Box>
+                                                    <Typography variant="body2" fontWeight="bold" color="success.main">
+                                                        {t('Distribute Holiday Pay Proportionally')}
+                                                    </Typography>
+                                                    <Typography variant="caption" color="text.secondary">
+                                                        {t('Instead of a fixed holiday, pay is distributed across work days based on hours (A=1 share, B+C=2 shares).')}
+                                                    </Typography>
+                                                </Box>
+                                            }
+                                        />
+                                    </Box>
                                 </Box>
                             </Grid>
                         )}

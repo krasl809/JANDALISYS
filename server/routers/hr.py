@@ -26,13 +26,71 @@ def get_hr_dashboard(db: Session = Depends(get_db), current_user = Depends(get_c
         func.date(hr_models.AttendanceLog.timestamp) == today
     ).all()
     
-    present_count = len(set(log.employee_id for log in today_logs)) 
+    present_ids = set(log.employee_id for log in today_logs)
+    present_count = len(present_ids)
+    
+    # Improved absent count: exclude those who have a holiday today
+    # 1. Get all active employees
+    active_employees = db.query(employee_models.Employee).filter(employee_models.Employee.status == 'active').all()
+    
+    # 2. Get their current shift assignments
+    day_name = today.strftime('%A')
+    absent_count = 0
+    for emp in active_employees:
+        if emp.code in present_ids:
+            continue
+            
+        # Check if today is a holiday for this employee
+        assignment = db.query(hr_models.EmployeeShiftAssignment).filter(
+            hr_models.EmployeeShiftAssignment.employee_id == emp.id,
+            hr_models.EmployeeShiftAssignment.start_date <= today,
+            or_(hr_models.EmployeeShiftAssignment.end_date == None, hr_models.EmployeeShiftAssignment.end_date >= today)
+        ).order_by(hr_models.EmployeeShiftAssignment.start_date.desc()).first()
+        
+        is_holiday = False
+        if assignment and assignment.shift:
+            shift = assignment.shift
+            if shift.shift_type == "rotational" and shift.rotation_pattern:
+                try:
+                    seq = shift.rotation_pattern.get("sequence", [])
+                    if seq:
+                        assignment_start = assignment.start_date
+                        days_since_start = (today - assignment_start.date()).days
+                        step_index = days_since_start % len(seq)
+                        current_step = seq[step_index]
+                        if str(current_step).upper() == "OFF":
+                            is_holiday = True
+                except: pass
+            
+            if not is_holiday and day_name in (shift.holiday_days or []):
+                # Check if holiday is paid based on 4/7 rule
+                if shift.is_holiday_paid:
+                    # Look back 7 days from today (including today)
+                    seven_days_ago = today - datetime.timedelta(days=6)
+                    # Count number of check-in logs in the last 7 days
+                    recent_checkins = db.query(hr_models.AttendanceLog).filter(
+                        hr_models.AttendanceLog.employee_id == emp.code,
+                        hr_models.AttendanceLog.type == 'check_in',
+                        func.date(hr_models.AttendanceLog.timestamp) >= seven_days_ago,
+                        func.date(hr_models.AttendanceLog.timestamp) < today
+                    ).count()
+                    
+                    min_required = shift.min_days_for_paid_holiday or 4
+                    
+                    if recent_checkins >= min_required:
+                        is_holiday = True # Qualifies as paid holiday (not absent)
+                else:
+                    # If holidays are not paid, it's just a holiday (not absent)
+                    is_holiday = True
+        
+        if not is_holiday:
+            absent_count += 1
     
     return {
         "total_employees": total_employees,
         "present_today": present_count,
         "late_today": 0, # TODO: recalculate based on shift
-        "absent_today": total_employees - present_count
+        "absent_today": absent_count
     }
 
 # --- EMPLOYEE MANAGEMENT ---
@@ -447,40 +505,131 @@ def calculate_session_metrics(emp_id, session_logs, db):
         total_hours = round((check_out_dt - check_in_dt).total_seconds() / 3600, 2)
         
     capacity = shift.expected_hours if shift else 8.0
+    
+    # Handle Rotational Capacity (Advanced)
+    if shift and shift.shift_type == "rotational" and shift.rotation_pattern:
+        try:
+            seq = shift.rotation_pattern.get("sequence", [])
+            if seq and len(seq) > 0:
+                # Find which step this is based on start_date of assignment
+                assignment_start = assignment.start_date
+                days_since_start = (check_in_dt.date() - assignment_start.date()).days
+                step_index = days_since_start % len(seq)
+                current_step = seq[step_index]
+                
+                if isinstance(current_step, dict):
+                    capacity = current_step.get("hours", capacity)
+                elif str(current_step).upper() == "OFF":
+                    capacity = 0 # It's an OFF day, but if they worked, all is OT
+        except Exception as e:
+            print(f"Error calculating rotational capacity: {e}")
+
     actual_work = max(0, total_hours - break_duration)
     
     # Multiplier Logic
     day_name = check_in_dt.strftime('%A')
-    is_holiday = shift and day_name in shift.holiday_days
+    
+    # Check if holiday is paid based on 4/7 rule
+    is_holiday = False
+    distribute_bonus = getattr(shift, 'distribute_holiday_bonus', False)
+
+    if shift and not distribute_bonus and day_name in shift.holiday_days:
+        if shift.is_holiday_paid:
+            # Look back 7 days
+            seven_days_ago = check_in_dt.date() - datetime.timedelta(days=6)
+            recent_logs = db.query(hr_models.AttendanceLog).filter(
+                hr_models.AttendanceLog.employee_id == emp_id,
+                func.date(hr_models.AttendanceLog.timestamp) >= seven_days_ago,
+                func.date(hr_models.AttendanceLog.timestamp) < check_in_dt.date()
+            ).all()
+            work_days_count = len(set(log.timestamp.date() for log in recent_logs))
+            if work_days_count >= (shift.min_days_for_paid_holiday or 4):
+                is_holiday = True
+        else:
+            is_holiday = True
+
     multiplier = (shift.multiplier_holiday if is_holiday else shift.multiplier_normal) if shift else 1.0
     
+    # Distributed Holiday Credit
+    holiday_credit = 0
+    if distribute_bonus and shift.shift_type == "rotational" and actual_work > 0:
+        try:
+            seq = shift.rotation_pattern.get("sequence", [])
+            total_work_hours = sum(s.get("hours", 0) for s in seq if isinstance(s, dict))
+            if total_work_hours > 0:
+                # 1 holiday day = 8 hours credit
+                holiday_factor = 8.0 / total_work_hours
+                holiday_credit = round(actual_work * holiday_factor, 2)
+        except: pass
+
     overtime = 0
     ot_threshold = (shift.ot_threshold if shift else 30) / 60.0
     if actual_work > (capacity + ot_threshold):
         overtime = round((actual_work - capacity) * multiplier, 2)
         
+    # Final pay hours (work + overtime + holiday_credit)
+    # We add holiday_credit to overtime for reporting or keep it separate
+    if holiday_credit > 0:
+        overtime = round(overtime + holiday_credit, 2)
+        
     # Status calculation
     status = "present"
-    if shift and shift.start_time: # Added 'shift and' check here
-        shift_start_hour, shift_start_min = map(int, shift.start_time.split(':'))
+    
+    # Custom Logic for Rotational Step Timing
+    target_start_time = shift.start_time if shift else "08:00"
+    target_end_time = shift.end_time if shift else "17:00"
+    target_offset = getattr(shift, 'end_day_offset', 0)
+    
+    if shift and shift.shift_type == "rotational" and shift.rotation_pattern:
+        try:
+            seq = shift.rotation_pattern.get("sequence", [])
+            if seq and len(seq) > 0:
+                assignment_start = assignment.start_date
+                days_since_start = (check_in_dt.date() - assignment_start.date()).days
+                step_index = days_since_start % len(seq)
+                current_step = seq[step_index]
+                
+                if isinstance(current_step, dict):
+                    # Check for slot-based times
+                    slots = shift.rotation_pattern.get("slots", {})
+                    step_slots = current_step.get("slots", [])
+                    if step_slots and slots:
+                        # Use first slot for start, last for end
+                        first_slot = slots.get(step_slots[0], {})
+                        last_slot = slots.get(step_slots[-1], {})
+                        if "start" in first_slot: target_start_time = first_slot["start"]
+                        if "end" in last_slot: target_end_time = last_slot["end"]
+                    else:
+                        # Legacy/Direct dict fields
+                        if "start" in current_step: target_start_time = current_step["start"]
+                        if "end" in current_step: target_end_time = current_step["end"]
+                    
+                    if "offset" in current_step: target_offset = current_step["offset"]
+                elif str(current_step).upper() == "OFF":
+                    status = "overtime" # Working on OFF day
+        except: pass
+
+    if target_start_time:
+        shift_start_hour, shift_start_min = map(int, target_start_time.split(':'))
         shift_in_dt = check_in_dt.replace(hour=shift_start_hour, minute=shift_start_min, second=0, microsecond=0)
         
         # Late check-in
-        if check_in_dt > shift_in_dt + datetime.timedelta(minutes=shift.grace_period_in or 0):
+        if status != "overtime" and check_in_dt > shift_in_dt + datetime.timedelta(minutes=shift.grace_period_in or 0):
             status = "late"
             
-    if last_out and shift and shift.end_time:
+    if last_out and target_end_time:
         check_out_dt = datetime.datetime.fromisoformat(last_out["timestamp"])
-        shift_out_hour, shift_out_min = map(int, shift.end_time.split(':'))
+        shift_out_hour, shift_out_min = map(int, target_end_time.split(':'))
         
-        # For cross-day shifts (e.g. 22:00 to 06:00)
-        # shift_in_dt is on the day the employee checked in
         shift_out_dt = shift_in_dt.replace(hour=shift_out_hour, minute=shift_out_min, second=0, microsecond=0)
-        if shift.end_time < shift.start_time:
+        
+        if target_offset > 0:
+            shift_out_dt += datetime.timedelta(days=target_offset)
+        elif target_end_time < target_start_time:
             shift_out_dt += datetime.timedelta(days=1)
         
-        # Early leave (if they left before shift end minus grace)
-        if check_out_dt < shift_out_dt - datetime.timedelta(minutes=shift.grace_period_out or 0):
+        # Early leave
+        if status != "overtime" and check_out_dt < shift_out_dt - datetime.timedelta(minutes=shift.grace_period_out or 0):
             if status == "present": 
                 status = "early_leave"
             elif status == "late":

@@ -8,6 +8,8 @@ export const PERMISSIONS = {
     VIEW_SETTINGS: 'view_settings',
     VIEW_HR: 'view_hr',
     MANAGE_HR: 'manage_hr', // For devices and sync
+    VIEW_ARCHIVE: 'archive_read',
+    MANAGE_ARCHIVE: 'archive_write',
 };
 
 export const ROUTE_PERMISSIONS: Record<string, string> = {
@@ -29,4 +31,5 @@ export const ROUTE_PERMISSIONS: Record<string, string> = {
     '/employees/add': PERMISSIONS.MANAGE_HR,
     '/employees/edit/:id': PERMISSIONS.MANAGE_HR,
     '/employees/:id': PERMISSIONS.VIEW_HR,
+    '/archive': PERMISSIONS.VIEW_ARCHIVE,
 };

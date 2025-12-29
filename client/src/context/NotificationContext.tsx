@@ -1,4 +1,5 @@
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
+import axios from 'axios';
 import api from '../services/api';
 import { useAuth } from './AuthContext';
 
@@ -30,16 +31,22 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
   const [unreadCount, setUnreadCount] = useState(0);
   const [loading, setLoading] = useState(false);
 
-  const fetchNotifications = useCallback(async () => {
+  const fetchNotifications = useCallback(async (signal?: AbortSignal) => {
     if (!user) return;
+    
     setLoading(true);
+    
     try {
-      const response = await api.get('/notifications/');
+      const response = await api.get('/notifications/', { signal });
       setNotifications(response.data);
       
-      const countResponse = await api.get('/notifications/unread-count');
+      const countResponse = await api.get('/notifications/unread-count', { signal });
       setUnreadCount(countResponse.data.unread_count);
-    } catch (error) {
+    } catch (error: any) {
+      if (error.name === 'AbortError' || error.name === 'CanceledError' || axios.isCancel(error)) {
+        // Request was aborted, ignore
+        return;
+      }
       console.error('Failed to fetch notifications:', error);
     } finally {
       setLoading(false);
@@ -87,63 +94,73 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
     let socket: WebSocket | null = null;
     let reconnectTimeout: NodeJS.Timeout;
 
+    const controller = new AbortController();
+
     const connectWebSocket = () => {
       if (!user) return;
 
-      const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-      const wsUrl = `${wsProtocol}//${window.location.host}/ws`;
+      // Close existing socket if any
+      if (socket) {
+        try {
+          socket.close();
+        } catch (e) {}
+      }
+
+      let wsUrl: string;
+      const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+      const host = window.location.host;
+      
+      // In development, we use the Vite proxy which is at /ws
+      // Use 127.0.0.1 instead of localhost if host is localhost to avoid some proxy issues
+      const cleanHost = host.includes('localhost') ? host.replace('localhost', '127.0.0.1') : host;
+      wsUrl = `${protocol}//${cleanHost}/ws`;
       
       console.log('Attempting WebSocket connection to:', wsUrl);
-      socket = new WebSocket(wsUrl);
+      try {
+        socket = new WebSocket(wsUrl);
 
-      socket.onmessage = (event) => {
-        try {
-          const message = JSON.parse(event.data);
-          if (message.type === 'notification') {
-            const newNotif = message.data;
-            if (newNotif.user_id === user.id) {
-              setNotifications(prev => [newNotif, ...prev]);
-              setUnreadCount(prev => prev + 1);
+        socket.onmessage = (event) => {
+          try {
+            const message = JSON.parse(event.data);
+            if (message.type === 'notification') {
+              const newNotif = message.data;
+              if (newNotif.user_id === user.id) {
+                setNotifications(prev => [newNotif, ...prev]);
+                setUnreadCount(prev => prev + 1);
 
-              if (Notification.permission === 'granted') {
-                new Notification(newNotif.title, {
-                  body: newNotif.message,
-                });
+                if (Notification.permission === 'granted') {
+                  new Notification(newNotif.title, {
+                    body: newNotif.message,
+                  });
+                }
               }
             }
+          } catch (error) {
+            console.log('WebSocket message:', event.data);
           }
-        } catch (error) {
-          const message = event.data;
-          if (typeof message === 'string') {
-            console.log('WebSocket message:', message);
-          } else {
-            console.error('WebSocket message parsing error:', error);
+        };
+
+        socket.onopen = () => {
+          console.log('✅ WebSocket connected successfully');
+        };
+
+        socket.onerror = (error) => {
+          console.error('❌ WebSocket connection error. This might be due to server being down or proxy issues.');
+        };
+
+        socket.onclose = (event) => {
+          if (event.code !== 1000) { // Not normal closure
+            console.log(`WebSocket disconnected (Code: ${event.code}). Reconnecting in 5s...`);
+            reconnectTimeout = setTimeout(connectWebSocket, 5000);
           }
-        }
-      };
-
-      socket.onopen = () => {
-        console.log('✅ WebSocket connected');
-      };
-
-      socket.onerror = (error) => {
-        console.error('❌ WebSocket error details:', {
-          url: wsUrl,
-          readyState: socket?.readyState,
-          timestamp: new Date().toISOString()
-        });
-      };
-
-      socket.onclose = (event) => {
-        console.log(`WebSocket disconnected (Code: ${event.code}). Reconnecting in 5s...`);
-        if (user) {
-          reconnectTimeout = setTimeout(connectWebSocket, 5000);
-        }
-      };
+        };
+      } catch (e) {
+        console.error('Failed to create WebSocket instance:', e);
+      }
     };
 
     if (user) {
-      fetchNotifications();
+      fetchNotifications(controller.signal);
       connectWebSocket();
     } else {
       setNotifications([]);
@@ -151,6 +168,7 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
     }
 
     return () => {
+      controller.abort();
       if (socket) {
         socket.close();
       }

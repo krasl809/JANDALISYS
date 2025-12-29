@@ -296,7 +296,53 @@ class Contract(ContractBase):
     class Config:
         from_attributes = True
 
-# --- Others ---
+# --- Archive ---
+class ArchiveFolderBase(BaseModel):
+    name: str
+    parent_id: Optional[int] = None
+    description: Optional[str] = None
+
+class ArchiveFolderCreate(ArchiveFolderBase):
+    pass
+
+class ArchiveFolder(ArchiveFolderBase):
+    id: int
+    is_system: bool
+    created_at: datetime
+    class Config:
+        from_attributes = True
+
+class ArchiveFileBase(BaseModel):
+    name: str
+    folder_id: int
+    description: Optional[str] = None
+
+class ArchiveFile(ArchiveFileBase):
+    id: int
+    file_type: str
+    file_size: int
+    created_at: datetime
+    class Config:
+        from_attributes = True
+
+# --- Scanner ---
+class ScannerDeviceBase(BaseModel):
+    name: str
+    device_type: str # WIA, TWAIN, Network
+    connection_string: Optional[str] = None
+    is_active: bool = True
+    settings: Optional[Dict] = None
+
+class ScannerDeviceCreate(ScannerDeviceBase):
+    pass
+
+class ScannerDevice(ScannerDeviceBase):
+    id: int
+    created_at: datetime
+    class Config:
+        from_attributes = True
+
+# --- Brokers ---
 class PaymentTerm(BaseModel):
     id: uuid.UUID
     code: str

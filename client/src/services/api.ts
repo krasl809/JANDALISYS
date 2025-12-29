@@ -36,10 +36,13 @@ api.interceptors.response.use(
   (error) => {
     // Handle Network Errors (Server Down)
     if (!error.response) {
-      // Check if not already on offline page
-      if (!window.location.pathname.includes('/offline')) {
-        console.error('❌ Network Error: Backend server might be down');
-        window.location.href = '/offline';
+      // Only redirect to offline if it's a critical GET request that failed
+      // and not a transient error like ERR_ABORTED
+      if (error.code === 'ECONNABORTED' || error.message === 'Network Error') {
+        console.error('❌ Network Error: Backend server might be down or connection aborted');
+        if (!window.location.pathname.includes('/offline')) {
+          // window.location.href = '/offline'; // Commented out to be less aggressive
+        }
       }
       return Promise.reject(error);
     }

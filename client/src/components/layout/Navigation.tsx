@@ -8,7 +8,8 @@ import {
 import {
   Dashboard, Description, Settings, PriceCheck, Payment,
   LocalShipping, ExpandLess, ExpandMore, Circle, Assessment,
-  AccessTime, SettingsInputComponent, People, Person, Schedule
+  AccessTime, SettingsInputComponent, People, Person, Schedule,
+  FolderSpecial
 } from '@mui/icons-material';
 import { motion, AnimatePresence } from 'framer-motion';
 import { alpha } from '@mui/material/styles';
@@ -43,6 +44,7 @@ const Navigation: React.FC<NavProps> = ({ width, mobileOpen, handleDrawerToggle 
     { text: t('contracts'), path: '/contracts', icon: <Description />, permission: PERMISSIONS.VIEW_CONTRACTS },
     { text: t('pricing'), path: '/pricing', icon: <PriceCheck />, permission: PERMISSIONS.VIEW_PRICING },
     { text: t('payments'), path: '/payments', icon: <Payment />, permission: PERMISSIONS.VIEW_PAYMENTS },
+    { text: t('Electronic Archive'), path: '/archive', icon: <FolderSpecial />, permission: PERMISSIONS.VIEW_ARCHIVE },
     { text: t('Reports & Analytics'), path: '/reports', icon: <Assessment />, permission: PERMISSIONS.VIEW_REPORTS },
   ];
 

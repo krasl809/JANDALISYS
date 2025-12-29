@@ -39,7 +39,7 @@ from crud import rbac_crud
 from core.auth import authenticate_user, create_access_token, get_current_user_obj, get_password_hash, require_permission
 
 # Import routers
-from routers import contracts, conveyors, agents, financial_transactions, departments, hr, notifications, dashboard, inventory, payments, bank_accounts, documents
+from routers import contracts, conveyors, agents, financial_transactions, departments, hr, notifications, dashboard, inventory, payments, bank_accounts, documents, archive
 from rbac.rbac_main import router as rbac_router
 
 # استيراد مدير الويب سوكيت
@@ -124,16 +124,23 @@ app.include_router(inventory.router, prefix="/api/inventory", tags=["inventory"]
 app.include_router(documents.router, prefix="/api", tags=["documents"])
 app.include_router(payments.router, prefix="/api", tags=["payments"])
 app.include_router(bank_accounts.router, prefix="/api", tags=["bank_accounts"])
+app.include_router(archive.router, prefix="/api", tags=["archive"])
 
 # --- WebSocket Endpoint ---
 @app.websocket("/ws")
 async def websocket_endpoint(websocket: WebSocket):
-    await manager.connect(websocket)
+    logger.info(f"Incoming WebSocket connection from {websocket.client}")
     try:
+        await manager.connect(websocket)
+        logger.info(f"WebSocket connection accepted for {websocket.client}")
         while True:
             data = await websocket.receive_text()
             # Handle messages if needed
     except WebSocketDisconnect:
+        logger.info(f"WebSocket disconnected for {websocket.client}")
+        await manager.disconnect(websocket)
+    except Exception as e:
+        logger.error(f"WebSocket error for {websocket.client}: {e}")
         await manager.disconnect(websocket)
 
 # --- Models for Main ---
@@ -160,6 +167,10 @@ def startup_event():
     # Initialize default permissions
     db = SessionLocal()
     try:
+        # Ensure archive storage is initialized
+        from routers.archive import ensure_storage
+        ensure_storage(db)
+        
         logger.info("Initializing default roles and permissions...")
         # Define default roles and their permissions
         roles_perms = {
@@ -172,7 +183,7 @@ def startup_event():
                 "read_shippers", "write_shippers", "read_brokers", "write_brokers", 
                 "read_conveyors", "write_conveyors", "read_articles", "write_articles", "read_payment_terms", "write_payment_terms",
                 "read_incoterms", "write_incoterms", "read_document_types", "write_document_types",
-                "view_agents", "manage_agents", "view_inventory"
+                "view_agents", "manage_agents", "view_inventory", "archive_read", "archive_write"
             ],
             "hr_manager": [
                 "view_hr", "manage_hr"
@@ -198,7 +209,7 @@ def startup_event():
                 "view_dashboard", "view_inventory",
                 "read_contracts", "write_contracts",
                 "read_sellers", "read_buyers", "read_shippers", "read_brokers", "read_conveyors", "read_articles",
-                "read_payment_terms", "read_incoterms"
+                "read_payment_terms", "read_incoterms", "archive_read"
             ],
             "viewer": [
                 "view_dashboard",

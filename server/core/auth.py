@@ -76,6 +76,31 @@ def create_access_token(data: dict, expires_delta: Optional[timedelta] = None):
     except Exception as e:
         raise HTTPException(status_code=500, detail="Token creation failed")
 
+def get_user_from_raw_token(token: str, db: Session) -> User:
+    """Helper to get user from a raw JWT token string"""
+    try:
+        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+        user_id_str: str = payload.get("sub")
+        if user_id_str is None:
+            raise HTTPException(status_code=401, detail="Invalid token credentials")
+        
+        import uuid
+        try:
+             user_uuid = uuid.UUID(user_id_str)
+        except ValueError:
+             raise HTTPException(status_code=401, detail="Invalid token subject")
+
+        user = db.query(User).filter(User.id == user_uuid).first()
+        if not user:
+            raise HTTPException(status_code=401, detail="User not found")
+        return user
+    except jwt.PyJWTError:
+        raise HTTPException(status_code=401, detail="Could not validate credentials")
+    except HTTPException:
+        raise
+    except Exception:
+        raise HTTPException(status_code=401, detail="Authentication failed")
+
 def _get_user_from_token(credentials: HTTPAuthorizationCredentials, db: Session) -> User:
     """Internal helper to get user from JWT token - reduces code duplication"""
     try:

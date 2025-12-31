@@ -6,8 +6,10 @@ import {
   TableCell, TableBody, Chip, TextField, InputAdornment, MenuItem 
 } from '@mui/material';
 import { Inventory, Search, FilterList } from '@mui/icons-material';
+import { useTranslation } from 'react-i18next';
 
 const StockList = () => {
+  const { t } = useTranslation();
   const [stockData, setStockData] = useState([
     // Mock Data - سيتم استبدالها بالـ API
     { id: 1, article: 'White Sugar', warehouse: 'Main Warehouse', qty: 5000, unit: 'MT', reserved: 500, value: 250000 },
@@ -22,8 +24,8 @@ const StockList = () => {
         <Box display="flex" alignItems="center" gap={1}>
             <Inventory color="primary" fontSize="large" />
             <Box>
-                <Typography variant="h5" fontWeight="bold">Stock Levels</Typography>
-                <Typography variant="body2" color="textSecondary">Real-time quantity and valuation across all locations</Typography>
+                <Typography variant="h5" fontWeight="bold">{t('Stock Levels')}</Typography>
+                <Typography variant="body2" color="textSecondary">{t('Real-time quantity and valuation across all locations')}</Typography>
             </Box>
         </Box>
       </Box>
@@ -32,14 +34,14 @@ const StockList = () => {
           <Box display="flex" gap={2}>
               <TextField 
                 size="small" 
-                placeholder="Search articles..." 
+                placeholder={t('Search articles...')}
                 InputProps={{ startAdornment: <InputAdornment position="start"><Search /></InputAdornment> }}
                 sx={{ width: 300 }}
               />
-              <TextField select size="small" label="Warehouse" sx={{ width: 200 }} defaultValue="all">
-                  <MenuItem value="all">All Warehouses</MenuItem>
-                  <MenuItem value="main">Main Warehouse</MenuItem>
-                  <MenuItem value="aleppo">Aleppo Branch</MenuItem>
+              <TextField select size="small" label={t('Warehouse')} sx={{ width: 200 }} defaultValue="all">
+                  <MenuItem value="all">{t('All Warehouses')}</MenuItem>
+                  <MenuItem value="main">{t('Main Warehouse')}</MenuItem>
+                  <MenuItem value="aleppo">{t('Aleppo Branch')}</MenuItem>
               </TextField>
           </Box>
       </Paper>
@@ -48,13 +50,13 @@ const StockList = () => {
         <Table>
           <TableHead sx={{ bgcolor: '#F8FAFC' }}>
             <TableRow>
-              <TableCell><strong>Article / Commodity</strong></TableCell>
-              <TableCell><strong>Location</strong></TableCell>
-              <TableCell align="right"><strong>On Hand</strong></TableCell>
-              <TableCell align="right"><strong>Reserved</strong></TableCell>
-              <TableCell align="right"><strong>Available</strong></TableCell>
-              <TableCell align="right"><strong>Est. Value ($)</strong></TableCell>
-              <TableCell align="center"><strong>Status</strong></TableCell>
+              <TableCell><strong>{t('Article / Commodity')}</strong></TableCell>
+              <TableCell><strong>{t('Location')}</strong></TableCell>
+              <TableCell align="right"><strong>{t('On Hand')}</strong></TableCell>
+              <TableCell align="right"><strong>{t('Reserved')}</strong></TableCell>
+              <TableCell align="right"><strong>{t('Available')}</strong></TableCell>
+              <TableCell align="right"><strong>{t('Est. Value ($)')}</strong></TableCell>
+              <TableCell align="center"><strong>{t('Status')}</strong></TableCell>
             </TableRow>
           </TableHead>
           <TableBody>
@@ -66,16 +68,16 @@ const StockList = () => {
                 return (
                 <TableRow key={row.id} hover>
                     <TableCell>
-                        <Typography fontWeight="600">{row.article}</Typography>
-                        <Typography variant="caption" color="textSecondary">Unit: {row.unit}</Typography>
+                        <Typography fontWeight="600">{t(row.article)}</Typography>
+                        <Typography variant="caption" color="textSecondary">{t('Unit')}: {t(row.unit)}</Typography>
                     </TableCell>
-                    <TableCell>{row.warehouse}</TableCell>
+                    <TableCell>{t(row.warehouse)}</TableCell>
                     <TableCell align="right" sx={{ fontWeight: 'bold' }}>{row.qty.toLocaleString()}</TableCell>
                     <TableCell align="right" sx={{ color: 'text.secondary' }}>{row.reserved.toLocaleString()}</TableCell>
                     <TableCell align="right" sx={{ color: 'primary.main', fontWeight: 'bold' }}>{available.toLocaleString()}</TableCell>
                     <TableCell align="right">${row.value.toLocaleString()}</TableCell>
                     <TableCell align="center">
-                        <Chip label={status} color={statusColor} size="small" variant="outlined" />
+                        <Chip label={t(status)} color={statusColor} size="small" variant="outlined" />
                     </TableCell>
                 </TableRow>
                 );

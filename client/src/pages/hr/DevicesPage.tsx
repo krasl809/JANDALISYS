@@ -1,14 +1,15 @@
 import React, { useEffect, useState } from 'react';
 import {
-    Box, Typography, Grid, Paper, Button, TextField, Dialog, DialogTitle,
-    DialogContent, DialogActions, Chip, IconButton, Card, CardContent, Divider, Alert, LinearProgress
+    Box, Typography, Grid, Button, TextField, Dialog, DialogTitle,
+    DialogContent, DialogActions, IconButton, Card, CardContent, Divider, Alert, LinearProgress
 } from '@mui/material';
-import { Add, Sync, Dns, Circle, Delete, Edit, CheckBox, CheckBoxOutlineBlank } from '@mui/icons-material';
+import { Add, Sync, Dns, Delete, Edit, CheckBox, CheckBoxOutlineBlank } from '@mui/icons-material';
 import api from '../../services/api';
 import { useTranslation } from 'react-i18next';
 
 const DevicesPage: React.FC = () => {
-    const { t } = useTranslation();
+    const { t, i18n } = useTranslation();
+    const isRtl = i18n.language === 'ar';
     const [devices, setDevices] = useState<any[]>([]);
     const [selectedDevices, setSelectedDevices] = useState<Set<number>>(new Set());
     const [openAdd, setOpenAdd] = useState(false);
@@ -77,9 +78,9 @@ const DevicesPage: React.FC = () => {
             setOpenAdd(false);
             setNewDevice({ name: '', ip_address: '192.168.1.201', port: 4370, location: '' });
             fetchDevices();
-            setFeedback({ type: 'success', msg: 'Device added successfully' });
+            setFeedback({ type: 'success', msg: t('Device added successfully') });
         } catch (error) {
-            setFeedback({ type: 'error', msg: 'Failed to add device' });
+            setFeedback({ type: 'error', msg: t('Failed to add device') });
         }
     };
 
@@ -94,20 +95,20 @@ const DevicesPage: React.FC = () => {
             setOpenEdit(false);
             setEditingDevice(null);
             fetchDevices();
-            setFeedback({ type: 'success', msg: 'Device updated successfully' });
+            setFeedback({ type: 'success', msg: t('Device updated successfully') });
         } catch (error) {
-            setFeedback({ type: 'error', msg: 'Failed to update device' });
+            setFeedback({ type: 'error', msg: t('Failed to update device') });
         }
     };
 
     const handleDelete = async (deviceId: number) => {
-        if (window.confirm('Are you sure you want to delete this device?')) {
+        if (window.confirm(t('Are you sure you want to delete this device?'))) {
             try {
                 await api.delete(`/hr/devices/${deviceId}`);
                 fetchDevices();
-                setFeedback({ type: 'success', msg: 'Device deleted successfully' });
+                setFeedback({ type: 'success', msg: t('Device deleted successfully') });
             } catch (error) {
-                setFeedback({ type: 'error', msg: 'Failed to delete device' });
+                setFeedback({ type: 'error', msg: t('Failed to delete device') });
             }
         }
     };
@@ -118,13 +119,13 @@ const DevicesPage: React.FC = () => {
         try {
             const res = await api.post(`/hr/devices/${id}/sync`);
             if (res.data.status === 'success' || res.data.status === 'warning') {
-                setFeedback({ type: 'success', msg: res.data.message });
+                setFeedback({ type: 'success', msg: t(res.data.message) || res.data.message });
             } else {
-                setFeedback({ type: 'error', msg: res.data.message });
+                setFeedback({ type: 'error', msg: t(res.data.message) || res.data.message });
             }
             fetchDevices();
         } catch (error) {
-            setFeedback({ type: 'error', msg: "Sync failed (Network Error)" });
+            setFeedback({ type: 'error', msg: t("Sync failed (Network Error)") });
         } finally {
             setSyncing(null);
         }
@@ -134,12 +135,12 @@ const DevicesPage: React.FC = () => {
         const deviceIds = all ? devices.map(d => d.id) : Array.from(selectedDevices);
         
         if (deviceIds.length === 0) {
-            setFeedback({ type: 'error', msg: 'No devices selected' });
+            setFeedback({ type: 'error', msg: t('No devices selected') });
             return;
         }
 
         setMultiSyncing(true);
-        setFeedback({ type: 'info', msg: 'Syncing multiple devices...' });
+        setFeedback({ type: 'info', msg: t('Syncing multiple devices...') });
         
         try {
             const res = await api.post('/hr/devices/sync-multiple', { device_ids: deviceIds });
@@ -164,18 +165,18 @@ const DevicesPage: React.FC = () => {
 
                     setFeedback({ 
                         type: 'warning', 
-                        msg: `${t('Synced some devices, but some failed. Total new logs: ')} ${total} (${t('Failed')}: ${failedNames})` 
+                        msg: t('Synced some devices, but some failed. Total new logs: {{total}} (Failed: {{failedNames}})', { total, failedNames })
                     });
                 } else {
                     setFeedback({ 
                         type: 'success', 
-                        msg: `${t('Successfully synced devices. Total new logs: ')} ${total}` 
+                        msg: t('Successfully synced devices. Total new logs: {{total}}', { total })
                     });
                 }
                 fetchDevices();
             }
         } catch (error) {
-            setFeedback({ type: 'error', msg: 'Collective sync failed' });
+            setFeedback({ type: 'error', msg: t('Collective sync failed') });
         } finally {
             setMultiSyncing(false);
         }
@@ -249,21 +250,39 @@ const DevicesPage: React.FC = () => {
                             borderColor: 'primary.main'
                         }}>
                             <IconButton 
-                                sx={{ position: 'absolute', top: -10, left: -10, bgcolor: 'background.paper', boxShadow: 1, '&:hover': { bgcolor: 'background.paper' } }}
-                                onClick={() => toggleSelect(device.id)}
+                                sx={{ 
+                                    position: 'absolute', 
+                                    top: -10, 
+                                    insetInlineStart: -10, 
+                                    bgcolor: 'background.paper', 
+                                    boxShadow: 1, 
+                                    '&:hover': { bgcolor: 'background.paper' } 
+                                }}
+                                onClick={(e) => {
+                                    e.stopPropagation();
+                                    toggleSelect(device.id);
+                                }}
                                 color={selectedDevices.has(device.id) ? "primary" : "default"}
                             >
                                 {selectedDevices.has(device.id) ? <CheckBox /> : <CheckBoxOutlineBlank />}
                             </IconButton>
                             <Box sx={{
-                                position: 'absolute', top: 16, right: 16,
+                                position: 'absolute', 
+                                top: 16, 
+                                insetInlineEnd: 16,
                                 width: 12, height: 12, borderRadius: '50%',
                                 bgcolor: device.status === 'online' ? '#00e676' : '#ff1744',
                                 boxShadow: `0 0 10px ${device.status === 'online' ? '#00e676' : '#ff1744'}`
                             }} />
                             <CardContent onClick={() => toggleSelect(device.id)} sx={{ cursor: 'pointer' }}>
                                 <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
-                                    <Box sx={{ p: 1.5, borderRadius: 2, bgcolor: 'primary.light', color: 'white', mr: 2 }}>
+                                    <Box sx={{ 
+                                        p: 1.5, 
+                                        borderRadius: 2, 
+                                        bgcolor: 'primary.light', 
+                                        color: 'white', 
+                                        marginInlineEnd: 2 
+                                    }}>
                                         <Dns />
                                     </Box>
                                     <Box>
@@ -276,13 +295,13 @@ const DevicesPage: React.FC = () => {
 
                                 <Grid container spacing={2} sx={{ mb: 3 }}>
                                     <Grid item xs={6}>
-                                        <Typography variant="caption" color="text.secondary">IP Address</Typography>
+                                        <Typography variant="caption" color="text.secondary">{t('IP Address')}</Typography>
                                         <Typography variant="body2" fontWeight="medium" fontFamily="monospace">{device.ip_address}</Typography>
                                     </Grid>
                                     <Grid item xs={6}>
-                                        <Typography variant="caption" color="text.secondary">Last Sync</Typography>
+                                        <Typography variant="caption" color="text.secondary">{t('Last Sync')}</Typography>
                                         <Typography variant="body2" fontWeight="medium">
-                                            {device.last_sync ? new Date(device.last_sync).toLocaleTimeString() : 'Never'}
+                                            {device.last_sync ? new Date(device.last_sync).toLocaleTimeString(isRtl ? 'ar-EG' : 'en-US') : t('Never')}
                                         </Typography>
                                     </Grid>
                                 </Grid>
@@ -309,7 +328,7 @@ const DevicesPage: React.FC = () => {
                                             '@keyframes spin': { '0%': { transform: 'rotate(0deg)' }, '100%': { transform: 'rotate(360deg)' } }
                                         }}
                                     >
-                                        {syncing === device.id ? 'Syncing...' : 'Sync'}
+                                        {syncing === device.id ? t('Syncing...') : t('Sync')}
                                     </Button>
                                     <IconButton
                                         color="primary"
@@ -337,10 +356,10 @@ const DevicesPage: React.FC = () => {
                 <DialogTitle>{t('Add ZKTeco Device')}</DialogTitle>
                 <DialogContent>
                     <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, mt: 1 }}>
-                        <TextField label="Device Name" fullWidth value={newDevice.name} onChange={(e) => setNewDevice({ ...newDevice, name: e.target.value })} />
-                        <TextField label="IP Address" fullWidth value={newDevice.ip_address} onChange={(e) => setNewDevice({ ...newDevice, ip_address: e.target.value })} />
-                        <TextField label="Port" type="number" fullWidth value={newDevice.port} onChange={(e) => setNewDevice({ ...newDevice, port: Number(e.target.value) })} />
-                        <TextField label="Location" fullWidth value={newDevice.location} onChange={(e) => setNewDevice({ ...newDevice, location: e.target.value })} />
+                        <TextField label={t('Device Name')} fullWidth value={newDevice.name} onChange={(e) => setNewDevice({ ...newDevice, name: e.target.value })} />
+                        <TextField label={t('IP Address')} fullWidth value={newDevice.ip_address} onChange={(e) => setNewDevice({ ...newDevice, ip_address: e.target.value })} />
+                        <TextField label={t('Port')} type="number" fullWidth value={newDevice.port} onChange={(e) => setNewDevice({ ...newDevice, port: Number(e.target.value) })} />
+                        <TextField label={t('Location')} fullWidth value={newDevice.location} onChange={(e) => setNewDevice({ ...newDevice, location: e.target.value })} />
                     </Box>
                 </DialogContent>
                 <DialogActions>
@@ -354,10 +373,10 @@ const DevicesPage: React.FC = () => {
                 <DialogTitle>{t('Edit ZKTeco Device')}</DialogTitle>
                 <DialogContent>
                     <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, mt: 1 }}>
-                        <TextField label="Device Name" fullWidth value={editingDevice?.name || ''} onChange={(e) => setEditingDevice({ ...editingDevice, name: e.target.value })} />
-                        <TextField label="IP Address" fullWidth value={editingDevice?.ip_address || ''} onChange={(e) => setEditingDevice({ ...editingDevice, ip_address: e.target.value })} />
-                        <TextField label="Port" type="number" fullWidth value={editingDevice?.port || 4370} onChange={(e) => setEditingDevice({ ...editingDevice, port: Number(e.target.value) })} />
-                        <TextField label="Location" fullWidth value={editingDevice?.location || ''} onChange={(e) => setEditingDevice({ ...editingDevice, location: e.target.value })} />
+                        <TextField label={t('Device Name')} fullWidth value={editingDevice?.name || ''} onChange={(e) => setEditingDevice({ ...editingDevice, name: e.target.value })} />
+                        <TextField label={t('IP Address')} fullWidth value={editingDevice?.ip_address || ''} onChange={(e) => setEditingDevice({ ...editingDevice, ip_address: e.target.value })} />
+                        <TextField label={t('Port')} type="number" fullWidth value={editingDevice?.port || 4370} onChange={(e) => setEditingDevice({ ...editingDevice, port: Number(e.target.value) })} />
+                        <TextField label={t('Location')} fullWidth value={editingDevice?.location || ''} onChange={(e) => setEditingDevice({ ...editingDevice, location: e.target.value })} />
                     </Box>
                 </DialogContent>
                 <DialogActions>

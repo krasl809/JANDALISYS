@@ -1,7 +1,7 @@
 import React, { useEffect, useState, useRef, useMemo } from 'react';
-import { Box, Typography, Button, Paper, Alert, LinearProgress, Chip, Dialog, DialogTitle, DialogContent, DialogActions, TextField, MenuItem, IconButton, Tooltip } from '@mui/material';
+import { Box, Typography, Button, Paper, Alert, LinearProgress, Chip, Dialog, DialogTitle, DialogContent, DialogActions, TextField } from '@mui/material';
 import { DataGrid, GridColDef, GridToolbar, GridRenderCellParams, GridRowSelectionModel } from '@mui/x-data-grid';
-import { CloudUpload, Refresh, PersonAdd, Delete, Edit, Save } from '@mui/icons-material';
+import { CloudUpload, Refresh, Delete, Edit, Save } from '@mui/icons-material';
 import api from '../../services/api';
 import { useTranslation } from 'react-i18next';
 
@@ -26,7 +26,7 @@ const EmployeeList: React.FC = () => {
     const [loading, setLoading] = useState(true);
     const [uploading, setUploading] = useState(false);
     const [feedback, setFeedback] = useState<{ type: 'success' | 'error' | 'info', msg: string } | null>(null);
-    const [selectionModel, setSelectionModel] = useState<any>({ type: 'include', ids: new Set() });
+    const [selectionModel, setSelectionModel] = useState<GridRowSelectionModel>([]);
     const [gridKey, setGridKey] = useState(0);
 
     // Edit Dialog
@@ -80,13 +80,15 @@ const EmployeeList: React.FC = () => {
             });
             setFeedback({
                 type: 'success',
-                msg: `Imported ${res.data.imported_count} employees successfully.` + (res.data.errors.length > 0 ? ` Errors: ${res.data.errors.length}` : '')
+                msg: t('Imported {{count}} employees successfully.', { count: res.data.imported_count }) + 
+                     (res.data.errors.length > 0 ? ` ${t('Errors')}: ${res.data.errors.length}` : '')
             });
             fetchEmployees();
-        } catch (error: any) {
+        } catch (error: unknown) {
+            const apiError = error as { response?: { data?: { detail?: string } } };
             setFeedback({
                 type: 'error',
-                msg: error.response?.data?.detail || "Failed to import file"
+                msg: apiError.response?.data?.detail || t("Failed to import file")
             });
         } finally {
             setUploading(false);
@@ -95,24 +97,23 @@ const EmployeeList: React.FC = () => {
     };
 
     const handleDelete = async () => {
-        const idsArray = selectionModel.ids instanceof Set ? Array.from(selectionModel.ids) : (Array.isArray(selectionModel) ? selectionModel : []);
-        if (!window.confirm(t('Are you sure you want to delete ${count} employees?', { count: idsArray.length }))) return;
+        if (selectionModel.length === 0) return;
+        if (!window.confirm(t('Are you sure you want to delete ${count} employees?', { count: selectionModel.length }))) return;
 
         try {
-            await api.delete('/hr/employees', { data: idsArray });
+            await api.delete('/hr/employees', { data: selectionModel });
             setFeedback({ type: 'success', msg: t('Employees deleted successfully') });
-            setSelectionModel({ type: 'include', ids: new Set() });
+            setSelectionModel([]);
             setGridKey(prev => prev + 1); // Force reset
             fetchEmployees();
-        } catch (error: any) {
+        } catch {
             setFeedback({ type: 'error', msg: t('Failed to delete employees') });
         }
     };
 
     const handleEditClick = () => {
-        const idsArray = selectionModel.ids instanceof Set ? Array.from(selectionModel.ids) : (Array.isArray(selectionModel) ? selectionModel : []);
-        if (idsArray.length !== 1) return;
-        const user = rows.find(r => r.id === idsArray[0]);
+        if (selectionModel.length !== 1) return;
+        const user = rows.find(r => r.id === selectionModel[0]);
         if (user) {
             setEditUser({ ...user });
             setEditOpen(true);
@@ -126,7 +127,7 @@ const EmployeeList: React.FC = () => {
             setFeedback({ type: 'success', msg: t('Employee updated successfully') });
             setEditOpen(false);
             fetchEmployees();
-        } catch (error: any) {
+        } catch {
             setFeedback({ type: 'error', msg: t('Failed to update employee') });
         }
     };
@@ -147,7 +148,7 @@ const EmployeeList: React.FC = () => {
                 width: 150,
                 renderCell: (params: GridRenderCellParams) => (
                     <Chip
-                        label={params.value ? "Yes" : "No"}
+                        label={params.value ? t("Yes") : t("No")}
                         size="small"
                         color={params.value ? 'success' : 'default'}
                     />
@@ -243,11 +244,7 @@ const EmployeeList: React.FC = () => {
                     checkboxSelection
                     rowSelectionModel={selectionModel}
                     onRowSelectionModelChange={(newSelection) => {
-                        if (Array.isArray(newSelection)) {
-                            setSelectionModel({ type: 'include', ids: new Set(newSelection) });
-                        } else {
-                            setSelectionModel(newSelection);
-                        }
+                        setSelectionModel(newSelection);
                     }}
                     disableRowSelectionOnClick
                     density="comfortable"

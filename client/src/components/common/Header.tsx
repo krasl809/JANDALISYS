@@ -1,8 +1,7 @@
 import React, { useState, useRef } from 'react';
-import { Button } from '@mui/material';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
-import { AppBar, Toolbar, IconButton, Box, Badge, InputBase, Tooltip, Avatar, Stack, Menu, MenuItem, Typography, Divider, ListItemIcon } from '@mui/material';
+import { AppBar, Toolbar, IconButton, Box, Badge, InputBase, Tooltip, Avatar, Stack, Menu, MenuItem, Typography, Divider, ListItemIcon, Chip } from '@mui/material';
 import { Menu as MenuIcon, Search as SearchIcon, NotificationsNone, Language, DarkMode, LightMode, Settings, Logout, Person } from '@mui/icons-material';
 import { alpha, styled, useTheme } from '@mui/material/styles';
 import { useColorMode } from '../../context/ThemeContext';
@@ -16,15 +15,15 @@ const SearchBox = styled('div')(({ theme }) => ({
   borderRadius: '16px',
   backgroundColor: alpha(theme.palette.text.primary, 0.05),
   '&:hover': { backgroundColor: alpha(theme.palette.text.primary, 0.08) },
-  marginRight: theme.spacing(2),
-  marginLeft: 0,
+  marginInlineEnd: theme.spacing(2),
+  marginInlineStart: 0,
   width: '100%',
   transition: 'all 0.2s',
-  [theme.breakpoints.up('sm')]: { marginLeft: theme.spacing(3), width: 'auto', minWidth: '320px' },
+  [theme.breakpoints.up('sm')]: { marginInlineStart: theme.spacing(3), width: 'auto', minWidth: '320px' },
 }));
 
-const SearchIconWrapper = styled('div')(({ theme }) => ({ padding: theme.spacing(0, 2), height: '100%', position: 'absolute', pointerEvents: 'none', display: 'flex', alignItems: 'center', justifyContent: 'center', color: theme.palette.text.secondary }));
-const StyledInputBase = styled(InputBase)(({ theme }) => ({ color: 'inherit', width: '100%', '& .MuiInputBase-input': { padding: theme.spacing(1.5, 1, 1.5, 0), paddingLeft: `calc(1em + ${theme.spacing(4)})`, transition: theme.transitions.create('width'), width: '100%', fontSize: '0.9rem', fontWeight: 500 } }));
+const SearchIconWrapper = styled('div')(({ theme }) => ({ paddingInline: theme.spacing(2), height: '100%', position: 'absolute', pointerEvents: 'none', display: 'flex', alignItems: 'center', justifyContent: 'center', color: theme.palette.text.secondary }));
+const StyledInputBase = styled(InputBase)(({ theme }) => ({ color: 'inherit', width: '100%', '& .MuiInputBase-input': { padding: theme.spacing(1.5, 1, 1.5, 0), paddingInlineStart: `calc(1em + ${theme.spacing(4)})`, transition: theme.transitions.create('width'), width: '100%', fontSize: '0.9rem', fontWeight: 500 } }));
 
 const Header: React.FC<{ handleDrawerToggle: () => void }> = ({ handleDrawerToggle }) => {
   const { t, i18n } = useTranslation();
@@ -32,7 +31,7 @@ const Header: React.FC<{ handleDrawerToggle: () => void }> = ({ handleDrawerTogg
   const navigate = useNavigate();
   const { toggleColorMode, mode } = useColorMode();
   const { user, logout } = useAuth();
-  const { notifications, unreadCount, markAsRead, markAllAsRead, deleteNotification } = useNotifications();
+  const { notifications, unreadCount, markAsRead, markAllAsRead } = useNotifications();
 
   const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null);
   const [notifAnchorEl, setNotifAnchorEl] = useState<null | HTMLElement>(null);
@@ -65,7 +64,8 @@ const Header: React.FC<{ handleDrawerToggle: () => void }> = ({ handleDrawerTogg
     markAsRead(id);
   };
 
-  const handleMarkAllRead = () => {
+  const handleMarkAllRead = (e: React.MouseEvent) => {
+    e.stopPropagation();
     markAllAsRead();
     handleNotifClose();
   };
@@ -85,7 +85,7 @@ const Header: React.FC<{ handleDrawerToggle: () => void }> = ({ handleDrawerTogg
   return (
     <AppBar position="sticky" elevation={0} sx={{ bgcolor: alpha(theme.palette.background.default, 0.8), backdropFilter: 'blur(12px)', borderBottom: `1px solid ${theme.palette.divider}` }}>
       <Toolbar sx={{ minHeight: 70 }}>
-        <IconButton color="inherit" edge="start" onClick={handleDrawerToggle} sx={{ mr: 2, display: { md: 'none' }, color: 'text.primary' }}><MenuIcon /></IconButton>
+        <IconButton color="inherit" edge="start" onClick={handleDrawerToggle} sx={{ marginInlineEnd: 2, display: { md: 'none' }, color: 'text.primary' }}><MenuIcon /></IconButton>
 
         <Box sx={{ display: { xs: 'none', sm: 'block' } }}>
           <SearchBox>
@@ -99,7 +99,7 @@ const Header: React.FC<{ handleDrawerToggle: () => void }> = ({ handleDrawerTogg
         <Stack direction="row" spacing={1.5} alignItems="center">
           
           {/* Theme Toggle Animation */}
-          <Tooltip title={mode === 'dark' ? 'Light Mode' : 'Dark Mode'}>
+          <Tooltip title={mode === 'dark' ? t('Light Mode') : t('Dark Mode')}>
             <IconButton
                 onClick={toggleColorMode}
                 size="small"
@@ -119,13 +119,18 @@ const Header: React.FC<{ handleDrawerToggle: () => void }> = ({ handleDrawerTogg
            </IconButton>
           </Tooltip>
 
-          <Tooltip title="Language">
+          <Tooltip title={t('Language')}>
             <IconButton onClick={toggleLanguage} size="small" sx={{ border: `1px solid ${theme.palette.divider}`, borderRadius: '12px', width: 40, height: 40 }}>
-                <Language fontSize="small" color="action" />
+                <Stack direction="row" spacing={0.5} alignItems="center">
+                  <Language fontSize="small" color="action" />
+                  <Typography variant="caption" fontWeight="bold" sx={{ fontSize: '0.7rem' }}>
+                    {i18n.language.toUpperCase()}
+                  </Typography>
+                </Stack>
             </IconButton>
           </Tooltip>
 
-          <Tooltip title="Notifications">
+          <Tooltip title={t('Notifications')}>
             <IconButton
               ref={notifButtonRef}
               size="small"
@@ -170,8 +175,8 @@ const Header: React.FC<{ handleDrawerToggle: () => void }> = ({ handleDrawerTogg
                 },
               },
             }}
-            transformOrigin={{ horizontal: 'right', vertical: 'top' }}
-            anchorOrigin={{ horizontal: 'left', vertical: 'bottom' }}
+            transformOrigin={{ horizontal: isRTL ? 'left' : 'right', vertical: 'top' }}
+            anchorOrigin={{ horizontal: isRTL ? 'left' : 'right', vertical: 'bottom' }}
           >
             <Box sx={{ px: 2, py: 1, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <Typography variant="subtitle1" fontWeight="bold">
@@ -226,7 +231,7 @@ const Header: React.FC<{ handleDrawerToggle: () => void }> = ({ handleDrawerTogg
 
           <Box sx={{ width: 1, height: 24, bgcolor: 'divider', mx: 1 }} />
 
-          <Tooltip title="Account">
+          <Tooltip title={t('Account')}>
             <IconButton
               ref={accountButtonRef}
               sx={{ p: 0 }}
@@ -255,11 +260,12 @@ const Header: React.FC<{ handleDrawerToggle: () => void }> = ({ handleDrawerTogg
                 overflow: 'visible',
                 filter: 'drop-shadow(0px 2px 8px rgba(0,0,0,0.32))',
                 mt: 1.5,
+                width: 220,
                 '& .MuiAvatar-root': {
                   width: 32,
                   height: 32,
-                  ml: -0.5,
-                  mr: 1,
+                  ml: isRTL ? 1 : -0.5,
+                  mr: isRTL ? -0.5 : 1,
                 },
                 '&:before': {
                   content: '""',
@@ -275,32 +281,43 @@ const Header: React.FC<{ handleDrawerToggle: () => void }> = ({ handleDrawerTogg
                 },
               },
             }}
-            transformOrigin={{ horizontal: 'right', vertical: 'top' }}
-            anchorOrigin={{ horizontal: 'left', vertical: 'bottom' }}
+            transformOrigin={{ horizontal: isRTL ? 'left' : 'right', vertical: 'top' }}
+            anchorOrigin={{ horizontal: isRTL ? 'left' : 'right', vertical: 'bottom' }}
           >
             <Box sx={{ px: 2, py: 1.5 }}>
-              <Typography variant="subtitle1" fontWeight="bold">
-                {user?.name || 'User'}
+              <Typography variant="subtitle1" fontWeight="bold" noWrap>
+                {user?.name}
               </Typography>
-              <Typography variant="body2" color="text.secondary">
-                {user?.email || ''}
+              <Typography variant="body2" color="textSecondary" noWrap>
+                {user?.email}
               </Typography>
-              <Typography variant="caption" color="text.secondary" sx={{ textTransform: 'capitalize' }}>
-                {user?.role || 'user'}
-              </Typography>
+              <Chip 
+                label={t(user?.role || 'user')} 
+                size="small" 
+                color="primary" 
+                variant="outlined"
+                sx={{ mt: 1, height: 20, fontSize: '0.65rem', fontWeight: 'bold', textTransform: 'uppercase' }} 
+              />
             </Box>
             <Divider />
             <MenuItem onClick={handleSettings}>
               <ListItemIcon>
+                <Person fontSize="small" />
+              </ListItemIcon>
+              {t('Profile')}
+            </MenuItem>
+            <MenuItem onClick={handleSettings}>
+              <ListItemIcon>
                 <Settings fontSize="small" />
               </ListItemIcon>
-              {t('Settings')}
+              {t('settings')}
             </MenuItem>
-            <MenuItem onClick={handleLogout}>
+            <Divider />
+            <MenuItem onClick={handleLogout} sx={{ color: 'error.main' }}>
               <ListItemIcon>
-                <Logout fontSize="small" />
+                <Logout fontSize="small" color="error" />
               </ListItemIcon>
-              {t('Logout')}
+              {t('logout')}
             </MenuItem>
           </Menu>
         </Stack>

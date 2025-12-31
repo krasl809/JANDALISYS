@@ -4,7 +4,7 @@ from sqlalchemy.orm import Session
 import uuid
 import os
 import shutil
-from datetime import datetime, date
+from datetime import datetime, date, timezone
 from typing import List, Optional
 import aiofiles
 import mimetypes
@@ -264,7 +264,7 @@ def verify_document(
 
         document.is_verified = True
         document.verified_by = current_user.id
-        document.verified_at = datetime.utcnow()
+        document.verified_at = datetime.now(timezone.utc)
 
         db.commit()
 

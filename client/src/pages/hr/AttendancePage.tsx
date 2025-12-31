@@ -255,7 +255,7 @@ const AttendanceSummaryCards = React.memo(({
     ], [summary, theme.palette.primary.main, t]);
 
     return (
-        <Grid container spacing={2} sx={{ mb: 2, overflowX: 'hidden', width: '100%', ml: 0 }}>
+        <Grid container spacing={2} sx={{ mb: 2, overflowX: 'hidden', width: '100%', marginInlineStart: 0 }}>
             <style>
                 {`
                     @keyframes pulse {
@@ -303,7 +303,8 @@ const QuickViewMenu = React.memo(({
     filters: any;
     theme: any;
 }) => {
-    const { t } = useTranslation();
+    const { t, i18n } = useTranslation();
+    const isRtl = i18n.language === 'ar';
     const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null);
     const open = Boolean(anchorEl);
 
@@ -362,11 +363,11 @@ const QuickViewMenu = React.memo(({
                 onClose={handleClose}
                 anchorOrigin={{
                     vertical: 'bottom',
-                    horizontal: 'left',
+                    horizontal: isRtl ? 'right' : 'left',
                 }}
                 transformOrigin={{
                     vertical: 'top',
-                    horizontal: 'left',
+                    horizontal: isRtl ? 'right' : 'left',
                 }}
             >
                 <MenuItem onClick={() => { filters.handleQuickView('today'); handleClose(); }}>
@@ -406,7 +407,8 @@ const ActionMenu = React.memo(({
     theme: any;
     rows: any[];
 }) => {
-    const { t } = useTranslation();
+    const { t, i18n } = useTranslation();
+    const isRtl = i18n.language === 'ar';
     const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null);
     const open = Boolean(anchorEl);
 
@@ -504,11 +506,11 @@ const ActionMenu = React.memo(({
                 onClose={handleClose}
                 anchorOrigin={{
                     vertical: 'bottom',
-                    horizontal: 'right',
+                    horizontal: isRtl ? 'left' : 'right',
                 }}
                 transformOrigin={{
                     vertical: 'top',
-                    horizontal: 'right',
+                    horizontal: isRtl ? 'left' : 'right',
                 }}
             >
                 <MenuItem 
@@ -585,7 +587,7 @@ const AttendanceControls = React.memo(({
                             border: `1px solid ${theme.palette.divider}`,
                             borderRadius: 1,
                             '& .MuiToggleButton-root': {
-                                px: 1.5,
+                                paddingInline: 1.5,
                                 py: 0.5,
                                 fontWeight: 500,
                                 textTransform: 'none',
@@ -599,23 +601,23 @@ const AttendanceControls = React.memo(({
                         }}
                     >
                         <ToggleButton value="matrix">
-                            <Schedule sx={{ mr: 0.5, fontSize: 16 }} />
+                            <Schedule sx={{ marginInlineEnd: 0.5, fontSize: 16 }} />
                             {t('Matrix')}
                         </ToggleButton>
                         <ToggleButton value="month">
-                            <CalendarToday sx={{ mr: 0.5, fontSize: 16 }} />
+                            <CalendarToday sx={{ marginInlineEnd: 0.5, fontSize: 16 }} />
                             {t('Month')}
                         </ToggleButton>
                         <ToggleButton value="calendar">
-                            <Event sx={{ mr: 0.5, fontSize: 16 }} />
+                            <Event sx={{ marginInlineEnd: 0.5, fontSize: 16 }} />
                             {t('Calendar')}
                         </ToggleButton>
                         <ToggleButton value="table">
-                            <TableChart sx={{ mr: 0.5, fontSize: 16 }} />
+                            <TableChart sx={{ marginInlineEnd: 0.5, fontSize: 16 }} />
                             {t('List')}
                         </ToggleButton>
                         <ToggleButton value="analytics">
-                            <TrendingUp sx={{ mr: 0.5, fontSize: 16 }} />
+                            <TrendingUp sx={{ marginInlineEnd: 0.5, fontSize: 16 }} />
                             {t('Analytics')}
                         </ToggleButton>
                     </ToggleButtonGroup>
@@ -630,7 +632,7 @@ const AttendanceControls = React.memo(({
                 </Box>
 
                 {/* Action Menu */}
-                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, ml: 'auto' }}>
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, marginInlineStart: 'auto' }}>
                     <ActionMenu 
                         filters={filters} 
                         onRefresh={onRefresh} 

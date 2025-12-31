@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from core.database import get_db
-from core.auth import get_current_user_obj, require_permission
+from core.auth import get_current_user, require_permission
 from models.core_models import Agent
 from pydantic import BaseModel
 from typing import Optional

@@ -42,7 +42,8 @@ const AttendanceTimeline: React.FC<AttendanceTimelineProps> = ({
     data, employees, loading, viewDate, endDate, onDateChange, zoomLevel, onZoomChange
 }) => {
     const theme = useTheme();
-    const { t } = useTranslation();
+    const { t, i18n } = useTranslation();
+    const isRtl = i18n.language === 'ar';
     const scrollContainerRef = useRef<HTMLDivElement>(null);
     const [anchorEl, setAnchorEl] = useState<HTMLElement | null>(null);
     const [selectedDetailLog, setSelectedDetailLog] = useState<any>(null);
@@ -176,9 +177,9 @@ const AttendanceTimeline: React.FC<AttendanceTimelineProps> = ({
                                     onClick={(e: any) => handlePopoverOpen(e, log)}
                                     sx={{
                                         position: 'absolute',
-                                        left: `${startPercent}%`,
+                                        insetInlineStart: `${startPercent}%`,
                                         top: '50%',
-                                        transform: 'translate(-50%, -50%)',
+                                        transform: `translate(${isRtl ? '50%' : '-50%'}, -50%)`,
                                         width: 12,
                                         height: 12,
                                         borderRadius: '50%',
@@ -189,7 +190,7 @@ const AttendanceTimeline: React.FC<AttendanceTimelineProps> = ({
                                         transition: 'all 0.2s ease',
                                         '&:hover': {
                                             opacity: 0.8,
-                                            transform: 'translate(-50%, -50%) scale(1.1)'
+                                            transform: `translate(${isRtl ? '50%' : '-50%'}, -50%) scale(1.1)`
                                         }
                                     }}
                                 />
@@ -222,7 +223,7 @@ const AttendanceTimeline: React.FC<AttendanceTimelineProps> = ({
                                 onClick={(e: any) => handlePopoverOpen(e, log)}
                                 sx={{
                                     position: 'absolute',
-                                    left: `${startPercent}% `,
+                                    insetInlineStart: `${startPercent}% `,
                                     width: `${widthPercent}% `,
                                     height: 28,
                                     top: '50%',
@@ -233,7 +234,7 @@ const AttendanceTimeline: React.FC<AttendanceTimelineProps> = ({
                                     display: 'flex',
                                     alignItems: 'center',
                                     justifyContent: 'center',
-                                    px: 1,
+                                    paddingInline: 1,
                                     zIndex: 1,
                                     cursor: 'pointer',
                                     overflow: 'hidden',
@@ -296,18 +297,18 @@ const AttendanceTimeline: React.FC<AttendanceTimelineProps> = ({
                         border: `1px solid ${theme.palette.divider}`
                     }}>
                         <IconButton size="small" onClick={handlePrev} disabled={zoomLevel === 'range'} sx={{ color: TIMELINE_COLORS.present }}>
-                            <ChevronLeft />
+                            {isRtl ? <ChevronRight /> : <ChevronLeft />}
                         </IconButton>
                         <IconButton size="small" onClick={() => onDateChange(new Date())} sx={{ 
                             color: 'white', 
                             backgroundColor: TIMELINE_COLORS.present,
-                            mx: 0.5,
+                            marginInline: 0.5,
                             '&:hover': { backgroundColor: TIMELINE_COLORS.present, opacity: 0.8 }
                         }}>
                             <Today />
                         </IconButton>
                         <IconButton size="small" onClick={handleNext} disabled={zoomLevel === 'range'} sx={{ color: TIMELINE_COLORS.present }}>
-                            <ChevronRight />
+                            {isRtl ? <ChevronLeft /> : <ChevronRight />}
                         </IconButton>
                     </Box>
                     <LocalizationProvider dateAdapter={AdapterDateFns}>
@@ -343,7 +344,7 @@ const AttendanceTimeline: React.FC<AttendanceTimelineProps> = ({
                             backgroundColor: 'action.hover',
                             border: `1px solid ${theme.palette.divider}`,
                             '& .MuiToggleButton-root': {
-                                px: 1.5,
+                                paddingInline: 1.5,
                                 py: 0.5,
                                 fontWeight: 500,
                                 textTransform: 'none',
@@ -426,8 +427,8 @@ const AttendanceTimeline: React.FC<AttendanceTimelineProps> = ({
                 <Box sx={{ 
                     position: 'absolute', 
                     top: 0, 
-                    left: 240, 
-                    right: 0, 
+                    insetInlineStart: 240, 
+                    insetInlineEnd: 0, 
                     bottom: 0, 
                     pointerEvents: 'none', 
                     display: 'flex', 
@@ -436,7 +437,7 @@ const AttendanceTimeline: React.FC<AttendanceTimelineProps> = ({
                 }}>
                     {timeRange.interval.map((_, i) => (
                         <Box key={i} sx={{ 
-                            borderLeft: `1px solid ${theme.palette.divider}`, 
+                            borderInlineStart: `1px solid ${theme.palette.divider}`, 
                             width: 1, 
                             height: '100%' 
                         }} />
@@ -453,27 +454,27 @@ const AttendanceTimeline: React.FC<AttendanceTimelineProps> = ({
                     top: 0, 
                     backgroundColor: 'background.paper', 
                     zIndex: 10,
-                    px: 1
+                    paddingInline: 1
                 }}>
                     <Box sx={{ 
                         minWidth: 240, 
                         flexShrink: 0, 
                         display: 'flex',
                         alignItems: 'center',
-                        px: 1
+                        paddingInline: 1
                     }}>
-                        <Schedule sx={{ mr: 1, color: TIMELINE_COLORS.present }} />
+                        <Schedule sx={{ marginInlineEnd: 1, color: TIMELINE_COLORS.present }} />
                         <Typography variant="subtitle2" fontWeight="600" color="primary">
                             {t('Employees')}
                         </Typography>
                     </Box>
-                    <Box sx={{ display: 'flex', flexGrow: 1, justifyContent: 'space-between', pr: 2 }}>
+                    <Box sx={{ display: 'flex', flexGrow: 1, justifyContent: 'space-between', paddingInlineEnd: 2 }}>
                         {timeRange.interval.map((t, i) => (
                             <Typography key={i} variant="caption" color="text.secondary" sx={{ 
                                 minWidth: 60, 
                                 textAlign: 'center', 
                                 fontWeight: 500,
-                                px: 1
+                                paddingInline: 1
                             }}>
                                 {format(t, timeRange.labelFormat)}
                             </Typography>
@@ -510,13 +511,13 @@ const AttendanceTimeline: React.FC<AttendanceTimelineProps> = ({
                                     alignItems: 'center',
                                     gap: 1.5,
                                     position: 'sticky',
-                                    left: 0,
+                                    insetInlineStart: 0,
                                     backgroundColor: 'inherit',
                                     zIndex: 2,
-                                    borderRight: `1px solid ${theme.palette.divider}`,
+                                    borderInlineEnd: `1px solid ${theme.palette.divider}`,
                                     py: 0.5,
-                                    px: 1,
-                                    borderRadius: '0 4px 4px 0'
+                                    paddingInline: 1,
+                                    borderRadius: isRtl ? '4px 0 0 4px' : '0 4px 4px 0'
                                 }}>
                                     <Avatar sx={{ 
                                         backgroundColor: TIMELINE_COLORS.present, 
@@ -542,7 +543,7 @@ const AttendanceTimeline: React.FC<AttendanceTimelineProps> = ({
                                                 {emp.employee_id}
                                             </Typography>
                                             <Box sx={{
-                                                px: 0.5,
+                                                paddingInline: 0.5,
                                                 py: 0.1,
                                                 borderRadius: 0.5,
                                                 backgroundColor: progress >= 100 ? TIMELINE_COLORS.present : 
@@ -573,7 +574,7 @@ const AttendanceTimeline: React.FC<AttendanceTimelineProps> = ({
                                     display: 'flex', 
                                     alignItems: 'center', 
                                     zIndex: 1,
-                                    px: 1
+                                    paddingInline: 1
                                 }}>
                                     {renderSegments(emp.employee_id)}
                                 </Box>
@@ -625,7 +626,7 @@ const AttendanceTimeline: React.FC<AttendanceTimelineProps> = ({
                                     data.filter(log => !!log.timestamp && isSameDay(parseISO(log.timestamp), parseISO(selectedDetailLog.check_in)) && (log.employee_id === selectedDetailLog.employee_id || log.employee_pk === selectedDetailLog.employee_pk))
                                         .sort((a, b) => parseISO(a.timestamp).getTime() - parseISO(b.timestamp).getTime())
                                         .map((raw, rIdx) => (
-                                            <ListItem key={rIdx} sx={{ px: 0.5 }}>
+                                            <ListItem key={rIdx} sx={{ paddingInline: 0.5 }}>
                                                 <ListItemIcon sx={{ minWidth: 28 }}>
                                                     {raw.type === 'check_in' ? 
                                                         <Check fontSize="small" sx={{ color: TIMELINE_COLORS.present }} /> : 
@@ -641,7 +642,7 @@ const AttendanceTimeline: React.FC<AttendanceTimelineProps> = ({
                                             </ListItem>
                                         ))
                                 ) : (
-                                    <ListItem sx={{ px: 0.5 }}>
+                                    <ListItem sx={{ paddingInline: 0.5 }}>
                                         <ListItemIcon sx={{ minWidth: 28 }}>
                                             <AccessTime fontSize="small" sx={{ color: TIMELINE_COLORS.present }} />
                                         </ListItemIcon>
@@ -652,7 +653,7 @@ const AttendanceTimeline: React.FC<AttendanceTimelineProps> = ({
                                         />
                                     </ListItem>
                                 )}
-                                <ListItem sx={{ px: 0.5 }}>
+                                <ListItem sx={{ paddingInline: 0.5 }}>
                                     <ListItemIcon sx={{ minWidth: 28 }}>
                                         <DeviceIcon fontSize="small" sx={{ color: 'text.secondary' }} />
                                     </ListItemIcon>
@@ -693,7 +694,7 @@ const AttendanceTimeline: React.FC<AttendanceTimelineProps> = ({
                 pt: 2, 
                 borderTop: `1px solid ${theme.palette.divider}`,
                 backgroundColor: 'action.hover',
-                px: 1
+                paddingInline: 1
             }}>
                 <Stack direction="row" spacing={1} alignItems="center">
                     <Box sx={{ 

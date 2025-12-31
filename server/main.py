@@ -1,7 +1,13 @@
-# Load environment variables first
 import os
 import logging
 import uuid
+import time
+from datetime import datetime, timezone
+from collections import defaultdict
+import sentry_sdk
+from sentry_sdk.integrations.fastapi import FastApiIntegration
+
+# Load environment variables first
 try:
     from dotenv import load_dotenv
     # Load .env from the server directory
@@ -9,6 +15,17 @@ try:
     load_dotenv(env_path)
 except ImportError:
     pass
+
+# Initialize Sentry
+SENTRY_DSN = os.getenv("SENTRY_DSN")
+if SENTRY_DSN:
+    sentry_sdk.init(
+        dsn=SENTRY_DSN,
+        integrations=[FastApiIntegration()],
+        traces_sample_rate=1.0,
+        environment=os.getenv("ENVIRONMENT", "development"),
+    )
+    logging.info("Sentry monitoring enabled")
 
 # Add server directory to sys.path for absolute imports when running with uvicorn
 import sys
@@ -21,7 +38,7 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-from fastapi import FastAPI, Depends, HTTPException
+from fastapi import FastAPI, Depends, HTTPException, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session
 from sqlalchemy import text
@@ -36,7 +53,7 @@ department_models = models
 hr_models = models
 import schemas.schemas as schemas
 from crud import rbac_crud
-from core.auth import authenticate_user, create_access_token, get_current_user_obj, get_password_hash, require_permission
+from core.auth import authenticate_user, create_access_token, get_current_user, get_password_hash, require_permission
 
 # Import routers
 from routers import contracts, conveyors, agents, financial_transactions, departments, hr, notifications, dashboard, inventory, payments, bank_accounts, documents, archive
@@ -51,63 +68,95 @@ app = FastAPI(title="JANDALISYS")
 # Log application startup
 logger.info("Starting JANDALISYS")
 
-# --- Rate Limiting Middleware ---
-import time
-from collections import defaultdict
-from starlette.middleware.base import BaseHTTPMiddleware
-from fastapi import Request, Response
-
-class RateLimitMiddleware(BaseHTTPMiddleware):
-    def __init__(self, app, max_requests: int = 200, window_seconds: int = 60):
-        super().__init__(app)
-        self.max_requests = max_requests
-        self.window_seconds = window_seconds
-        self.requests = defaultdict(list)
-
-    async def dispatch(self, request: Request, call_next):
-        client_ip = request.client.host if request.client else "unknown"
-        now = time.time()
-        
-        # Clean old requests
-        self.requests[client_ip] = [req_time for req_time in self.requests[client_ip] if now - req_time < self.window_seconds]
-        
-        if len(self.requests[client_ip]) >= self.max_requests:
-            return Response("Rate limit exceeded", status_code=429)
-            
-        self.requests[client_ip].append(now)
-        response = await call_next(request)
-        return response
-
-# app.add_middleware(RateLimitMiddleware)
-
 # --- Secure CORS Configuration ---
 from typing import List
 
-# List of allowed origins from environment variables
-allowed_origins: List[str] = [
-    "http://localhost:3000",
-    "http://localhost:5173",
-    "http://localhost:5174",
-    "http://localhost:8001",
-    "http://127.0.0.1:3000",
-    "http://127.0.0.1:5173",
-    "http://127.0.0.1:5174",
-    "http://127.0.0.1:8001",
-    "http://91.144.22.3:5173",  # External IP for internet access
-    "https://91.144.22.3:5173"   # HTTPS version
-]
-
-# Add production origins from environment variable
-if production_origins := os.getenv("ALLOWED_ORIGINS"):
-    allowed_origins.extend(production_origins.split(","))
+# Get allowed origins from environment variable or use defaults
+env_origins = os.getenv("ALLOWED_ORIGINS")
+if env_origins:
+    allowed_origins = [origin.strip() for origin in env_origins.split(",")]
+else:
+    allowed_origins = [
+        "http://localhost:3000",
+        "http://localhost:5173",
+        "http://localhost:5174",
+        "http://localhost:8001",
+        "http://127.0.0.1:3000",
+        "http://127.0.0.1:5173",
+        "http://127.0.0.1:5174",
+        "http://127.0.0.1:8001",
+        "http://91.144.22.3:5173",
+        "https://91.144.22.3:5173"
+    ]
 
 app.add_middleware(
     CORSMiddleware,
     allow_origins=allowed_origins,
     allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_methods=["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"],
+    allow_headers=[
+        "Content-Type",
+        "Authorization",
+        "Accept",
+        "Accept-Language",
+        "X-Requested-With",
+    ],
+    expose_headers=["Content-Range", "X-Content-Range"],
+    max_age=3600,  # Cache preflight requests for 1 hour
 )
+
+# --- Security Headers & Rate Limiting Middleware ---
+@app.middleware("http")
+async def security_and_rate_limit_middleware(request: Request, call_next):
+    """Combined middleware for security headers and rate limiting to reduce overhead and nesting issues"""
+    
+    # 1. Rate Limiting Logic
+    if os.getenv("ENABLE_RATE_LIMIT", "true").lower() == "true":
+        client_ip = request.client.host if request.client else "unknown"
+        now = time.time()
+        
+        # Accessing the app state or a global for rate limit storage
+        if not hasattr(app.state, 'rate_limit_requests'):
+            app.state.rate_limit_requests = defaultdict(list)
+        
+        requests = app.state.rate_limit_requests[client_ip]
+        
+        # Clean old requests
+        max_requests = int(os.getenv("RATE_LIMIT_MAX_REQUESTS", "100"))
+        window_seconds = int(os.getenv("RATE_LIMIT_WINDOW_SECONDS", "60"))
+        
+        app.state.rate_limit_requests[client_ip] = [req_time for req_time in requests if now - req_time < window_seconds]
+        
+        if len(app.state.rate_limit_requests[client_ip]) >= max_requests:
+            return Response("Rate limit exceeded", status_code=429)
+            
+        app.state.rate_limit_requests[client_ip].append(now)
+
+    # 2. Call Next (with error handling for stream issues)
+    try:
+        response = await call_next(request)
+    except Exception as e:
+        # Catch anyio stream errors that often happen with BaseHTTPMiddleware
+        error_msg = str(e)
+        if "EndOfStream" in error_msg or "WouldBlock" in error_msg:
+            logger.warning(f"Stream error in middleware: {error_msg}")
+            return Response("Internal Server Error (Stream Error)", status_code=500)
+        logger.error(f"Error in middleware: {e}", exc_info=True)
+        raise e
+
+    # 3. Security Headers Logic
+    response.headers["X-Frame-Options"] = "DENY"
+    response.headers["X-Content-Type-Options"] = "nosniff"
+    response.headers["X-XSS-Protection"] = "1; mode=block"
+    
+    if os.getenv("ENVIRONMENT") == "production":
+        response.headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains"
+    
+    response.headers["Content-Security-Policy"] = "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'"
+    response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
+    response.headers["Permissions-Policy"] = "geolocation=(), microphone=(), camera=()"
+    
+    return response
 
 # --- Register Routers ---
 # app.include_router(setup.router, prefix="/api/setup", tags=["setup"])
@@ -240,7 +289,12 @@ def startup_event():
 
         # Create default admin user if no users exist
         admin_email = "admin@jandali.com"
-        admin_password = "Admin@123" 
+        admin_password = os.getenv("DEFAULT_ADMIN_PASSWORD", "Admin@123")
+        
+        # Security warning if using default password
+        if admin_password == "Admin@123":
+            logger.warning("⚠️⚠️⚠️ DEFAULT ADMIN PASSWORD IS BEING USED - CHANGE IT IMMEDIATELY! ⚠️⚠️⚠️")
+            logger.warning("Set DEFAULT_ADMIN_PASSWORD in .env file for security") 
         
         admin_exists = db.query(core_models.User).filter(core_models.User.email == admin_email).first()
         
@@ -291,7 +345,14 @@ def startup_event():
             {"name": "Archive Viewer", "email": "viewer@archive.com", "role": "archive_viewer"}
         ]
         
-        default_password = get_password_hash("Archive@123")
+        archive_password = os.getenv("DEFAULT_ARCHIVE_PASSWORD", "Archive@123")
+        
+        # Security warning if using default password
+        if archive_password == "Archive@123":
+            logger.warning("⚠️⚠️⚠️ DEFAULT ARCHIVE PASSWORD IS BEING USED - CHANGE IT IMMEDIATELY! ⚠️⚠️⚠️")
+            logger.warning("Set DEFAULT_ARCHIVE_PASSWORD in .env file for security")
+        
+        default_password = get_password_hash(archive_password)
         
         for u_data in archive_users:
             u_exists = db.query(core_models.User).filter(core_models.User.email == u_data["email"]).first()
@@ -337,6 +398,60 @@ def startup_event():
 def read_root():
     return {"status": "ok", "message": "Jandali ERP API is running"}
 
+# --- Health Check Endpoints ---
+@app.get("/health")
+async def health_check(db: Session = Depends(get_db)):
+    """Comprehensive health check endpoint for monitoring"""
+    try:
+        # Check database connection
+        db.execute(text("SELECT 1"))
+        db_status = "connected"
+    except Exception as e:
+        logger.error(f"Database health check failed: {e}")
+        raise HTTPException(status_code=503, detail="Database unavailable")
+    
+    # Check Redis (if configured)
+    redis_status = "not_configured"
+    if os.getenv("REDIS_HOST"):
+        try:
+            import redis
+            r = redis.Redis(
+                host=os.getenv("REDIS_HOST"),
+                port=int(os.getenv("REDIS_PORT", "6379")),
+                db=int(os.getenv("REDIS_DB", "0")),
+                socket_connect_timeout=2
+            )
+            r.ping()
+            redis_status = "connected"
+        except Exception as e:
+            logger.warning(f"Redis health check failed: {e}")
+            redis_status = "unavailable"
+    
+    return {
+        "status": "healthy",
+        "version": os.getenv("APP_VERSION", "1.0.0"),
+        "environment": os.getenv("ENVIRONMENT", "development"),
+        "database": db_status,
+        "redis": redis_status,
+        "timestamp": datetime.now(timezone.utc).isoformat()
+    }
+
+@app.get("/health/live")
+async def liveness():
+    """Kubernetes liveness probe - checks if application is running"""
+    return {"status": "alive", "timestamp": datetime.now(timezone.utc).isoformat()}
+
+@app.get("/health/ready")
+async def readiness(db: Session = Depends(get_db)):
+    """Kubernetes readiness probe - checks if application can serve traffic"""
+    try:
+        db.execute(text("SELECT 1"))
+        return {"status": "ready", "timestamp": datetime.now(timezone.utc).isoformat()}
+    except Exception as e:
+        logger.error(f"Readiness check failed: {e}")
+        raise HTTPException(status_code=503, detail="Not ready")
+
+
 # --- Auth Endpoints ---
 
 @app.post("/api/auth/login", response_model=dict)
@@ -375,7 +490,7 @@ def login_auth(user_credentials: schemas.UserLogin, db: Session = Depends(get_db
     }
 
 @app.post("/api/auth/register", response_model=dict)
-def register(user_data: schemas.UserRegister, db: Session = Depends(get_db), current_user = Depends(get_current_user_obj)):
+def register(user_data: schemas.UserRegister, db: Session = Depends(get_db), current_user = Depends(get_current_user)):
     if current_user.role != "admin":
         raise HTTPException(status_code=403, detail="Access denied: Admin only")
 
@@ -409,7 +524,7 @@ def register(user_data: schemas.UserRegister, db: Session = Depends(get_db), cur
         raise HTTPException(status_code=500, detail="Failed to register user")
 
 @app.get("/api/auth/me", response_model=schemas.User)
-def get_user_info_auth(current_user = Depends(get_current_user_obj)):
+def get_user_info_auth(current_user = Depends(get_current_user)):
     return current_user
 
 # --- Admin Setup ---
@@ -440,7 +555,7 @@ def setup_admin(user_data: schemas.UserRegister, db: Session = Depends(get_db)):
 # --- Basic CRUD Endpoints (Entities) ---
 
 @app.get("/api/users/", response_model=list[schemas.User])
-def read_users(db: Session = Depends(get_db), current_user = Depends(get_current_user_obj)):
+def read_users(db: Session = Depends(get_db), current_user = Depends(get_current_user)):
     try:
         # Only admin can view all users
         if current_user.role != "admin":
@@ -671,7 +786,7 @@ def read_brokers(db: Session = Depends(get_db), current_user = Depends(require_p
 
 # Conveyors
 @app.get("/api/conveyors/", response_model=list[schemas.Conveyor])
-def read_conveyors(db: Session = Depends(get_db)):
+def read_conveyors(db: Session = Depends(get_db), current_user = Depends(require_permission("read_conveyors"))):
     try:
         return db.query(core_models.Conveyor).all()
     except Exception as e:
@@ -859,7 +974,7 @@ def delete_incoterm(incoterm_id: uuid.UUID, db: Session = Depends(get_db), curre
         raise HTTPException(status_code=500, detail=f"Failed to delete incoterm: {str(e)}")
 
 @app.get("/api/parties/", response_model=list[schemas.Entity])
-def read_parties(db: Session = Depends(get_db), current_user = Depends(get_current_user_obj)):
+def read_parties(db: Session = Depends(get_db), current_user = Depends(get_current_user)):
     try:
         # Combine all party types into one list
         sellers = db.query(core_models.Seller).all()
@@ -942,6 +1057,8 @@ def test_db_connection(db: Session = Depends(get_db)):
         return {"status": "success", "message": "Connected to database successfully!"}
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Database connection failed: {str(e)}")
+
+
 
 if __name__ == "__main__":
     import uvicorn

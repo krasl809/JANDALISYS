@@ -6,9 +6,9 @@ import {
   Box, Typography, Collapse, Divider, useTheme
 } from '@mui/material';
 import {
-  Dashboard, Description, Settings, PriceCheck, Payment,
+  Dashboard, Description, PriceCheck, Payment,
   LocalShipping, ExpandLess, ExpandMore, Circle, Assessment,
-  AccessTime, SettingsInputComponent, People, Person, Schedule,
+  AccessTime, SettingsInputComponent, People, Schedule,
   FolderSpecial
 } from '@mui/icons-material';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -93,10 +93,10 @@ const Navigation: React.FC<NavProps> = ({ width, mobileOpen, handleDrawerToggle 
         </motion.div>
         <Box>
           <Typography variant="h6" sx={{ color: theme.palette.mode === 'dark' ? 'text.primary' : '#fff', fontWeight: 700, lineHeight: 1 }}>
-            JANDALISYS
+            {t('JANDALISYS')}
           </Typography>
           <Typography variant="caption" sx={{ fontSize: '0.65rem', opacity: 0.6, letterSpacing: 1, textTransform: 'uppercase' }}>
-            Enterprise Management System
+            {t('Enterprise Management System')}
           </Typography>
         </Box>
       </Box>
@@ -238,7 +238,7 @@ const Navigation: React.FC<NavProps> = ({ width, mobileOpen, handleDrawerToggle 
                 <ListItemIcon sx={{ minWidth: 40, color: location.pathname.startsWith('/employees') ? accentColor : 'inherit' }}>
                   <People />
                 </ListItemIcon>
-                <ListItemText primary={t('Employee Management')} primaryTypographyProps={{ fontSize: '0.9rem', fontWeight: 500 }} sx={{ textAlign: isRTL ? 'right' : 'left' }} />
+                <ListItemText primary={t('Human Resources')} primaryTypographyProps={{ fontSize: '0.9rem', fontWeight: 500 }} sx={{ textAlign: isRTL ? 'right' : 'left' }} />
                 {empOpen ? <ExpandLess sx={{ opacity: 0.5 }} /> : <ExpandMore sx={{ opacity: 0.5 }} />}
               </ListItemButton>
 
@@ -340,7 +340,7 @@ const Navigation: React.FC<NavProps> = ({ width, mobileOpen, handleDrawerToggle 
         variant="temporary"
         open={mobileOpen}
         onClose={handleDrawerToggle}
-        anchor="left"
+        anchor={isRTL ? 'right' : 'left'}
         ModalProps={{ keepMounted: true }}
         sx={{
           display: { xs: 'block', md: 'none' },
@@ -352,7 +352,7 @@ const Navigation: React.FC<NavProps> = ({ width, mobileOpen, handleDrawerToggle 
 
       <Drawer
         variant="permanent"
-        anchor="left"
+        anchor={isRTL ? 'right' : 'left'}
         sx={{
           display: { xs: 'none', md: 'block' },
           '& .MuiDrawer-paper': {

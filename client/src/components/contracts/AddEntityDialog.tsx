@@ -10,6 +10,7 @@ import {
   Alert
 } from '@mui/material';
 import { Add } from '@mui/icons-material';
+import { useTranslation } from 'react-i18next';
 import api from '../../services/api';
 import { EntityType } from '../../types/contracts';
 
@@ -26,6 +27,7 @@ const AddEntityDialog: React.FC<AddEntityDialogProps> = ({
   entityType,
   onEntityAdded
 }) => {
+  const { t } = useTranslation();
   const [formData, setFormData] = useState<any>({});
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
@@ -34,114 +36,114 @@ const AddEntityDialog: React.FC<AddEntityDialogProps> = ({
     switch (entityType) {
       case 'seller':
         return {
-          title: 'Add New Seller',
+          title: t('entities.add_new', { type: t('entities.seller') }),
           endpoint: '/sellers/',
           fields: [
-            { name: 'seller_code', label: 'Seller Code', required: true, maxLength: 4 },
-            { name: 'contact_name', label: 'Contact Name', required: true },
-            { name: 'address', label: 'Address', required: false },
-            { name: 'post_box', label: 'Post Box', required: false },
-            { name: 'tel', label: 'Telephone', required: false },
-            { name: 'fax', label: 'Fax', required: false },
-            { name: 'email', label: 'Email', required: false }
+            { name: 'seller_code', label: t('entities.seller_code'), required: true, maxLength: 4 },
+            { name: 'contact_name', label: t('entities.contact_name'), required: true },
+            { name: 'address', label: t('entities.address'), required: false },
+            { name: 'post_box', label: t('entities.post_box'), required: false },
+            { name: 'tel', label: t('entities.telephone'), required: false },
+            { name: 'fax', label: t('entities.fax'), required: false },
+            { name: 'email', label: t('entities.email'), required: false }
           ]
         };
       case 'buyer':
         return {
-          title: 'Add New Buyer',
+          title: t('entities.add_new', { type: t('entities.buyer') }),
           endpoint: '/buyers/',
           fields: [
-            { name: 'contact_name', label: 'Contact Name', required: true },
-            { name: 'address', label: 'Address', required: false },
-            { name: 'post_box', label: 'Post Box', required: false },
-            { name: 'tel', label: 'Telephone', required: false },
-            { name: 'fax', label: 'Fax', required: false },
-            { name: 'email', label: 'Email', required: false }
+            { name: 'contact_name', label: t('entities.contact_name'), required: true },
+            { name: 'address', label: t('entities.address'), required: false },
+            { name: 'post_box', label: t('entities.post_box'), required: false },
+            { name: 'tel', label: t('entities.telephone'), required: false },
+            { name: 'fax', label: t('entities.fax'), required: false },
+            { name: 'email', label: t('entities.email'), required: false }
           ]
         };
       case 'shipper':
         return {
-          title: 'Add New Shipper',
+          title: t('entities.add_new', { type: t('entities.shipper') }),
           endpoint: '/shippers/',
           fields: [
-            { name: 'contact_name', label: 'Contact Name', required: true },
-            { name: 'address', label: 'Address', required: false },
-            { name: 'post_box', label: 'Post Box', required: false },
-            { name: 'tel', label: 'Telephone', required: false },
-            { name: 'fax', label: 'Fax', required: false },
-            { name: 'email', label: 'Email', required: false }
+            { name: 'contact_name', label: t('entities.contact_name'), required: true },
+            { name: 'address', label: t('entities.address'), required: false },
+            { name: 'post_box', label: t('entities.post_box'), required: false },
+            { name: 'tel', label: t('entities.telephone'), required: false },
+            { name: 'fax', label: t('entities.fax'), required: false },
+            { name: 'email', label: t('entities.email'), required: false }
           ]
         };
       case 'broker':
         return {
-          title: 'Add New Broker',
+          title: t('entities.add_new', { type: t('entities.broker') }),
           endpoint: '/brokers/',
           fields: [
-            { name: 'contact_name', label: 'Contact Name', required: true },
-            { name: 'address', label: 'Address', required: false },
-            { name: 'post_box', label: 'Post Box', required: false },
-            { name: 'tel', label: 'Telephone', required: false },
-            { name: 'fax', label: 'Fax', required: false },
-            { name: 'email', label: 'Email', required: false }
+            { name: 'contact_name', label: t('entities.contact_name'), required: true },
+            { name: 'address', label: t('entities.address'), required: false },
+            { name: 'post_box', label: t('entities.post_box'), required: false },
+            { name: 'tel', label: t('entities.telephone'), required: false },
+            { name: 'fax', label: t('entities.fax'), required: false },
+            { name: 'email', label: t('entities.email'), required: false }
           ]
         };
       case 'agent':
         return {
-          title: 'Add New Agent',
+          title: t('entities.add_new', { type: t('entities.agent') }),
           endpoint: '/agents/',
           fields: [
-            { name: 'contact_name', label: 'Contact Name', required: true },
-            { name: 'address', label: 'Address', required: false },
-            { name: 'post_box', label: 'Post Box', required: false },
-            { name: 'tel', label: 'Telephone', required: false },
-            { name: 'fax', label: 'Fax', required: false },
-            { name: 'email', label: 'Email', required: false }
+            { name: 'contact_name', label: t('entities.contact_name'), required: true },
+            { name: 'address', label: t('entities.address'), required: false },
+            { name: 'post_box', label: t('entities.post_box'), required: false },
+            { name: 'tel', label: t('entities.telephone'), required: false },
+            { name: 'fax', label: t('entities.fax'), required: false },
+            { name: 'email', label: t('entities.email'), required: false }
           ]
         };
       case 'conveyor':
         return {
-          title: 'Add New Conveyor',
+          title: t('entities.add_new', { type: t('entities.conveyor') }),
           endpoint: '/conveyors/',
           fields: [
-            { name: 'contact_name', label: 'Contact Name', required: true },
-            { name: 'address', label: 'Address', required: false },
-            { name: 'post_box', label: 'Post Box', required: false },
-            { name: 'tel', label: 'Telephone', required: false },
-            { name: 'fax', label: 'Fax', required: false },
-            { name: 'email', label: 'Email', required: false }
+            { name: 'contact_name', label: t('entities.contact_name'), required: true },
+            { name: 'address', label: t('entities.address'), required: false },
+            { name: 'post_box', label: t('entities.post_box'), required: false },
+            { name: 'tel', label: t('entities.telephone'), required: false },
+            { name: 'fax', label: t('entities.fax'), required: false },
+            { name: 'email', label: t('entities.email'), required: false }
           ]
         };
       case 'article':
         return {
-          title: 'Add New Article',
+          title: t('entities.add_new', { type: t('entities.article') }),
           endpoint: '/articles/',
           fields: [
-            { name: 'article_name', label: 'Article Name', required: true },
-            { name: 'item_code', label: 'Item Code', required: true },
-            { name: 'uom', label: 'Unit of Measure', required: true }
+            { name: 'article_name', label: t('entities.article_name'), required: true },
+            { name: 'item_code', label: t('entities.item_code'), required: true },
+            { name: 'uom', label: t('entities.uom'), required: true }
           ]
         };
       case 'warehouse':
         return {
-          title: 'Add New Warehouse',
+          title: t('entities.add_new', { type: t('entities.warehouse') }),
           endpoint: '/inventory/warehouses/',
           fields: [
-            { name: 'name', label: 'Warehouse Name', required: true },
-            { name: 'location', label: 'Location', required: false }
+            { name: 'name', label: t('entities.warehouse_name'), required: true },
+            { name: 'location', label: t('entities.location'), required: false }
           ]
         };
       case 'incoterm':
         return {
-          title: 'Add New Incoterm',
+          title: t('entities.add_new', { type: t('entities.incoterm') }),
           endpoint: '/incoterms/',
           fields: [
-            { name: 'code', label: 'Incoterm Code', required: true, maxLength: 3 },
-            { name: 'name', label: 'Incoterm Name', required: true },
-            { name: 'description', label: 'Description', required: false }
+            { name: 'code', label: t('entities.incoterm_code'), required: true, maxLength: 3 },
+            { name: 'name', label: t('entities.incoterm_name'), required: true },
+            { name: 'description', label: t('entities.description'), required: false }
           ]
         };
       default:
-        return { title: 'Add New Item', endpoint: '', fields: [] };
+        return { title: t('entities.add_new', { type: t('entities.item') }), endpoint: '', fields: [] };
     }
   };
 
@@ -154,7 +156,7 @@ const AddEntityDialog: React.FC<AddEntityDialogProps> = ({
     );
 
     if (missingFields.length > 0) {
-      setError(`Please fill in required fields: ${missingFields.map(f => f.label).join(', ')}`);
+      setError(t('entities.fill_required', { fields: missingFields.map(f => f.label).join(', ') }));
       return;
     }
 
@@ -169,7 +171,7 @@ const AddEntityDialog: React.FC<AddEntityDialogProps> = ({
     } catch (err: any) {
       console.error('Error adding entity:', err);
       const detail = err.response?.data?.detail;
-      setError(typeof detail === 'string' ? detail : 'Failed to add item. Please try again.');
+      setError(typeof detail === 'string' ? detail : t('entities.failed_add'));
     } finally {
       setLoading(false);
     }
@@ -216,7 +218,7 @@ const AddEntityDialog: React.FC<AddEntityDialogProps> = ({
                 required={field.required}
                 size="small"
                 inputProps={{ maxLength: field.maxLength || 255 }}
-                helperText={field.required ? 'Required' : 'Optional'}
+                helperText={field.required ? t('entities.required') : t('entities.optional')}
               />
             </Grid>
           ))}
@@ -224,7 +226,7 @@ const AddEntityDialog: React.FC<AddEntityDialogProps> = ({
       </DialogContent>
       <DialogActions>
         <Button onClick={handleClose} disabled={loading}>
-          Cancel
+          {t('entities.cancel')}
         </Button>
         <Button 
           onClick={handleSubmit} 
@@ -232,7 +234,7 @@ const AddEntityDialog: React.FC<AddEntityDialogProps> = ({
           disabled={loading}
           startIcon={<Add />}
         >
-          {loading ? 'Adding...' : 'Add'}
+          {loading ? t('entities.adding') : t('entities.add')}
         </Button>
       </DialogActions>
     </Dialog>

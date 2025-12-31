@@ -60,7 +60,7 @@ export const inventoryApi = {
         // ملاحظة: يجب إنشاء هذا المسار في الباك إند لاحقاً
         const response = await api.get('/inventory/stats'); 
         return response.data;
-    } catch (error) {
+    } catch {
         console.warn("Dashboard stats endpoint not ready yet. Serving mock data for UI.");
         
         // 2. بيانات وهمية احترافية للعرض (Mock Data)

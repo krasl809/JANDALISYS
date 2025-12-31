@@ -6,6 +6,7 @@ import {
   Card, CardContent, InputAdornment, Divider, Chip, CircularProgress
 } from '@mui/material';
 import { Add, Delete, Save, Send, ArrowBack } from '@mui/icons-material';
+import { useTranslation } from 'react-i18next';
 import api from '../../services/api';
 import { inventoryApi } from '../../services/inventoryApi';
 
@@ -19,6 +20,7 @@ interface ListsState {
 
 const DeliveryNoteForm = () => {
   const navigate = useNavigate();
+  const { t } = useTranslation();
   const [loading, setLoading] = useState(false);
   const [pageLoading, setPageLoading] = useState(true);
   
@@ -106,7 +108,7 @@ const DeliveryNoteForm = () => {
   const handleSubmit = async (action: 'draft' | 'approve') => {
     // تحقق بسيط قبل الإرسال
     if (!formData.warehouse_id) {
-        alert("Please select a warehouse.");
+        alert(t("Please select a warehouse."));
         return;
     }
 
@@ -136,7 +138,7 @@ const DeliveryNoteForm = () => {
       navigate('/inventory/movements');
     } catch (err) {
       console.error(err);
-      alert('Error processing request. Please check all fields.');
+      alert(t('Error processing request. Please check all fields.'));
     } finally {
         setLoading(false);
     }
@@ -153,8 +155,8 @@ const DeliveryNoteForm = () => {
         <Box display="flex" alignItems="center" gap={2}>
             <IconButton onClick={() => navigate(-1)}><ArrowBack /></IconButton>
             <Box>
-                <Typography variant="h5" fontWeight="bold">New Stock Movement</Typography>
-                <Typography variant="body2" color="textSecondary">Create Inbound, Outbound, or Transfer notes</Typography>
+                <Typography variant="h5" fontWeight="bold">{t("New Stock Movement")}</Typography>
+                <Typography variant="body2" color="textSecondary">{t("Create Inbound, Outbound, or Transfer notes")}</Typography>
             </Box>
         </Box>
       </Box>
@@ -164,34 +166,34 @@ const DeliveryNoteForm = () => {
         <Grid item xs={12} md={8}>
           <Paper elevation={0} sx={{ p: 3, border: '1px solid #e0e0e0', mb: 3 }}>
             <Typography variant="h6" fontWeight="600" mb={2} sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-               Movement Details
+               {t("Movement Details")}
             </Typography>
             <Grid container spacing={2}>
                 <Grid item xs={12} md={4}>
                     <TextField 
-                        select fullWidth label="Movement Type" size="small"
+                        select fullWidth label={t("Movement Type")} size="small"
                         value={formData.type}
                         onChange={(e) => setFormData({...formData, type: e.target.value})}
                     >
-                        <MenuItem value="inbound">📥 Inbound (Receipt)</MenuItem>
-                        <MenuItem value="outbound">📤 Outbound (Delivery)</MenuItem>
-                        <MenuItem value="transfer">🔄 Transfer (Internal)</MenuItem>
+                        <MenuItem value="inbound">📥 {t("Inbound (Receipt)")}</MenuItem>
+                        <MenuItem value="outbound">📤 {t("Outbound (Delivery)")}</MenuItem>
+                        <MenuItem value="transfer">🔄 {t("Transfer (Internal)")}</MenuItem>
                     </TextField>
                 </Grid>
                 <Grid item xs={12} md={4}>
                     <TextField 
-                        type="date" fullWidth label="Date" size="small"
+                        type="date" fullWidth label={t("Date")} size="small"
                         value={formData.date}
                         onChange={(e) => setFormData({...formData, date: e.target.value})}
                     />
                 </Grid>
                 <Grid item xs={12} md={4}>
                     <TextField 
-                        select fullWidth label="Contract Ref (Optional)" size="small"
+                        select fullWidth label={t("Contract Ref (Optional)")} size="small"
                         value={formData.contract_id}
                         onChange={(e) => setFormData({...formData, contract_id: e.target.value})}
                     >
-                        <MenuItem value="">None</MenuItem>
+                        <MenuItem value="">{t("None")}</MenuItem>
                         {lists.contracts.map((c: any) => (
                             <MenuItem key={c.id} value={c.id}>{c.contract_no}</MenuItem>
                         ))}
@@ -202,12 +204,12 @@ const DeliveryNoteForm = () => {
                 <Grid item xs={12} md={6}>
                     <TextField 
                         select fullWidth size="small" required
-                        label={formData.type === 'transfer' ? "Source Warehouse" : (formData.type === 'inbound' ? "Destination Warehouse" : "Source Warehouse")}
+                        label={formData.type === 'transfer' ? t("Source Warehouse") : (formData.type === 'inbound' ? t("Destination Warehouse") : t("Source Warehouse"))}
                         value={formData.warehouse_id}
                         onChange={(e) => setFormData({...formData, warehouse_id: e.target.value})}
                     >
                         {lists.warehouses.map((w: any) => (
-                            <MenuItem key={w.id} value={w.id}>{w.name}</MenuItem>
+                            <MenuItem key={w.id} value={w.id}>{t(w.name)}</MenuItem>
                         ))}
                     </TextField>
                 </Grid>
@@ -216,12 +218,12 @@ const DeliveryNoteForm = () => {
                     <Grid item xs={12} md={6}>
                         <TextField 
                             select fullWidth size="small" required
-                            label="Target Warehouse"
+                            label={t("Target Warehouse")}
                             value={formData.target_warehouse_id}
                             onChange={(e) => setFormData({...formData, target_warehouse_id: e.target.value})}
                         >
                             {lists.warehouses.filter((w: any) => w.id !== formData.warehouse_id).map((w: any) => (
-                                <MenuItem key={w.id} value={w.id}>{w.name}</MenuItem>
+                                <MenuItem key={w.id} value={w.id}>{t(w.name)}</MenuItem>
                             ))}
                         </TextField>
                     </Grid>
@@ -231,12 +233,12 @@ const DeliveryNoteForm = () => {
                     <Grid item xs={12} md={6}>
                         <TextField 
                             select fullWidth size="small"
-                            label={formData.type === 'inbound' ? "Supplier" : "Customer"}
+                            label={formData.type === 'inbound' ? t("Supplier") : t("Customer")}
                             value={formData.entity_id}
                             onChange={(e) => setFormData({...formData, entity_id: e.target.value})}
                         >
                             {lists.entities.map((e: any) => (
-                                <MenuItem key={e.id} value={e.id}>{e.contact_name}</MenuItem>
+                                <MenuItem key={e.id} value={e.id}>{t(e.contact_name)}</MenuItem>
                             ))}
                         </TextField>
                     </Grid>
@@ -247,14 +249,14 @@ const DeliveryNoteForm = () => {
           {/* Items Table */}
           <Paper elevation={0} sx={{ border: '1px solid #e0e0e0', overflow: 'hidden' }}>
             <Box p={2} bgcolor="#F8FAFC" borderBottom="1px solid #E2E8F0">
-                <Typography variant="subtitle2" fontWeight="bold">Items & Quantities</Typography>
+                <Typography variant="subtitle2" fontWeight="bold">{t("Items & Quantities")}</Typography>
             </Box>
             <Table size="small">
                 <TableHead>
                     <TableRow>
-                        <TableCell width="40%">Article</TableCell>
-                        <TableCell width="20%">Quantity</TableCell>
-                        <TableCell width="30%">Batch/Lot No.</TableCell>
+                        <TableCell width="40%">{t("Article")}</TableCell>
+                        <TableCell width="20%">{t("Quantity")}</TableCell>
+                        <TableCell width="30%">{t("Batch/Lot No.")}</TableCell>
                         <TableCell width="10%"></TableCell>
                     </TableRow>
                 </TableHead>
@@ -263,13 +265,13 @@ const DeliveryNoteForm = () => {
                         <TableRow key={item.id}>
                             <TableCell>
                                 <TextField 
-                                    select fullWidth variant="standard" placeholder="Select Article"
+                                    select fullWidth variant="standard" placeholder={t("Select Article")}
                                     value={item.article_id}
                                     onChange={(e) => handleItemChange(item.id, 'article_id', e.target.value)}
                                     InputProps={{ disableUnderline: true }}
                                 >
                                     {lists.articles.map((a: any) => (
-                                        <MenuItem key={a.id} value={a.id}>{a.article_name} ({a.item_code})</MenuItem>
+                                        <MenuItem key={a.id} value={a.id}>{t(a.article_name)} ({a.item_code})</MenuItem>
                                     ))}
                                 </TextField>
                             </TableCell>
@@ -283,7 +285,7 @@ const DeliveryNoteForm = () => {
                             </TableCell>
                             <TableCell>
                                 <TextField 
-                                    fullWidth variant="standard" placeholder="e.g. B-2024-001"
+                                    fullWidth variant="standard" placeholder={t("e.g. B-2024-001")}
                                     value={item.batch_number}
                                     onChange={(e) => handleItemChange(item.id, 'batch_number', e.target.value)}
                                     InputProps={{ disableUnderline: true }}
@@ -299,7 +301,7 @@ const DeliveryNoteForm = () => {
                 </TableBody>
             </Table>
             <Box p={2}>
-                <Button startIcon={<Add />} onClick={handleAddItem} size="small">Add Item</Button>
+                <Button startIcon={<Add />} onClick={handleAddItem} size="small">{t("Add Item")}</Button>
             </Box>
           </Paper>
         </Grid>
@@ -308,13 +310,13 @@ const DeliveryNoteForm = () => {
         <Grid item xs={12} md={4}>
            <Card elevation={0} sx={{ border: '1px solid #e0e0e0', mb: 2 }}>
              <CardContent>
-                <Typography variant="subtitle2" gutterBottom>Actions</Typography>
+                <Typography variant="subtitle2" gutterBottom>{t("Actions")}</Typography>
                 <Button 
                     fullWidth variant="outlined" startIcon={<Save />} sx={{ mb: 1 }}
                     onClick={() => handleSubmit('draft')}
                     disabled={loading}
                 >
-                    Save as Draft
+                    {t("Save as Draft")}
                 </Button>
                 <Button 
                     fullWidth variant="contained" startIcon={<Send />} 
@@ -322,16 +324,16 @@ const DeliveryNoteForm = () => {
                     onClick={() => handleSubmit('approve')}
                     disabled={loading}
                 >
-                    Save & Approve
+                    {t("Save & Approve")}
                 </Button>
                 <Typography variant="caption" color="textSecondary" sx={{ mt: 2, display: 'block' }}>
-                    * Approving will immediately update the stock levels in the selected warehouse.
+                    * {t("Approving will immediately update the stock levels in the selected warehouse.")}
                 </Typography>
              </CardContent>
            </Card>
            
            <TextField 
-             fullWidth multiline rows={4} label="Notes / Comments"
+             fullWidth multiline rows={4} label={t("Notes / Comments")}
              variant="outlined"
              value={formData.notes}
              onChange={(e) => setFormData({...formData, notes: e.target.value})}

@@ -1,6 +1,6 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import {
-    Box, Typography, Grid, Paper, Button, TextField, Dialog, DialogTitle,
+    Box, Typography, Grid2 as Grid, Paper, Button, TextField, Dialog, DialogTitle,
     DialogContent, DialogActions, Chip, IconButton, Card, CardContent, Divider,
     Alert, Tab, Tabs, FormControl, InputLabel, Select, MenuItem, Checkbox,
     FormControlLabel, FormGroup, Stack, Avatar, List, ListItem, ListItemText, ListItemAvatar,
@@ -8,31 +8,74 @@ import {
 } from '@mui/material';
 import {
     Add, Edit, Delete, Schedule, AssignmentInd, AccessTime,
-    Info, RotateRight, CheckCircle, Warning, FilterList, Refresh, AutoFixHigh,
-    AddCircle, RemoveCircle, PlayArrow, DragIndicator
+    Info, RotateRight, Refresh, AutoFixHigh,
+    AddCircle, RemoveCircle, DragIndicator
 } from '@mui/icons-material';
 import api from '../../services/api';
 import { useTranslation } from 'react-i18next';
 import { format } from 'date-fns';
+import { ar, enUS } from 'date-fns/locale';
+
+interface Shift {
+    id?: number;
+    name: string;
+    description: string;
+    shift_type: 'fixed' | 'rotational';
+    start_time: string;
+    end_time: string;
+    expected_hours: number;
+    grace_period_in: number;
+    grace_period_out: number;
+    ot_threshold: number;
+    multiplier_normal: number;
+    multiplier_holiday: number;
+    holiday_days: string[];
+    is_holiday_paid: boolean;
+    min_days_for_paid_holiday: number;
+    end_day_offset: number;
+    temp_rotation_hours: number;
+    temp_rotation_offset: number;
+    distribute_holiday_bonus: boolean;
+    rotation_pattern: { 
+        sequence: any[]; 
+        days: number;
+        slots: Record<string, { start: string; end: string; hours: number }>;
+    };
+}
+
+interface Employee {
+    id: string;
+    full_name: string;
+    employee_id: string;
+    department_name?: string;
+    avatar_url?: string;
+    position?: string;
+    shift_assignments?: any[];
+}
+
+interface Assignment {
+    employee_id: string;
+    shift_id: string | number;
+    start_date: string;
+}
 
 const ShiftSettingsPage: React.FC = () => {
-    const { t } = useTranslation();
+    const { t, i18n } = useTranslation();
+    const isRtl = i18n.language === 'ar';
     const theme = useTheme();
     const [tab, setTab] = useState(0);
-    const [shifts, setShifts] = useState<any[]>([]);
-    const [employees, setEmployees] = useState<any[]>([]);
-    const [assignments, setAssignments] = useState<any[]>([]);
+    const [shifts, setShifts] = useState<Shift[]>([]);
+    const [employees, setEmployees] = useState<Employee[]>([]);
     const [loading, setLoading] = useState(false);
     const [submitting, setSubmitting] = useState(false);
     const [feedback, setFeedback] = useState<{ type: 'success' | 'error', msg: string } | null>(null);
     const [snackbarOpen, setSnackbarOpen] = useState(false);
-    const [rotationInput, setRotationInput] = useState('');
     const [validationErrors, setValidationErrors] = useState<{[key: string]: string}>({});
 
     // Shift Logic States
     const [openAddShift, setOpenAddShift] = useState(false);
     const [editingShiftId, setEditingShiftId] = useState<number | null>(null);
-    const [newShift, setNewShift] = useState<any>({
+    const [newShift, setNewShift] = useState<Shift>({
         name: '',
         description: '',
         shift_type: 'fixed',
@@ -64,13 +107,13 @@ const ShiftSettingsPage: React.FC = () => {
 
     // Assignment States
     const [openAssign, setOpenAssign] = useState(false);
-    const [newAssignment, setNewAssignment] = useState({
+    const [newAssignment, setNewAssignment] = useState<Assignment>({
         employee_id: '',
         shift_id: '',
         start_date: format(new Date(), 'yyyy-MM-dd')
     });
 
-    const fetchData = async (showLoading = true) => {
+    const fetchData = useCallback(async (showLoading = true) => {
         if (showLoading) setLoading(true);
         try {
             const [shiftsRes, empRes] = await Promise.all([
@@ -91,18 +134,18 @@ const ShiftSettingsPage: React.FC = () => {
             console.log('Sample employee:', employeesData[0]);
             
             setEmployees(employeesData);
-        } catch (error: any) {
+        } catch (error: unknown) {
             console.error('Error fetching data:', error);
-            const errorMessage = error.response?.data?.detail || error.message || t('Failed to load data');
+            const errorMessage = (error as any).response?.data?.detail || (error as Error).message || t('Failed to load data');
             setFeedback({ type: 'error', msg: errorMessage });
             setSnackbarOpen(true);
         } finally {
             if (showLoading) setLoading(false);
         }
-    };
+    }, [t]);
 
     // Validation functions
-    const validateShift = (shift: any): {[key: string]: string} => {
+    const validateShift = (shift: Shift): {[key: string]: string} => {
         const errors: {[key: string]: string} = {};
         
         if (!shift.name?.trim()) {
@@ -128,7 +171,7 @@ const ShiftSettingsPage: React.FC = () => {
         return errors;
     };
 
-    const validateAssignment = (assignment: any): {[key: string]: string} => {
+    const validateAssignment = (assignment: Assignment): {[key: string]: string} => {
         const errors: {[key: string]: string} = {};
         
         if (!assignment.employee_id) {
@@ -148,7 +191,7 @@ const ShiftSettingsPage: React.FC = () => {
 
     useEffect(() => {
         fetchData();
-    }, []);
+    }, [fetchData]);
 
     const handleCreateShift = async () => {
         setSubmitting(true);
@@ -245,7 +288,6 @@ const ShiftSettingsPage: React.FC = () => {
             }
         }
     });
-        setRotationInput('');
     };
 
     const handleAssignShift = async () => {
@@ -289,14 +331,21 @@ const ShiftSettingsPage: React.FC = () => {
 
     return (
         <Box sx={{ p: 3, boxSizing: 'border-box', width: '100%' }}>
-            <Box sx={{ mb: 4, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <Box sx={{ 
+                mb: 4, 
+                display: 'flex', 
+                justifyContent: 'space-between', 
+                alignItems: 'center',
+                flexWrap: 'wrap',
+                gap: 2
+            }}>
                 <Box>
                     <Typography variant="h4" fontWeight="900" sx={{ background: `linear-gradient(45deg, ${theme.palette.primary.main}, ${theme.palette.secondary.main})`, WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>
                         {t('Shift Management')}
                     </Typography>
                     <Typography variant="body2" color="text.secondary">{t('Define work schedules, grace periods, and overtime rules')}</Typography>
                 </Box>
-                <Stack direction="row" spacing={2}>
+                <Stack direction="row" spacing={2} sx={{ flexWrap: 'wrap', gap: 1 }}>
                     <Button
                         variant="contained"
                         startIcon={submitting ? <CircularProgress size={20} color="inherit" /> : <Add />}
@@ -342,14 +391,14 @@ const ShiftSettingsPage: React.FC = () => {
             {tab === 0 && (
                 <Grid container spacing={3}>
                     {loading ? (
-                        <Grid item xs={12}>
+                        <Grid size={12}>
                             <Box sx={{ display: 'flex', justifyContent: 'center', py: 8 }}>
                                 <CircularProgress />
                             </Box>
                         </Grid>
                     ) : (
                         shifts.map((shift) => (
-                            <Grid item xs={12} md={6} lg={4} key={shift.id}>
+                            <Grid size={{ xs: 12, md: 6, lg: 4 }} key={shift.id}>
                                 <Card elevation={0} sx={{
                                     borderRadius: 4,
                                     border: `1px solid ${alpha(theme.palette.divider, 0.1)}`,
@@ -372,28 +421,28 @@ const ShiftSettingsPage: React.FC = () => {
                                             </Box>
                                             <Stack direction="row">
                                                 <IconButton size="small" color="primary" onClick={() => handleEditShift(shift)} disabled={submitting}><Edit fontSize="small" /></IconButton>
-                                                <IconButton size="small" color="error" onClick={() => handleDeleteShift(shift.id)} disabled={submitting}><Delete fontSize="small" /></IconButton>
+                                                <IconButton size="small" color="error" onClick={() => shift.id && handleDeleteShift(shift.id)} disabled={submitting}><Delete fontSize="small" /></IconButton>
                                             </Stack>
                                         </Box>
 
                                         <Divider sx={{ mb: 2, borderStyle: 'dashed' }} />
 
                                         <Grid container spacing={2}>
-                                            <Grid item xs={6}>
+                                            <Grid size={6}>
                                                 <Typography variant="caption" color="text.secondary">{t('Schedule')}</Typography>
                                                 <Typography variant="body2" fontWeight="800">
                                                     {shift.start_time} - {shift.end_time}
                                                 </Typography>
                                             </Grid>
-                                            <Grid item xs={6}>
+                                            <Grid size={6}>
                                                 <Typography variant="caption" color="text.secondary">{t('Expected Hours')}</Typography>
                                                 <Typography variant="body2" fontWeight="800">{shift.expected_hours}h</Typography>
                                             </Grid>
-                                            <Grid item xs={6}>
+                                            <Grid size={6}>
                                                 <Typography variant="caption" color="text.secondary">{t('Grace In/Out')}</Typography>
                                                 <Typography variant="body2">{shift.grace_period_in} / {shift.grace_period_out}m</Typography>
                                             </Grid>
-                                            <Grid item xs={6}>
+                                            <Grid size={6}>
                                                 <Typography variant="caption" color="text.secondary">{t('OT Multiplier')}</Typography>
                                                 <Typography variant="body2" color="success.main" fontWeight="bold">x{shift.multiplier_normal}</Typography>
                                             </Grid>
@@ -422,7 +471,7 @@ const ShiftSettingsPage: React.FC = () => {
                         ))
                     )}
                     {shifts.length === 0 && !loading && (
-                        <Grid item xs={12}>
+                        <Grid size={12}>
                             <Box sx={{ textAlign: 'center', py: 8 }}>
                                 <Typography color="text.secondary" gutterBottom>{t('No shift policies defined yet')}</Typography>
                                 <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>{t('Create your first shift policy to get started')}</Typography>
@@ -451,8 +500,8 @@ const ShiftSettingsPage: React.FC = () => {
                             ) : (
                                 employees
                                     .filter(e => !!e.shift_assignments && e.shift_assignments.length > 0)
-                                    .map((emp, idx) => {
-                                        const activeAssignment = emp.shift_assignments.find((a: any) => !a.end_date) || emp.shift_assignments[emp.shift_assignments.length - 1];
+                                    .map((emp) => {
+                                        const activeAssignment = emp.shift_assignments!.find((a: any) => !a.end_date) || emp.shift_assignments![emp.shift_assignments!.length - 1];
                                         return (
                                             <React.Fragment key={emp.id}>
                                                 <ListItem alignItems="flex-start" sx={{
@@ -461,14 +510,14 @@ const ShiftSettingsPage: React.FC = () => {
                                                     '&:hover': { bgcolor: alpha(theme.palette.primary.main, 0.02) }
                                                 }}>
                                                     <ListItemAvatar>
-                                                        <Badge overlap="circular" anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }} variant="dot" color="success">
-                                                            <Avatar sx={{ bgcolor: theme.palette.primary.main, width: 44, height: 44 }}>{emp.name?.[0] || 'U'}</Avatar>
+                                                        <Badge overlap="circular" anchorOrigin={{ vertical: 'bottom', horizontal: isRtl ? 'left' : 'right' }} variant="dot" color="success">
+                                                            <Avatar sx={{ bgcolor: theme.palette.primary.main, width: 44, height: 44 }}>{emp.full_name?.[0] || 'U'}</Avatar>
                                                         </Badge>
                                                     </ListItemAvatar>
                                                     <ListItemText
                                                         primary={
                                                             <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                                                                <Typography fontWeight="900" variant="subtitle1">{emp.name || 'Unknown'}</Typography>
+                                                                <Typography fontWeight="900" variant="subtitle1">{emp.full_name || 'Unknown'}</Typography>
                                                                 <Typography variant="caption" color="text.secondary">[{emp.employee_id || 'N/A'}]</Typography>
                                                             </Box>
                                                         }
@@ -483,7 +532,7 @@ const ShiftSettingsPage: React.FC = () => {
                                                                 <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.8 }}>
                                                                     <AccessTime sx={{ fontSize: 16, color: 'text.secondary' }} />
                                                                     <Typography variant="caption" color="text.secondary">
-                                                                        {t('From')}: {activeAssignment?.start_date ? format(new Date(activeAssignment.start_date), 'MMM d, yyyy') : '--'}
+                                                                        {t('From')}: {activeAssignment?.start_date ? format(new Date(activeAssignment.start_date), 'MMM d, yyyy', { locale: isRtl ? ar : enUS }) : '--'}
                                                                     </Typography>
                                                                 </Box>
                                                                 {activeAssignment?.shift?.shift_type === 'rotational' && (
@@ -536,13 +585,13 @@ const ShiftSettingsPage: React.FC = () => {
             )}
 
             {/* Add/Edit Shift Dialog */}
-            <Dialog open={openAddShift} onClose={handleCloseShiftDialog} maxWidth="md" fullWidth PaperProps={{ sx: { borderRadius: 5, p: 1 } }}>
+            <Dialog open={openAddShift} onClose={handleCloseShiftDialog} maxWidth="md" fullWidth slotProps={{ paper: { sx: { borderRadius: 5, p: 1 } } }}>
                 <DialogTitle sx={{ fontWeight: 900, display: 'flex', alignItems: 'center', gap: 1 }}>
                     <RotateRight color="primary" /> {editingShiftId ? t('Edit Shift Policy') : t('Create Shift Policy')}
                 </DialogTitle>
                 <DialogContent>
                     <Grid container spacing={3} sx={{ mt: 1 }}>
-                        <Grid item xs={12} md={6}>
+                        <Grid size={{ xs: 12, md: 6 }}>
                             <TextField 
                                 label={t('Policy Name')} 
                                 fullWidth 
@@ -553,41 +602,41 @@ const ShiftSettingsPage: React.FC = () => {
                                 helperText={validationErrors.name}
                             />
                         </Grid>
-                        <Grid item xs={12} md={6}>
+                        <Grid size={{ xs: 12, md: 6 }}>
                             <FormControl fullWidth>
                                 <InputLabel>{t('Shift Type')}</InputLabel>
-                                <Select value={newShift.shift_type || 'fixed'} label={t('Shift Type')} onChange={(e) => setNewShift({ ...newShift, shift_type: e.target.value })}>
+                                <Select value={newShift.shift_type || 'fixed'} label={t('Shift Type')} onChange={(e) => setNewShift({ ...newShift, shift_type: e.target.value as 'fixed' | 'rotational' })}>
                                     <MenuItem value="fixed">{t('Fixed')}</MenuItem>
                                     <MenuItem value="rotational">{t('Rotational (Cycles)')}</MenuItem>
                                 </Select>
                             </FormControl>
                         </Grid>
 
-                        <Grid item xs={12} md={4}>
+                        <Grid size={{ xs: 12, md: 4 }}>
                             <TextField 
                                 label={t('Start Time')} 
                                 type="time" 
                                 fullWidth 
                                 value={newShift.start_time || ''} 
                                 onChange={(e) => setNewShift({ ...newShift, start_time: e.target.value })} 
-                                InputLabelProps={{ shrink: true }}
+                                slotProps={{ inputLabel: { shrink: true } }}
                                 error={!!validationErrors.start_time}
                                 helperText={validationErrors.start_time}
                             />
                         </Grid>
-                        <Grid item xs={12} md={4}>
+                        <Grid size={{ xs: 12, md: 4 }}>
                             <TextField 
                                 label={t('End Time')} 
                                 type="time" 
                                 fullWidth 
                                 value={newShift.end_time || ''} 
                                 onChange={(e) => setNewShift({ ...newShift, end_time: e.target.value })} 
-                                InputLabelProps={{ shrink: true }}
+                                slotProps={{ inputLabel: { shrink: true } }}
                                 error={!!validationErrors.end_time}
                                 helperText={validationErrors.end_time}
                             />
                         </Grid>
-                        <Grid item xs={12} md={4}>
+                        <Grid size={{ xs: 12, md: 4 }}>
                             <TextField 
                                 label={t('Expected Work Hours')} 
                                 type="number" 
@@ -599,7 +648,7 @@ const ShiftSettingsPage: React.FC = () => {
                             />
                         </Grid>
 
-                        <Grid item xs={12}>
+                        <Grid size={12}>
                             <FormControl fullWidth size="small">
                                 <InputLabel>{t('Shift Ends On')}</InputLabel>
                                 <Select
@@ -618,16 +667,16 @@ const ShiftSettingsPage: React.FC = () => {
                         </Grid>
 
                         {validationErrors.time_range && (
-                            <Grid item xs={12}>
+                            <Grid size={12}>
                                 <Alert severity="error">{validationErrors.time_range}</Alert>
                             </Grid>
                         )}
 
-                        <Grid item xs={12}>
+                        <Grid size={12}>
                             <Divider><Chip label={t('Policy Rules')} size="small" /></Divider>
                         </Grid>
 
-                        <Grid item xs={6} md={3}>
+                        <Grid size={{ xs: 6, md: 3 }}>
                             <TextField 
                                 label={t('Grace In (m)')} 
                                 type="number" 
@@ -636,7 +685,7 @@ const ShiftSettingsPage: React.FC = () => {
                                 onChange={(e) => setNewShift({ ...newShift, grace_period_in: Number(e.target.value) })} 
                             />
                         </Grid>
-                        <Grid item xs={6} md={3}>
+                        <Grid size={{ xs: 6, md: 3 }}>
                             <TextField 
                                 label={t('Grace Out (m)')} 
                                 type="number" 
@@ -645,7 +694,7 @@ const ShiftSettingsPage: React.FC = () => {
                                 onChange={(e) => setNewShift({ ...newShift, grace_period_out: Number(e.target.value) })} 
                             />
                         </Grid>
-                        <Grid item xs={6} md={3}>
+                        <Grid size={{ xs: 6, md: 3 }}>
                             <TextField 
                                 label={t('OT Threshold (m)')} 
                                 type="number" 
@@ -654,18 +703,18 @@ const ShiftSettingsPage: React.FC = () => {
                                 onChange={(e) => setNewShift({ ...newShift, ot_threshold: Number(e.target.value) })} 
                             />
                         </Grid>
-                        <Grid item xs={6} md={3}>
+                        <Grid size={{ xs: 6, md: 3 }}>
                             <TextField 
                                 label={t('Normal OT Multiplier')} 
                                 type="number" 
                                 fullWidth 
                                 value={newShift.multiplier_normal || 1.5} 
                                 onChange={(e) => setNewShift({ ...newShift, multiplier_normal: Number(e.target.value) })} 
-                                inputProps={{ step: 0.1 }} 
+                                slotProps={{ htmlInput: { step: 0.1 } }} 
                             />
                         </Grid>
 
-                        <Grid item xs={12}>
+                        <Grid size={12}>
                             <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 1 }}>
                                 <Typography variant="subtitle2" sx={{ fontWeight: 'bold' }}>{t('Weekly Holidays & Eligibility')}</Typography>
                                 <FormControlLabel
@@ -683,12 +732,12 @@ const ShiftSettingsPage: React.FC = () => {
                             {newShift.is_holiday_paid && (
                                 <Box sx={{ mb: 2, p: 2, bgcolor: alpha(theme.palette.primary.main, 0.05), borderRadius: 2, border: `1px dashed ${theme.palette.primary.main}` }}>
                                     <Grid container spacing={2} alignItems="center">
-                                        <Grid item xs={12} md={8}>
+                                        <Grid size={{ xs: 12, md: 8 }}>
                                             <Typography variant="body2" color="text.secondary">
                                                 {t('Minimum working days required in the last 7 days to qualify for a paid holiday')}
                                             </Typography>
                                         </Grid>
-                                        <Grid item xs={12} md={4}>
+                                        <Grid size={{ xs: 12, md: 4 }}>
                                             <TextField
                                                 label={t('Minimum Work Units (Shifts/Days) for Holiday Eligibility')}
                                                 helperText={t('Number of attendance records required in the last 7 days to qualify for a paid holiday')}
@@ -697,7 +746,7 @@ const ShiftSettingsPage: React.FC = () => {
                                                 fullWidth
                                                 value={newShift.min_days_for_paid_holiday ?? 4}
                                                 onChange={(e) => setNewShift({ ...newShift, min_days_for_paid_holiday: Number(e.target.value) })}
-                                                inputProps={{ min: 0, max: 21 }}
+                                                slotProps={{ htmlInput: { min: 0, max: 21 } }}
                                             />
                                         </Grid>
                                     </Grid>
@@ -726,7 +775,7 @@ const ShiftSettingsPage: React.FC = () => {
                         </Grid>
 
                         {newShift.shift_type === 'rotational' && (
-                            <Grid item xs={12}>
+                            <Grid size={12}>
                                 <Divider sx={{ mb: 2 }}><Chip label={t('Rotational Shift Designer (A/B/C)')} size="small" /></Divider>
                                 <Box sx={{ p: 2, border: `1px solid ${alpha(theme.palette.secondary.main, 0.2)}`, borderRadius: 4, bgcolor: alpha(theme.palette.secondary.main, 0.02) }}>
                                     
@@ -748,7 +797,7 @@ const ShiftSettingsPage: React.FC = () => {
                                     </Box>
                                     <Grid container spacing={2} sx={{ mb: 3 }}>
                                         {Object.entries(newShift.rotation_pattern?.slots || {}).map(([slot, data]: [string, any]) => (
-                                            <Grid item xs={12} md={4} key={slot}>
+                                            <Grid size={{ xs: 12, md: 4 }} key={slot}>
                                                 <Paper variant="outlined" sx={{ p: 1.5, borderRadius: 3, position: 'relative' }}>
                                                     <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1 }}>
                                                         <Typography variant="caption" fontWeight="bold" color="secondary">{t('Slot')} {slot}</Typography>
@@ -775,7 +824,7 @@ const ShiftSettingsPage: React.FC = () => {
                                                                 slots[slot] = { ...slots[slot], start: e.target.value };
                                                                 setNewShift({ ...newShift, rotation_pattern: { ...newShift.rotation_pattern, slots } });
                                                             }}
-                                                            InputLabelProps={{ shrink: true }}
+                                                            slotProps={{ inputLabel: { shrink: true } }}
                                                         />
                                                         <TextField
                                                             size="small"
@@ -787,7 +836,7 @@ const ShiftSettingsPage: React.FC = () => {
                                                                 slots[slot] = { ...slots[slot], end: e.target.value };
                                                                 setNewShift({ ...newShift, rotation_pattern: { ...newShift.rotation_pattern, slots } });
                                                             }}
-                                                            InputLabelProps={{ shrink: true }}
+                                                            slotProps={{ inputLabel: { shrink: true } }}
                                                         />
                                                     </Stack>
                                                 </Paper>
@@ -913,59 +962,59 @@ const ShiftSettingsPage: React.FC = () => {
                                                                 <Typography variant="subtitle2" fontWeight="bold">
                                                                     {t('Day')} {i + 1}
                                                                 </Typography>
-                                                                {isOff ? (
-                                                                    <Chip label={t('OFF')} size="small" color="error" variant="outlined" />
-                                                                ) : (
-                                                                    <Stack direction="row" spacing={0.5}>
-                                                                        {Object.keys(newShift.rotation_pattern?.slots || {}).map(slotKey => {
-                                                                            const isSelected = step.slots?.includes(slotKey);
-                                                                            return (
-                                                                                <Chip
-                                                                                    key={slotKey}
-                                                                                    label={slotKey}
-                                                                                    size="small"
-                                                                                    color={isSelected ? "secondary" : "default"}
-                                                                                    variant={isSelected ? "filled" : "outlined"}
-                                                                                    onClick={() => {
-                                                                                        const seq = [...newShift.rotation_pattern.sequence];
-                                                                                        const daySlots = [...(step.slots || [])];
-                                                                                        const idx = daySlots.indexOf(slotKey);
-                                                                                        if (idx > -1) daySlots.splice(idx, 1);
-                                                                                        else daySlots.push(slotKey);
-                                                                                        
-                                                                                        // Calculate total hours and offset
-                                                                                        let totalHours = 0;
-                                                                                        let maxOffset = 0;
-                                                                                        daySlots.forEach(s => {
-                                                                                            const slotData = newShift.rotation_pattern.slots[s];
-                                                                                            // Calculate hours if not set (rough estimation for UI)
-                                                                                            const start = slotData.start || '08:00';
-                                                                                            const end = slotData.end || '16:00';
-                                                                                            const startH = parseInt(start.split(':')[0]);
-                                                                                            const endH = parseInt(end.split(':')[0]);
-                                                                                            let h = endH - startH;
-                                                                                            if (h < 0) {
-                                                                                                h += 24;
-                                                                                                maxOffset = 1;
-                                                                                            }
-                                                                                            totalHours += h;
-                                                                                        });
-
-                                                                                        seq[i] = { 
-                                                                                            ...seq[i], 
-                                                                                            slots: daySlots, 
-                                                                                            hours: totalHours, 
-                                                                                            offset: maxOffset,
-                                                                                            label: daySlots.join('+') || t('No Slot')
-                                                                                        };
-                                                                                        setNewShift({ ...newShift, rotation_pattern: { ...newShift.rotation_pattern, sequence: seq } });
-                                                                                    }}
-                                                                                />
-                                                                            );
-                                                                        })}
-                                                                    </Stack>
-                                                                )}
                                                             </Box>
+                                                            {isOff ? (
+                                                                <Chip label={t('OFF')} size="small" color="error" variant="outlined" />
+                                                            ) : (
+                                                                <Stack direction="row" spacing={0.5}>
+                                                                    {Object.keys(newShift.rotation_pattern?.slots || {}).map(slotKey => {
+                                                                        const isSelected = step.slots?.includes(slotKey);
+                                                                        return (
+                                                                            <Chip
+                                                                                key={slotKey}
+                                                                                label={slotKey}
+                                                                                size="small"
+                                                                                color={isSelected ? "secondary" : "default"}
+                                                                                variant={isSelected ? "filled" : "outlined"}
+                                                                                onClick={() => {
+                                                                                    const seq = [...newShift.rotation_pattern.sequence];
+                                                                                    const daySlots = [...(step.slots || [])];
+                                                                                    const idx = daySlots.indexOf(slotKey);
+                                                                                    if (idx > -1) daySlots.splice(idx, 1);
+                                                                                    else daySlots.push(slotKey);
+                                                                                    
+                                                                                    // Calculate total hours and offset
+                                                                                    let totalHours = 0;
+                                                                                    let maxOffset = 0;
+                                                                                    daySlots.forEach(s => {
+                                                                                        const slotData = newShift.rotation_pattern.slots[s];
+                                                                                        // Calculate hours if not set (rough estimation for UI)
+                                                                                        const start = slotData.start || '08:00';
+                                                                                        const end = slotData.end || '16:00';
+                                                                                        const startH = parseInt(start.split(':')[0]);
+                                                                                        const endH = parseInt(end.split(':')[0]);
+                                                                                        let h = endH - startH;
+                                                                                        if (h < 0) {
+                                                                                            h += 24;
+                                                                                            maxOffset = 1;
+                                                                                        }
+                                                                                        totalHours += h;
+                                                                                    });
+
+                                                                                    seq[i] = { 
+                                                                                        ...(typeof seq[i] === 'object' ? seq[i] : {}), 
+                                                                                        slots: daySlots, 
+                                                                                        hours: totalHours, 
+                                                                                        offset: maxOffset,
+                                                                                        label: daySlots.join('+') || t('No Slot')
+                                                                                    };
+                                                                                    setNewShift({ ...newShift, rotation_pattern: { ...newShift.rotation_pattern, sequence: seq } });
+                                                                                }}
+                                                                            />
+                                                                        );
+                                                                    })}
+                                                                </Stack>
+                                                            )}
                                                             <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
                                                                 {!isOff && (
                                                                     <Typography variant="caption" color="text.secondary" fontWeight="bold">
@@ -1050,7 +1099,7 @@ const ShiftSettingsPage: React.FC = () => {
             </Dialog>
 
             {/* Assignment Dialog */}
-            <Dialog open={openAssign} onClose={handleCloseAssignDialog} maxWidth="sm" fullWidth PaperProps={{ sx: { borderRadius: 5 } }}>
+            <Dialog open={openAssign} onClose={handleCloseAssignDialog} maxWidth="sm" fullWidth slotProps={{ paper: { sx: { borderRadius: 5 } } }}>
                 <DialogTitle sx={{ fontWeight: 900 }}>{t('Assign Shift Policy')}</DialogTitle>
                 <DialogContent>
                     <Stack spacing={3} sx={{ mt: 1 }}>
@@ -1062,11 +1111,11 @@ const ShiftSettingsPage: React.FC = () => {
                                 onChange={(e) => setNewAssignment({ ...newAssignment, employee_id: e.target.value })}
                             >
                                 {employees.map(emp => (
-                                    <MenuItem key={emp.id} value={emp.id}>{emp.name} ({emp.employee_id})</MenuItem>
+                                    <MenuItem key={emp.id} value={emp.id}>{emp.full_name} ({emp.employee_id})</MenuItem>
                                 ))}
                             </Select>
                             {validationErrors.employee_id && (
-                                <Typography variant="caption" color="error" sx={{ mt: 0.5, ml: 1.5 }}>
+                                <Typography variant="caption" color="error" sx={{ mt: 0.5, marginInlineStart: 1.5 }}>
                                     {validationErrors.employee_id}
                                 </Typography>
                             )}
@@ -1083,7 +1132,7 @@ const ShiftSettingsPage: React.FC = () => {
                                 ))}
                             </Select>
                             {validationErrors.shift_id && (
-                                <Typography variant="caption" color="error" sx={{ mt: 0.5, ml: 1.5 }}>
+                                <Typography variant="caption" color="error" sx={{ mt: 0.5, marginInlineStart: 1.5 }}>
                                     {validationErrors.shift_id}
                                 </Typography>
                             )}
@@ -1094,7 +1143,7 @@ const ShiftSettingsPage: React.FC = () => {
                             fullWidth
                             value={newAssignment.start_date}
                             onChange={(e) => setNewAssignment({ ...newAssignment, start_date: e.target.value })}
-                            InputLabelProps={{ shrink: true }}
+                            slotProps={{ inputLabel: { shrink: true } }}
                             error={!!validationErrors.start_date}
                             helperText={validationErrors.start_date}
                         />

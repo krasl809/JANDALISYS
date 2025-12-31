@@ -1,6 +1,6 @@
 
 from sqlalchemy.orm import Session
-from fastapi import HTTPException
+from fastapi import HTTPException, BackgroundTasks
 from typing import List, Optional, Dict, Any
 from sqlalchemy import func
 from datetime import datetime as dt
@@ -17,15 +17,21 @@ logger = logging.getLogger(__name__)
 
 class ContractService:
     @staticmethod
-    async def create_contract(db: Session, contract_data: schemas.ContractCreate, user_id: uuid.UUID) -> core_models.Contract:
+    async def create_contract(db: Session, contract_data: schemas.ContractCreate, user_id: uuid.UUID, background_tasks: BackgroundTasks = None) -> core_models.Contract:
         try:
             new_contract = crud.create_contract(db=db, contract=contract_data, user_id=user_id)
-            await manager.broadcast("CONTRACT_CREATED")
-
-            # Create notification for contract creation
-            await NotificationService.create_contract_notification(
-                db, user_id, new_contract.id, "contract_created", new_contract.contract_no
-            )
+            
+            if background_tasks:
+                background_tasks.add_task(manager.broadcast, "CONTRACT_CREATED")
+                background_tasks.add_task(
+                    NotificationService.create_contract_notification,
+                    db, user_id, new_contract.id, "contract_created", new_contract.contract_no
+                )
+            else:
+                await manager.broadcast("CONTRACT_CREATED")
+                await NotificationService.create_contract_notification(
+                    db, user_id, new_contract.id, "contract_created", new_contract.contract_no
+                )
 
             # --- Accounting Logic: Create Invoice when contract is posted/confirmed ---
             if new_contract.status in ["posted", "confirmed"]:
@@ -47,6 +53,7 @@ class ContractService:
                         is_credit=is_credit
                     )
                     db.add(invoice)
+                    db.commit() # Ensure invoice is saved
 
             # --- Inventory Reservation Logic ---
             if new_contract.status in ["posted", "confirmed"] and new_contract.warehouse_id:
@@ -120,6 +127,7 @@ class ContractService:
                             is_credit=False  # Debit - increases balance owed
                         )
                         db.add(invoice)
+                        db.commit() # Ensure invoice is saved
 
             # --- Inventory Reservation Logic ---
             # 1. Release old reservation if it was active

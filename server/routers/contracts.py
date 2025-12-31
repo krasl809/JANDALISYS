@@ -1,5 +1,5 @@
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status, BackgroundTasks
 from sqlalchemy.orm import Session
 from typing import List, Dict, Any
 import uuid
@@ -12,19 +12,12 @@ from services.contract_service import ContractService
 router = APIRouter()
 
 
-def validate_uuid(contract_id: str) -> uuid.UUID:
-    """
-    Validate and convert a contract ID string to a UUID object.
-    Raises an HTTPException if the ID is not a valid UUID.
-    """
-    try:
-        return uuid.UUID(contract_id)
-    except ValueError:
-        raise HTTPException(status_code=400, detail="Invalid UUID format")
+# --- CRUD Operations ---
 
 @router.post("/", response_model=schemas.Contract)
 async def create_contract(
     contract: schemas.ContractCreate, 
+    background_tasks: BackgroundTasks,
     db: Session = Depends(get_db),
     current_user: schemas.User = Depends(require_permission("write_contracts"))
 ):
@@ -35,7 +28,7 @@ async def create_contract(
     import logging
     logger = logging.getLogger(__name__)
     try:
-        return await ContractService.create_contract(db, contract, current_user.id)
+        return await ContractService.create_contract(db, contract, current_user.id, background_tasks)
     except Exception as e:
         logger.error(f"Error creating contract: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
@@ -59,44 +52,38 @@ def read_contracts(
 
 @router.get("/{contract_id}", response_model=schemas.Contract)
 def read_contract(
-    contract_id: str,
+    contract_id: uuid.UUID,
     db: Session = Depends(get_db),
     current_user: schemas.User = Depends(require_permission("read_contracts"))
 ):
-    uuid_obj = validate_uuid(contract_id)
-
-    db_contract = ContractService.get_contract(db, uuid_obj)
+    db_contract = ContractService.get_contract(db, contract_id)
     if db_contract is None:
         raise HTTPException(status_code=404, detail="Contract not found")
 
     # Record the view
-    ContractService.record_contract_view(db, uuid_obj, current_user.id)
+    ContractService.record_contract_view(db, contract_id, current_user.id)
 
     return db_contract
 
 @router.put("/{contract_id}", response_model=schemas.Contract)
 async def update_contract(
-    contract_id: str,
+    contract_id: uuid.UUID,
     contract: schemas.ContractCreate,
     db: Session = Depends(get_db),
     current_user: schemas.User = Depends(require_permission("write_contracts"))
 ):
-    uuid_obj = validate_uuid(contract_id)
-
-    updated_contract = await ContractService.update_contract(db, uuid_obj, contract, current_user.id)
+    updated_contract = await ContractService.update_contract(db, contract_id, contract, current_user.id)
     if updated_contract is None:
         raise HTTPException(status_code=404, detail="Contract not found")
     return updated_contract
 
 @router.delete("/{contract_id}")
 async def delete_contract(
-    contract_id: str,
+    contract_id: uuid.UUID,
     db: Session = Depends(get_db),
     current_user: schemas.User = Depends(require_permission("delete_contracts"))
 ):
-    uuid_obj = validate_uuid(contract_id)
-
-    result = await ContractService.delete_contract(db, uuid_obj, current_user.id)
+    result = await ContractService.delete_contract(db, contract_id, current_user.id)
     if result is None:
         raise HTTPException(status_code=404, detail="Contract not found")
     return {"message": "Contract deleted successfully"}
@@ -201,3 +188,14 @@ def search_contracts(
     return ContractService.search_contracts(
         db, status, start_date, end_date, user_id, skip, limit
     )
+
+
+def validate_uuid(uuid_string: str) -> uuid.UUID:
+    """Validate string as UUID or raise 400 error"""
+    try:
+        return uuid.UUID(uuid_string)
+    except (ValueError, AttributeError):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Invalid UUID format: {uuid_string}"
+        )

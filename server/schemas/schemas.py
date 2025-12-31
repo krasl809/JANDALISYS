@@ -41,7 +41,7 @@ class BrokerCreate(BrokerBase):
 
 class Broker(BrokerBase):
     id: uuid.UUID
-    created_at: datetime
+    created_at: Optional[datetime] = None
     class Config:
         from_attributes = True
 
@@ -59,7 +59,7 @@ class ConveyorCreate(ConveyorBase):
 
 class Conveyor(ConveyorBase):
     id: uuid.UUID
-    created_at: datetime
+    created_at: Optional[datetime] = None
     class Config:
         from_attributes = True
 
@@ -92,7 +92,7 @@ class SellerCreate(SellerBase):
 
 class Seller(SellerBase):
     id: uuid.UUID
-    created_at: datetime
+    created_at: Optional[datetime] = None
     class Config:
         from_attributes = True
 
@@ -109,7 +109,7 @@ class BuyerCreate(BuyerBase):
 
 class Buyer(BuyerBase):
     id: uuid.UUID
-    created_at: datetime
+    created_at: Optional[datetime] = None
     class Config:
         from_attributes = True
 
@@ -126,7 +126,7 @@ class ShipperCreate(ShipperBase):
 
 class Shipper(ShipperBase):
     id: uuid.UUID
-    created_at: datetime
+    created_at: Optional[datetime] = None
     class Config:
         from_attributes = True
 
@@ -152,7 +152,7 @@ class UserCreate(UserBase):
 
 class User(UserBase):
     id: uuid.UUID
-    created_at: datetime
+    created_at: Optional[datetime] = None
     class Config:
         from_attributes = True
 

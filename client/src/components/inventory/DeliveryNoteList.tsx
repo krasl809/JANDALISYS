@@ -8,9 +8,11 @@ import {
 } from '@mui/material';
 import { Add, LocalShipping, Visibility, Print } from '@mui/icons-material';
 import { useNavigate } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 
 const DeliveryNoteList = () => {
   const navigate = useNavigate();
+  const { t } = useTranslation();
   const [tabValue, setTabValue] = useState(0);
   
   // Mock Data
@@ -22,20 +24,20 @@ const DeliveryNoteList = () => {
 
   const getStatusChip = (status: string) => {
       const colors: any = { approved: 'success', pending: 'warning', draft: 'default', rejected: 'error' };
-      return <Chip label={status.toUpperCase()} color={colors[status]} size="small" sx={{ fontWeight: 'bold', borderRadius: 1 }} />;
+      return <Chip label={t(status).toUpperCase()} color={colors[status]} size="small" sx={{ fontWeight: 'bold', borderRadius: 1 }} />;
   };
 
   const getTypeChip = (type: string) => {
       const icons: any = { inbound: '📥', outbound: '📤', transfer: '🔄' };
-      return <Chip icon={<span>{icons[type]}</span>} label={type.toUpperCase()} variant="outlined" size="small" />;
+      return <Chip icon={<span>{icons[type]}</span>} label={t(type).toUpperCase()} variant="outlined" size="small" />;
   };
 
   return (
     <Container maxWidth="xl" sx={{ mt: 4 }}>
       <Box display="flex" justifyContent="space-between" alignItems="center" mb={3}>
         <Box>
-            <Typography variant="h5" fontWeight="bold">Delivery Notes</Typography>
-            <Typography variant="body2" color="textSecondary">Manage Inbound, Outbound, and Internal Transfers</Typography>
+            <Typography variant="h5" fontWeight="bold">{t("Delivery Notes")}</Typography>
+            <Typography variant="body2" color="textSecondary">{t("Manage Inbound, Outbound, and Internal Transfers")}</Typography>
         </Box>
         <Button 
             variant="contained" 
@@ -43,7 +45,7 @@ const DeliveryNoteList = () => {
             sx={{ bgcolor: '#0F172A' }}
             onClick={() => navigate('/inventory/movements/new')}
         >
-            New Movement
+            {t("New Movement")}
         </Button>
       </Box>
 
@@ -53,22 +55,22 @@ const DeliveryNoteList = () => {
             onChange={(_, v) => setTabValue(v)} 
             sx={{ borderBottom: 1, borderColor: 'divider', px: 2, bgcolor: '#F8FAFC' }}
         >
-            <Tab label="All Movements" />
-            <Tab label="Inbound" />
-            <Tab label="Outbound" />
-            <Tab label="Transfers" />
+            <Tab label={t("All Movements")} />
+            <Tab label={t("Inbound")} />
+            <Tab label={t("Outbound")} />
+            <Tab label={t("Transfers")} />
         </Tabs>
         
         <Table>
             <TableHead>
                 <TableRow>
-                    <TableCell><strong>Reference</strong></TableCell>
-                    <TableCell><strong>Type</strong></TableCell>
-                    <TableCell><strong>Date</strong></TableCell>
-                    <TableCell><strong>Route (From → To)</strong></TableCell>
-                    <TableCell><strong>Items Summary</strong></TableCell>
-                    <TableCell><strong>Status</strong></TableCell>
-                    <TableCell align="right"><strong>Actions</strong></TableCell>
+                    <TableCell><strong>{t("Reference")}</strong></TableCell>
+                    <TableCell><strong>{t("Type")}</strong></TableCell>
+                    <TableCell><strong>{t("Date")}</strong></TableCell>
+                    <TableCell><strong>{t("Route (From → To)")}</strong></TableCell>
+                    <TableCell><strong>{t("Items Summary")}</strong></TableCell>
+                    <TableCell><strong>{t("Status")}</strong></TableCell>
+                    <TableCell align="right"><strong>{t("Actions")}</strong></TableCell>
                 </TableRow>
             </TableHead>
             <TableBody>
@@ -80,15 +82,15 @@ const DeliveryNoteList = () => {
                         <TableCell>{getTypeChip(row.type)}</TableCell>
                         <TableCell>{row.date}</TableCell>
                         <TableCell>
-                            <Typography variant="body2" fontWeight="600">{row.from}</Typography>
-                            <Typography variant="caption" color="textSecondary">↓ to</Typography>
-                            <Typography variant="body2" fontWeight="600">{row.to}</Typography>
+                            <Typography variant="body2" fontWeight="600">{t(row.from)}</Typography>
+                            <Typography variant="caption" color="textSecondary">↓ {t("to")}</Typography>
+                            <Typography variant="body2" fontWeight="600">{t(row.to)}</Typography>
                         </TableCell>
-                        <TableCell>{row.items}</TableCell>
+                        <TableCell>{t(row.items)}</TableCell>
                         <TableCell>{getStatusChip(row.status)}</TableCell>
                         <TableCell align="right">
-                            <Tooltip title="View Details"><IconButton size="small"><Visibility /></IconButton></Tooltip>
-                            <Tooltip title="Print Note"><IconButton size="small"><Print /></IconButton></Tooltip>
+                            <Tooltip title={t("View Details")}><IconButton size="small"><Visibility /></IconButton></Tooltip>
+                            <Tooltip title={t("Print Note")}><IconButton size="small"><Print /></IconButton></Tooltip>
                         </TableCell>
                     </TableRow>
                 ))}

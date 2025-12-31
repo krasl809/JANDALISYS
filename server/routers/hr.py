@@ -3,7 +3,7 @@ from sqlalchemy.orm import Session, aliased
 from sqlalchemy import func, or_
 from core.database import get_db
 from models import hr_models, core_models, employee_models
-from core.auth import get_current_user_obj, require_permission
+from core.auth import get_current_user, require_permission
 from services.zk_service import ZkTecoService
 from services.import_service import EmployeeImportService
 import datetime
@@ -16,7 +16,7 @@ PERM_HR_WRITE = "hr_write"
 router = APIRouter(prefix="/hr", tags=["HR Management"])
 
 @router.get("/dashboard")
-def get_hr_dashboard(db: Session = Depends(get_db), current_user = Depends(get_current_user_obj)):
+def get_hr_dashboard(db: Session = Depends(get_db), current_user = Depends(get_current_user)):
     # Simple stats
     today = datetime.date.today()
     total_employees = db.query(employee_models.Employee).filter(employee_models.Employee.status == 'active').count()
@@ -695,7 +695,7 @@ def assign_shift(assignment: dict, db: Session = Depends(get_db)):
         except ValueError:
             raise HTTPException(status_code=400, detail="Invalid employee ID format")
     
-    start_date = datetime.datetime.fromisoformat(start_date_str) if start_date_str else datetime.datetime.utcnow()
+    start_date = datetime.datetime.fromisoformat(start_date_str) if start_date_str else datetime.datetime.now(datetime.timezone.utc)
 
     # Deactivate current assignments
     active_assignments = db.query(hr_models.EmployeeShiftAssignment).filter(

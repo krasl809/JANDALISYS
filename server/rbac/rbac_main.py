@@ -2,7 +2,7 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from core.database import get_db
-from core.auth import get_current_user_obj
+from core.auth import get_current_user
 from crud import rbac_crud
 from schemas import rbac_schemas
 from models import rbac_models
@@ -23,7 +23,7 @@ def get_roles(db: Session = Depends(get_db)):
 def create_role(
     role_data: rbac_schemas.RoleCreate,
     db: Session = Depends(get_db),
-    current_user = Depends(get_current_user_obj)
+    current_user = Depends(get_current_user)
 ):
     try:
         if not current_user or current_user.role != "admin":
@@ -38,7 +38,7 @@ def create_role(
 def assign_role_to_user(
     assignment: dict,
     db: Session = Depends(get_db),
-    current_user = Depends(get_current_user_obj)
+    current_user = Depends(get_current_user)
 ):
     try:
         if not current_user or current_user.role != "admin":
@@ -81,7 +81,7 @@ def update_role_permissions_endpoint(
     role_id: str,
     update_data: rbac_schemas.RolePermissionsUpdate,
     db: Session = Depends(get_db),
-    current_user = Depends(get_current_user_obj)
+    current_user = Depends(get_current_user)
 ):
     try:
         if not current_user or current_user.role != "admin":

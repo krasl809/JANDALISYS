@@ -7,7 +7,7 @@ import {
 } from '@mui/material';
 import {
   AccessTime, LocalShipping, AttachMoney, Warning, ArrowForward,
-  NotificationsActive, MoreVert, CheckCircle, TrendingUp
+  NotificationsActive, MoreVert, CheckCircle
 } from '@mui/icons-material';
 import { motion } from 'framer-motion';
 import { alpha } from '@mui/material/styles';
@@ -17,11 +17,14 @@ import {
 import api from '../../services/api';
 import { API_ENDPOINTS } from '../../config/api';
 
+import { useTranslation } from 'react-i18next';
+
 // --- COMPONENTS ---
 
 // 1. Executive: Smart Brief Header
 const SmartBrief = () => {
   const theme = useTheme();
+  const { t } = useTranslation();
   return (
     <Card sx={{
       mb: 4,
@@ -50,20 +53,20 @@ const SmartBrief = () => {
         <Box display="flex" alignItems="center" gap={2} mb={2}>
           <CheckCircle sx={{ fontSize: 32, color: theme.palette.success.main }} />
           <Typography variant="h4" fontWeight="700" sx={{ color: 'white' }}>
-            System Status: Operational
+            {t('dashboard.systemStatusOperational')}
           </Typography>
         </Box>
         <Typography variant="h6" sx={{ opacity: 0.9, fontWeight: 400, lineHeight: 1.6, maxWidth: '80%' }}>
-          All financial systems are running smoothly. Monitor your cashflow metrics and key performance indicators below.
+          {t('dashboard.systemStatusDescription')}
         </Typography>
         <Box mt={2} display="flex" gap={1}>
           <Chip
-            label="Real-time"
+            label={t('dashboard.realTime')}
             size="small"
             sx={{ bgcolor: 'rgba(255,255,255,0.2)', color: 'white', fontWeight: 500 }}
           />
           <Chip
-            label="Secure"
+            label={t('dashboard.secure')}
             size="small"
             sx={{ bgcolor: 'rgba(255,255,255,0.2)', color: 'white', fontWeight: 500 }}
           />
@@ -76,6 +79,7 @@ const SmartBrief = () => {
 // 2. Executive: Visual Pipeline
 const VisualPipeline = () => {
     const theme = useTheme();
+    const { t } = useTranslation();
     const iconMap = {
         AccessTime: AccessTime,
         LocalShipping: LocalShipping,
@@ -119,7 +123,7 @@ const VisualPipeline = () => {
 
   return (
     <Box sx={{ mb: 5 }}>
-      <Typography variant="h6" fontWeight="bold" sx={{ mb: 3 }}>Live Flow (Money & Goods)</Typography>
+      <Typography variant="h6" fontWeight="bold" sx={{ mb: 3 }}>{t('dashboard.liveFlow')}</Typography>
       <Grid container spacing={2}>
         {steps.map((step, index) => (
           <Grid item xs={12} md={3} key={index}>
@@ -158,6 +162,7 @@ const VisualPipeline = () => {
 // 3. Executive: Risk Radar
 const RiskRadar = () => {
     const theme = useTheme();
+    const { t } = useTranslation();
     const iconMap = {
         LocalShipping: LocalShipping,
         AttachMoney: AttachMoney,
@@ -219,7 +224,7 @@ const RiskRadar = () => {
           <Box p={1} borderRadius="50%" bgcolor={alpha(theme.palette.warning.main, 0.1)}>
             <Warning color="warning" />
           </Box>
-          <Typography variant="h6" fontWeight="bold" color="text.primary">Risk Alerts</Typography>
+          <Typography variant="h6" fontWeight="bold" color="text.primary">{t('dashboard.riskAlerts')}</Typography>
         </Box>
         <Stack spacing={2}>
           {alerts.map((alert) => (
@@ -241,8 +246,8 @@ const RiskRadar = () => {
               <Box display="flex" alignItems="center" gap={2}>
                 {alert.icon}
                 <Box>
-                  <Typography variant="subtitle2" fontWeight="bold" color="text.primary">{alert.title}</Typography>
-                  <Typography variant="caption" color="text.secondary">{alert.description}</Typography>
+                  <Typography variant="subtitle2" fontWeight="bold" color="text.primary">{t(alert.title)}</Typography>
+                  <Typography variant="caption" color="text.secondary">{t(alert.description)}</Typography>
                 </Box>
               </Box>
               <Button
@@ -250,9 +255,9 @@ const RiskRadar = () => {
                 color={alert.color as any}
                 size="small"
                 sx={{ minWidth: 'auto', px: 2 }}
-                aria-label={`View ${alert.title} details`}
+                aria-label={t('dashboard.viewAlertDetails', { title: t(alert.title) })}
               >
-                {alert.action}
+                {t(alert.action)}
               </Button>
             </Box>
           ))}
@@ -265,6 +270,7 @@ const RiskRadar = () => {
 // 4. Executive: Profit Chart
 const ProfitChart = () => {
     const theme = useTheme();
+    const { t } = useTranslation();
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
     const [data, setData] = useState<any[]>([]);
@@ -284,13 +290,13 @@ const ProfitChart = () => {
                 setData(response.data);
                 setError(null);
             } catch (err) {
-                setError('Failed to load profit chart data');
+                setError(t('dashboard.errorLoadingProfitChart'));
             } finally {
                 setLoading(false);
             }
         };
         fetchData();
-    }, []);
+    }, [t]);
 
     if (loading) {
         return (
@@ -303,7 +309,7 @@ const ProfitChart = () => {
                     boxShadow: theme.palette.mode === 'light' ? '0 2px 8px rgba(0,0,0,0.1)' : '0 2px 8px rgba(0,0,0,0.3)',
                     border: `1px solid ${theme.palette.divider}`,
                 }}
-                aria-label="Profit chart loading"
+                aria-label={t('common.loading')}
             >
                 <Box display="flex" justifyContent="center" alignItems="center" height={250}>
                     <CircularProgress />
@@ -323,7 +329,7 @@ const ProfitChart = () => {
                     boxShadow: theme.palette.mode === 'light' ? '0 2px 8px rgba(0,0,0,0.1)' : '0 2px 8px rgba(0,0,0,0.3)',
                     border: `1px solid ${theme.palette.divider}`,
                 }}
-                aria-label="Profit chart error"
+                aria-label={t('dashboard.error')}
             >
                 <Alert severity="error">{error}</Alert>
             </Card>
@@ -344,15 +350,15 @@ const ProfitChart = () => {
                     boxShadow: theme.palette.mode === 'light' ? '0 4px 12px rgba(0,0,0,0.15)' : '0 4px 12px rgba(0,0,0,0.4)',
                 }
             }}
-            aria-label="Profit chart visualization"
+            aria-label={t('dashboard.profitChartVisualization')}
         >
             <Box mb={2}>
-                <Typography variant="h6" fontWeight="bold">Net Profit Index (YTD)</Typography>
-                <Typography variant="body2" color="text.secondary">Monthly performance summary</Typography>
+                <Typography variant="h6" fontWeight="bold">{t('dashboard.netProfitIndex')}</Typography>
+                <Typography variant="body2" color="text.secondary">{t('dashboard.monthlyPerformanceSummary')}</Typography>
             </Box>
             {data.length === 0 ? (
                 <Box display="flex" justifyContent="center" alignItems="center" height={250}>
-                    <Typography color="text.secondary">No data available</Typography>
+                    <Typography color="text.secondary">{t('dashboard.noDataAvailable')}</Typography>
                 </Box>
             ) : (
                 <Box height={250} width="100%" minWidth={300}>
@@ -381,7 +387,7 @@ const ProfitChart = () => {
                                 }}
                             />
                             <Bar dataKey="val" radius={[4, 4, 0, 0]}>
-                                {data.map((entry, index) => (
+                                {data.map((_, index) => (
                                     <Cell key={`cell-${index}`} fill={barColors[index % barColors.length]} />
                                 ))}
                             </Bar>
@@ -412,6 +418,7 @@ const ExecutiveDashboard = () => (
 
 const OperationalStatCard = ({ title, value, icon, color }: any) => {
     const theme = useTheme();
+    const { t } = useTranslation();
     return (
         <Card
             sx={{
@@ -425,7 +432,7 @@ const OperationalStatCard = ({ title, value, icon, color }: any) => {
                     transform: 'translateY(-2px)',
                 },
             }}
-            aria-label={`${title}: ${value}`}
+            aria-label={`${t(title)}: ${value}`}
         >
             <Stack direction="row" spacing={2} alignItems="center">
                 <Avatar variant="rounded" sx={{ bgcolor: alpha(color, 0.1), color: color, width: 48, height: 48 }}>
@@ -433,7 +440,7 @@ const OperationalStatCard = ({ title, value, icon, color }: any) => {
                 </Avatar>
                 <Box>
                     <Typography variant="h5" fontWeight="800">{value}</Typography>
-                    <Typography variant="body2" color="text.secondary">{title}</Typography>
+                    <Typography variant="body2" color="text.secondary">{t(title)}</Typography>
                 </Box>
             </Stack>
         </Card>
@@ -442,6 +449,7 @@ const OperationalStatCard = ({ title, value, icon, color }: any) => {
 
 const OperationalDashboard = () => {
     const theme = useTheme();
+    const { t } = useTranslation();
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
     const [operationalData, setOperationalData] = useState<any[]>([]);
@@ -460,13 +468,13 @@ const OperationalDashboard = () => {
                 setOperationalData(response.data);
                 setError(null);
             } catch (err) {
-                setError('Failed to load operational data');
+                setError(t('dashboard.errorLoadingOperationalData'));
             } finally {
                 setLoading(false);
             }
         };
         fetchData();
-    }, []);
+    }, [t]);
 
     useEffect(() => {
         const fetchStats = async () => {
@@ -484,21 +492,21 @@ const OperationalDashboard = () => {
         <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
             <Box display="flex" alignItems="center" gap={1} mb={3}>
                 <NotificationsActive color="primary" />
-                <Typography variant="h5" fontWeight="bold">Daily Operations</Typography>
+                <Typography variant="h5" fontWeight="bold">{t('dashboard.dailyOperations')}</Typography>
             </Box>
 
             <Grid container spacing={2} mb={4}>
                 <Grid item xs={12} sm={6} md={3}>
-                    <OperationalStatCard title="Tasks Today" value={stats.tasks_today.toString()} icon={<AccessTime />} color={theme.palette.primary.main} />
+                    <OperationalStatCard title="dashboard.tasksToday" value={stats.tasks_today.toString()} icon={<AccessTime />} color={theme.palette.primary.main} />
                 </Grid>
                 <Grid item xs={12} sm={6} md={3}>
-                    <OperationalStatCard title="Review Pending" value={stats.review_pending.toString()} icon={<Warning />} color={theme.palette.secondary.main} />
+                    <OperationalStatCard title="dashboard.reviewPending" value={stats.review_pending.toString()} icon={<Warning />} color={theme.palette.secondary.main} />
                 </Grid>
                 <Grid item xs={12} sm={6} md={3}>
-                    <OperationalStatCard title="Arriving" value={stats.arriving.toString()} icon={<LocalShipping />} color={theme.palette.info.main} />
+                    <OperationalStatCard title="dashboard.arriving" value={stats.arriving.toString()} icon={<LocalShipping />} color={theme.palette.info.main} />
                 </Grid>
                 <Grid item xs={12} sm={6} md={3}>
-                    <OperationalStatCard title="Pay Requests" value={stats.pay_requests.toString()} icon={<AttachMoney />} color={theme.palette.error.main} />
+                    <OperationalStatCard title="dashboard.payRequests" value={stats.pay_requests.toString()} icon={<AttachMoney />} color={theme.palette.error.main} />
                 </Grid>
             </Grid>
 
@@ -514,11 +522,11 @@ const OperationalDashboard = () => {
                                 boxShadow: theme.palette.mode === 'light' ? '0 4px 12px rgba(0,0,0,0.15)' : '0 4px 12px rgba(0,0,0,0.4)',
                             }
                         }}
-                        aria-label="Recent movements table"
+                        aria-label={t("dashboard.recentMovementsTable")}
                     >
                         <Box p={2} borderBottom={`1px solid ${theme.palette.divider}`} display="flex" justifyContent="space-between" alignItems="center">
-                            <Typography variant="h6" fontWeight="bold">Recent Movements</Typography>
-                            <Button variant="outlined" size="small" aria-label="View all movements">View All</Button>
+                            <Typography variant="h6" fontWeight="bold">{t('dashboard.recentMovements')}</Typography>
+                            <Button variant="outlined" size="small" aria-label={t("dashboard.viewAllMovements")}>{t('dashboard.viewAll')}</Button>
                         </Box>
                         {loading ? (
                             <Box display="flex" justifyContent="center" alignItems="center" p={4}>
@@ -530,31 +538,31 @@ const OperationalDashboard = () => {
                             </Box>
                         ) : operationalData.length === 0 ? (
                             <Box display="flex" justifyContent="center" alignItems="center" p={4}>
-                                <Typography color="text.secondary">No operational data available</Typography>
+                                <Typography color="text.secondary">{t('dashboard.noOperationalData')}</Typography>
                             </Box>
                         ) : (
                             <TableContainer>
                                 <Table>
                                     <TableHead sx={{ bgcolor: alpha(theme.palette.primary.main, 0.05) }}>
                                         <TableRow>
-                                            <TableCell>ID</TableCell>
-                                            <TableCell>Type</TableCell>
-                                            <TableCell>Counterparty</TableCell>
-                                            <TableCell>Date</TableCell>
-                                            <TableCell>Status</TableCell>
-                                            <TableCell align="right">Action</TableCell>
+                                            <TableCell>{t('common.id')}</TableCell>
+                                            <TableCell>{t('common.type')}</TableCell>
+                                            <TableCell>{t('common.counterparty')}</TableCell>
+                                            <TableCell>{t('common.date')}</TableCell>
+                                            <TableCell>{t('common.status')}</TableCell>
+                                            <TableCell align="right">{t('common.action')}</TableCell>
                                         </TableRow>
                                     </TableHead>
                                     <TableBody>
                                         {operationalData.map((row) => (
                                             <TableRow key={row.id} hover>
                                                 <TableCell sx={{ fontWeight: 'bold', fontFamily: 'monospace' }}>{row.id}</TableCell>
-                                                <TableCell>{row.type}</TableCell>
+                                                <TableCell>{t(row.type)}</TableCell>
                                                 <TableCell>{row.party}</TableCell>
                                                 <TableCell sx={{ color: 'text.secondary' }}>{row.date}</TableCell>
                                                 <TableCell>
                                                     <Chip
-                                                        label={row.status}
+                                                        label={t(row.status)}
                                                         size="small"
                                                         color={row.status === 'Active' ? 'success' : row.status === 'Pending' ? 'warning' : row.status === 'Completed' ? 'info' : 'default'}
                                                         variant="outlined"
@@ -580,13 +588,14 @@ const OperationalDashboard = () => {
 
 const Dashboard = () => {
   const [isOwnerMode, setIsOwnerMode] = useState(true);
+  const { t } = useTranslation();
 
   return (
     <Container maxWidth={false}>
       <Box display="flex" justifyContent="flex-end" mb={2}>
          <Stack direction="row" spacing={1} alignItems="center">
             <Typography variant="body2" color={!isOwnerMode ? 'primary' : 'text.secondary'} fontWeight={!isOwnerMode ? 'bold' : 'normal'}>
-                Operational
+                {t('dashboard.operationalMode')}
             </Typography>
             <Switch 
                 checked={isOwnerMode} 
@@ -594,7 +603,7 @@ const Dashboard = () => {
                 color="primary"
             />
              <Typography variant="body2" color={isOwnerMode ? 'primary' : 'text.secondary'} fontWeight={isOwnerMode ? 'bold' : 'normal'}>
-                Executive
+                {t('dashboard.executiveMode')}
             </Typography>
          </Stack>
       </Box>

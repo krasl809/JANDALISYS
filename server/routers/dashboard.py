@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from sqlalchemy import func, text
 from core.database import get_db
-from core.auth import get_current_user_obj, require_permission
+from core.auth import get_current_user, require_permission
 import random
 from models.core_models import Contract
 from datetime import datetime, timedelta
@@ -35,7 +35,7 @@ def get_profit_chart(db: Session = Depends(get_db), current_user = Depends(requi
         raise HTTPException(status_code=500, detail=f"Failed to fetch profit chart: {str(e)}")
 
 @router.get("/operational-data")
-def get_operational_data(db: Session = Depends(get_db), current_user = Depends(require_permission("view_dashboard"))):
+def get_operational_data(db: Session = Depends(get_db), current_user = Depends(get_current_user)):
     """Get operational data for dashboard table"""
     try:
         # Get the 5 most recent contracts

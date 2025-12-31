@@ -1,7 +1,24 @@
 import { Suspense, lazy } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
+import * as Sentry from "@sentry/react";
 import { AppThemeProvider } from './context/ThemeContext';
 import { CircularProgress, Box } from '@mui/material';
+
+// Initialize Sentry
+const SENTRY_DSN = import.meta.env.VITE_SENTRY_DSN;
+if (SENTRY_DSN) {
+  Sentry.init({
+    dsn: SENTRY_DSN,
+    integrations: [
+      Sentry.browserTracingIntegration(),
+      Sentry.replayIntegration(),
+    ],
+    tracesSampleRate: 1.0,
+    replaysSessionSampleRate: 0.1,
+    replaysOnErrorSampleRate: 1.0,
+    environment: import.meta.env.VITE_ENVIRONMENT || 'development',
+  });
+}
 
 // Eagerly load essential components
 import PrivateRoute from './components/auth/PrivateRoute';
@@ -36,7 +53,6 @@ const AttendancePage = lazy(() => import('./pages/hr/AttendancePage'));
 
 const DevicesPage = lazy(() => import('./pages/hr/DevicesPage'));
 const ShiftSettingsPage = lazy(() => import('./pages/hr/ShiftSettingsPage'));
-const EmployeeList = lazy(() => import('./pages/hr/EmployeeList'));
 
 // Employee Management Imports
 const EmployeesPage = lazy(() => import('./pages/employees/EmployeesPage'));

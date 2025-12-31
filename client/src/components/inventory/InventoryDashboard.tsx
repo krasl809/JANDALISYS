@@ -11,8 +11,10 @@ import {
   ArrowForward, Warehouse, LocalShipping
 } from '@mui/icons-material';
 import { useNavigate } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 
 const InventoryDashboard = () => {
+  const { t } = useTranslation();
   const navigate = useNavigate();
   const theme = useTheme();
 
@@ -30,21 +32,21 @@ const InventoryDashboard = () => {
         transform: 'translateY(-2px)',
       },
     }}>
-      <Box sx={{ position: 'absolute', right: -10, top: -10, opacity: 0.1, transform: 'rotate(15deg)' }}>
+      <Box sx={{ position: 'absolute', right: theme.direction === 'rtl' ? 'auto' : -10, left: theme.direction === 'rtl' ? -10 : 'auto', top: -10, opacity: 0.1, transform: theme.direction === 'rtl' ? 'rotate(-15deg)' : 'rotate(15deg)' }}>
           {React.cloneElement(icon, { sx: { fontSize: 100, color: color } })}
       </Box>
       <CardContent>
         <Box display="flex" justifyContent="space-between" alignItems="flex-start">
           <Box>
             <Typography variant="subtitle2" color="textSecondary" fontWeight="600" gutterBottom>
-              {title.toUpperCase()}
+              {t(title).toUpperCase()}
             </Typography>
             <Typography variant="h4" fontWeight="800" sx={{ color: theme.palette.primary.main, mb: 1 }}>
               {value}
             </Typography>
             <Stack direction="row" alignItems="center" spacing={1}>
               <Box sx={{ bgcolor: alpha(color, 0.1), color: color, px: 1, py: 0.5, borderRadius: 1, fontSize: '0.75rem', fontWeight: 'bold' }}>
-                  {subtext}
+                  {t(subtext)}
               </Box>
             </Stack>
           </Box>
@@ -60,11 +62,11 @@ const InventoryDashboard = () => {
     <Container maxWidth="xl" sx={{ mt: 4, mb: 8 }}>
       <Box display="flex" justifyContent="space-between" alignItems="center" mb={4}>
         <Box>
-            <Typography variant="h4" fontWeight="800" color="primary">Inventory Overview</Typography>
-            <Typography variant="body1" color="textSecondary">Real-time stock levels & logistics insights</Typography>
+            <Typography variant="h4" fontWeight="800" color="primary">{t('Inventory Overview')}</Typography>
+            <Typography variant="body1" color="textSecondary">{t('Real-time stock levels & logistics insights')}</Typography>
         </Box>
         <Button variant="contained" startIcon={<LocalShipping />} onClick={() => navigate('/inventory/movements/new')}>
-            New Movement
+            {t('New Movement')}
         </Button>
       </Box>
 
@@ -121,10 +123,16 @@ const InventoryDashboard = () => {
             '&:hover': {
               boxShadow: theme.palette.mode === 'light' ? '0 4px 12px rgba(0,0,0,0.15)' : '0 4px 12px rgba(0,0,0,0.4)',
             }
-          }} aria-label="Warehouse capacity status">
+          }} aria-label={t('Warehouse Capacity Status')}>
             <Box display="flex" justifyContent="space-between" alignItems="center" mb={3}>
-                <Typography variant="h6" fontWeight="bold">Warehouse Capacity Status</Typography>
-                <Button size="small" endIcon={<ArrowForward />} onClick={() => navigate('/inventory/warehouses')}>View Details</Button>
+                <Typography variant="h6" fontWeight="bold">{t('Warehouse Capacity Status')}</Typography>
+                <Button 
+                  size="small" 
+                  endIcon={<ArrowForward sx={{ transform: theme.direction === 'rtl' ? 'rotate(180deg)' : 'none' }} />} 
+                  onClick={() => navigate('/inventory/warehouses')}
+                >
+                  {t('View Details')}
+                </Button>
             </Box>
             
             <Stack spacing={4}>
@@ -136,7 +144,7 @@ const InventoryDashboard = () => {
                 ].map((w) => (
                 <Box key={w.name}>
                     <Box display="flex" justifyContent="space-between" mb={1}>
-                        <Typography variant="body2" fontWeight="600">{w.name}</Typography>
+                        <Typography variant="body2" fontWeight="600">{t(w.name)}</Typography>
                         <Typography variant="body2" fontWeight="bold">{w.val}%</Typography>
                     </Box>
                     <LinearProgress 
@@ -164,15 +172,15 @@ const InventoryDashboard = () => {
              '&:hover': {
                boxShadow: theme.palette.mode === 'light' ? '0 4px 12px rgba(0,0,0,0.15)' : '0 4px 12px rgba(0,0,0,0.4)',
              }
-           }} aria-label="Critical alerts">
+           }} aria-label={t('Critical Alerts')}>
               <Box p={3} borderBottom="1px solid #e0e0e0">
-                  <Typography variant="h6" fontWeight="bold">Critical Alerts</Typography>
+                  <Typography variant="h6" fontWeight="bold">{t('Critical Alerts')}</Typography>
               </Box>
               <Stack divider={<Divider />}>
                   {[
-                      { msg: 'White Sugar below min level (50 MT)', time: '2 hours ago', type: 'low' },
-                      { msg: 'Inbound Shipment #DN-2024-88 Pending Approval', time: '5 hours ago', type: 'pending' },
-                      { msg: 'Aleppo Warehouse capacity reached 90%', time: '1 day ago', type: 'cap' }
+                      { msg: 'White Sugar below min level (50 MT)', time: t('{{count}} hours ago', { count: 2 }), type: 'low' },
+                      { msg: 'Inbound Shipment #DN-2024-88 Pending Approval', time: t('{{count}} hours ago', { count: 5 }), type: 'pending' },
+                      { msg: 'Aleppo Warehouse capacity reached 90%', time: t('1 day ago'), type: 'cap' }
                   ].map((item, index) => (
                       <Box key={index} p={2} display="flex" gap={2}>
                           <Box
@@ -182,14 +190,14 @@ const InventoryDashboard = () => {
                             }}
                           />
                           <Box>
-                              <Typography variant="body2" fontWeight="500">{item.msg}</Typography>
+                              <Typography variant="body2" fontWeight="500">{t(item.msg)}</Typography>
                               <Typography variant="caption" color="textSecondary">{item.time}</Typography>
                           </Box>
                       </Box>
                   ))}
               </Stack>
               <Box p={2} textAlign="center">
-                <Button fullWidth variant="outlined" aria-label="View all notifications">View All Notifications</Button>
+                <Button fullWidth variant="outlined" aria-label={t('View All Notifications')}>{t('View All Notifications')}</Button>
               </Box>
            </Paper>
         </Grid>

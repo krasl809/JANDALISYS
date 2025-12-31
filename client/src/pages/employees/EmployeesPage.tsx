@@ -5,12 +5,13 @@ import {
   MenuItem, Chip, Avatar, Table, TableBody, TableCell, TableContainer,
   TableHead, TableRow, TablePagination, InputAdornment, Grid, Card,
   CardContent, Alert, CircularProgress, Dialog, DialogTitle, DialogContent,
-  DialogActions, LinearProgress
+  DialogActions, LinearProgress, useTheme
 } from '@mui/material';
 import {
   Add, Search, Edit, Delete, Visibility, Person, Business,
-  Email, Phone, FilterList, Refresh, MoreVert, CloudUpload, Save
+  Email, Phone, FilterList, Refresh, CloudUpload
 } from '@mui/icons-material';
+import { useTranslation } from 'react-i18next';
 
 import api from '../../services/api';
 import BackButton from '../../components/common/BackButton';
@@ -30,6 +31,8 @@ interface Employee {
 }
 
 const EmployeesPage: React.FC = () => {
+  const { t } = useTranslation();
+  const theme = useTheme();
   const navigate = useNavigate();
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [loading, setLoading] = useState(true);
@@ -64,12 +67,12 @@ const EmployeesPage: React.FC = () => {
   }, []);
 
   const statusOptions = [
-    { value: 'active', label: 'Active', color: 'success' },
-    { value: 'inactive', label: 'Inactive', color: 'error' },
-    { value: 'probation', label: 'Probation', color: 'warning' },
-    { value: 'resigned', label: 'Resigned', color: 'error' },
-    { value: 'terminated', label: 'Terminated', color: 'error' },
-    { value: 'on_leave', label: 'On Leave', color: 'info' }
+    { value: 'active', label: t('Active'), color: 'success' },
+    { value: 'inactive', label: t('Inactive'), color: 'error' },
+    { value: 'probation', label: t('Probation'), color: 'warning' },
+    { value: 'resigned', label: t('Resigned'), color: 'error' },
+    { value: 'terminated', label: t('Terminated'), color: 'error' },
+    { value: 'on_leave', label: t('On Leave'), color: 'info' }
   ];
 
   useEffect(() => {
@@ -114,7 +117,7 @@ const EmployeesPage: React.FC = () => {
     setPage(0);
   };
 
-  const handleChangePage = (event: unknown, newPage: number) => {
+  const handleChangePage = (_event: unknown, newPage: number) => {
     setPage(newPage);
   };
 
@@ -167,7 +170,7 @@ const EmployeesPage: React.FC = () => {
     const statusInfo = statusOptions.find(opt => opt.value === status);
     return (
       <Chip
-        label={isActive ? 'ACTIVE' : status.toUpperCase()}
+        label={isActive ? t('Active').toUpperCase() : t(statusInfo?.label || status).toUpperCase()}
         color={isActive ? 'success' : (statusInfo?.color as any) || 'default'}
         size="small"
         variant={isActive ? 'filled' : 'outlined'}
@@ -202,13 +205,13 @@ const EmployeesPage: React.FC = () => {
       });
       setFeedback({
         type: 'success',
-        msg: `Imported ${res.data.imported_count} employees successfully.` + (res.data.errors.length > 0 ? ` Errors: ${res.data.errors.length}` : '')
+        msg: t('Import successful') + `: ${res.data.imported_count}` + (res.data.errors.length > 0 ? ` Errors: ${res.data.errors.length}` : '')
       });
       loadEmployees();
     } catch (error: any) {
       setFeedback({
         type: 'error',
-        msg: error.response?.data?.detail || "Failed to import file"
+        msg: error.response?.data?.detail || t('Import failed')
       });
     } finally {
       setUploading(false);
@@ -234,10 +237,10 @@ const EmployeesPage: React.FC = () => {
           <BackButton />
           <Box>
             <Typography variant="h4" fontWeight="800" color="text.primary">
-              Employee Management
+              {t('Employee Management')}
             </Typography>
             <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
-              Manage employee records, profiles, and system access
+              {t('Manage employee records, profiles, and system access')}
             </Typography>
           </Box>
         </Box>
@@ -255,7 +258,7 @@ const EmployeesPage: React.FC = () => {
             startIcon={<CloudUpload />}
             onClick={() => navigate('/hr/employees/import')}
           >
-            Advanced Import
+            {t('Advanced Import')}
           </Button>
           <Button
             variant="outlined"
@@ -263,7 +266,7 @@ const EmployeesPage: React.FC = () => {
             onClick={handleImportClick}
             disabled={uploading}
           >
-            {uploading ? 'Importing...' : 'Quick Import'}
+            {uploading ? t('Importing...') : t('Quick Import')}
           </Button>
           <Button
             variant="contained"
@@ -271,7 +274,7 @@ const EmployeesPage: React.FC = () => {
             onClick={() => navigate('/employees/add')}
             sx={{ minWidth: 140 }}
           >
-            Add Employee
+            {t('Add Employee')}
           </Button>
         </Box>
       </Box>
@@ -290,7 +293,7 @@ const EmployeesPage: React.FC = () => {
                     {totalEmployees}
                   </Typography>
                   <Typography variant="body2" color="text.secondary">
-                    Total Employees
+                    {t('Total Employees')}
                   </Typography>
                 </Box>
               </Box>
@@ -310,7 +313,7 @@ const EmployeesPage: React.FC = () => {
                     {activeEmployees}
                   </Typography>
                   <Typography variant="body2" color="text.secondary">
-                    Active Employees
+                    {t('Active Employees')}
                   </Typography>
                 </Box>
               </Box>
@@ -330,7 +333,7 @@ const EmployeesPage: React.FC = () => {
                     {departments.length}
                   </Typography>
                   <Typography variant="body2" color="text.secondary">
-                    Departments
+                    {t('Departments')}
                   </Typography>
                 </Box>
               </Box>
@@ -350,7 +353,7 @@ const EmployeesPage: React.FC = () => {
                     {new Set(employees.map(emp => emp.department).filter(Boolean)).size}
                   </Typography>
                   <Typography variant="body2" color="text.secondary">
-                    Active Departments
+                    {t('Active Departments')}
                   </Typography>
                 </Box>
               </Box>
@@ -373,7 +376,7 @@ const EmployeesPage: React.FC = () => {
           <Grid item xs={12} md={4}>
             <TextField
               fullWidth
-              placeholder="Search employees by name, email, or ID..."
+              placeholder={t('Search employees by name, email, or ID...')}
               value={searchTerm}
               onChange={(e) => handleSearch(e.target.value)}
               InputProps={{
@@ -391,12 +394,12 @@ const EmployeesPage: React.FC = () => {
             <TextField
               select
               fullWidth
-              label="Department"
+              label={t('Department')}
               value={departmentFilter}
               onChange={(e) => handleDepartmentFilter(e.target.value)}
               size="small"
             >
-              <MenuItem value="">All Departments</MenuItem>
+              <MenuItem value="">{t('All Departments')}</MenuItem>
               {departments.map((dept) => (
                 <MenuItem key={dept} value={dept}>
                   {dept}
@@ -409,12 +412,12 @@ const EmployeesPage: React.FC = () => {
             <TextField
               select
               fullWidth
-              label="Status"
+              label={t('Status')}
               value={statusFilter}
               onChange={(e) => handleStatusFilter(e.target.value)}
               size="small"
             >
-              <MenuItem value="">All Statuses</MenuItem>
+              <MenuItem value="">{t('All Statuses')}</MenuItem>
               {statusOptions.map((status) => (
                 <MenuItem key={status.value} value={status.value}>
                   {status.label}
@@ -430,7 +433,7 @@ const EmployeesPage: React.FC = () => {
               onClick={clearFilters}
               startIcon={<FilterList />}
             >
-              Clear Filters
+              {t('Clear Filters')}
             </Button>
           </Grid>
         </Grid>
@@ -440,13 +443,13 @@ const EmployeesPage: React.FC = () => {
       {selectedEmployees.length > 0 && (
         <Alert severity="info" sx={{ mb: 2 }}>
           <Typography variant="body2">
-            {selectedEmployees.length} employee(s) selected.
+            {t('{{count}} employee(s) selected.', { count: selectedEmployees.length })}
             <Button
               size="small"
               onClick={handleBulkDelete}
               sx={{ ml: 2 }}
             >
-              Delete Selected
+              {t('Delete Selected')}
             </Button>
           </Typography>
         </Alert>
@@ -471,15 +474,15 @@ const EmployeesPage: React.FC = () => {
                     }}
                   />
                 </TableCell>
-                <TableCell>Employee</TableCell>
-                <TableCell>Company</TableCell>
-                <TableCell>Employee ID</TableCell>
-                <TableCell>Contact</TableCell>
-                <TableCell>Department</TableCell>
-                <TableCell>Position</TableCell>
-                <TableCell>Status</TableCell>
-                <TableCell>Hire Date</TableCell>
-                <TableCell align="center">Actions</TableCell>
+                <TableCell>{t('Employee')}</TableCell>
+                <TableCell>{t('Company')}</TableCell>
+                <TableCell>{t('Employee ID')}</TableCell>
+                <TableCell>{t('Contact')}</TableCell>
+                <TableCell>{t('Department')}</TableCell>
+                <TableCell>{t('Position')}</TableCell>
+                <TableCell>{t('Status')}</TableCell>
+                <TableCell>{t('Hire Date')}</TableCell>
+                <TableCell align="center">{t('Actions')}</TableCell>
               </TableRow>
             </TableHead>
             <TableBody>
@@ -514,13 +517,13 @@ const EmployeesPage: React.FC = () => {
 
                   <TableCell>
                     <Typography variant="body2">
-                      {employee.company || 'Not assigned'}
+                      {employee.company || t('Not assigned')}
                     </Typography>
                   </TableCell>
 
                   <TableCell>
                     <Typography variant="body2" fontWeight="bold">
-                      {employee.employee_id || 'Not assigned'}
+                      {employee.employee_id || t('Not assigned')}
                     </Typography>
                   </TableCell>
 
@@ -541,13 +544,13 @@ const EmployeesPage: React.FC = () => {
 
                   <TableCell>
                     <Typography variant="body2">
-                      {employee.department || 'Not assigned'}
+                      {employee.department || t('Not assigned')}
                     </Typography>
                   </TableCell>
 
                   <TableCell>
                     <Typography variant="body2">
-                      {employee.position || 'Not assigned'}
+                      {employee.position || t('Not assigned')}
                     </Typography>
                   </TableCell>
 
@@ -558,8 +561,8 @@ const EmployeesPage: React.FC = () => {
                   <TableCell>
                     <Typography variant="body2">
                       {employee.hire_date
-                        ? new Date(employee.hire_date).toLocaleDateString()
-                        : 'Not set'
+                        ? new Date(employee.hire_date).toLocaleDateString(theme.direction === 'rtl' ? 'ar-EG' : 'en-US')
+                        : t('Not set')
                       }
                     </Typography>
                   </TableCell>
@@ -570,6 +573,7 @@ const EmployeesPage: React.FC = () => {
                         size="small"
                         onClick={() => handleViewEmployee(employee.id)}
                         color="primary"
+                        title={t('view')}
                       >
                         <Visibility />
                       </IconButton>
@@ -577,6 +581,7 @@ const EmployeesPage: React.FC = () => {
                         size="small"
                         onClick={() => handleEditEmployee(employee.id)}
                         color="info"
+                        title={t('edit')}
                       >
                         <Edit />
                       </IconButton>
@@ -584,6 +589,7 @@ const EmployeesPage: React.FC = () => {
                         size="small"
                         onClick={() => handleDeleteClick(employee)}
                         color="error"
+                        title={t('delete')}
                       >
                         <Delete />
                       </IconButton>
@@ -603,46 +609,24 @@ const EmployeesPage: React.FC = () => {
           page={page}
           onPageChange={handleChangePage}
           onRowsPerPageChange={handleChangeRowsPerPage}
+          labelRowsPerPage={t('Rows per page:')}
+          labelDisplayedRows={({ from, to, count }) => 
+            t('Showing {{start}} to {{end}} of {{total}} employees', { start: from, end: to, total: count })
+          }
         />
       </Paper>
 
-      {/* Empty State */}
-      {employees.length === 0 && !loading && (
-        <Paper elevation={0} sx={{ p: 6, textAlign: 'center' }}>
-          <Person sx={{ fontSize: 64, color: 'text.secondary', mb: 2 }} />
-          <Typography variant="h6" gutterBottom>
-            No employees found
-          </Typography>
-          <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
-            {searchTerm || departmentFilter || statusFilter
-              ? 'Try adjusting your search criteria or filters.'
-              : 'Get started by adding your first employee.'
-            }
-          </Typography>
-          <Button
-            variant="contained"
-            startIcon={<Add />}
-            onClick={() => navigate('/employees/add')}
-          >
-            Add Employee
-          </Button>
-        </Paper>
-      )}
-
       {/* Delete Confirmation Dialog */}
       <Dialog open={deleteDialogOpen} onClose={() => setDeleteDialogOpen(false)}>
-        <DialogTitle>Confirm Deletion</DialogTitle>
+        <DialogTitle>{t('Delete Employee')}</DialogTitle>
         <DialogContent>
           <Typography>
-            Are you sure you want to delete {employeeToDelete?.name}?
-            This action cannot be undone.
+            {t('Are you sure you want to delete employee "{{name}}"?', { name: employeeToDelete?.name })}
           </Typography>
         </DialogContent>
         <DialogActions>
-          <Button onClick={() => setDeleteDialogOpen(false)}>Cancel</Button>
-          <Button onClick={handleDeleteConfirm} color="error" variant="contained">
-            Delete
-          </Button>
+          <Button onClick={() => setDeleteDialogOpen(false)}>{t('Cancel')}</Button>
+          <Button onClick={handleDeleteConfirm} color="error" variant="contained">{t('Delete')}</Button>
         </DialogActions>
       </Dialog>
     </Container>

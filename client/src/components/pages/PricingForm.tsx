@@ -2,14 +2,14 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import api from '../../services/api';
 import { 
-  Autocomplete, TextField, Button, Container, Paper, 
+  Autocomplete, TextField, Button, Container, 
   Table, TableHead, TableRow, TableCell, TableBody, TableContainer,
   Typography, Box, CircularProgress, Alert, Snackbar, Chip, Card, CardContent, Stack, Divider, InputAdornment,
   List, ListItem, ListItemText, ListItemIcon
 } from '@mui/material';
 import Grid from '@mui/material/Grid2';
 import { 
-  Send, PriceCheck, TrendingUp, Assessment, History, ShowChart, EditCalendar, Receipt
+  Send, PriceCheck, TrendingUp, Assessment, History, Receipt
 } from '@mui/icons-material';
 import { useTheme, alpha } from '@mui/material/styles';
 
@@ -49,11 +49,31 @@ const PricingForm: React.FC<PricingFormProps> = ({ contractId, onSaveSuccess }) 
   const [pricingTree, setPricingTree] = useState<{[key: string]: PartialPricing[]}>({});
   
   const [notification, setNotification] = useState({ open: false, message: '', severity: 'success' as 'success' | 'error' });
+  const [savingAll, setSavingAll] = useState(false);
   const isEmbedded = !!contractId;
 
   // Styles
-  const headerSx = { bgcolor: alpha(theme.palette.primary.main, 0.08), color: theme.palette.text.secondary, fontWeight: '700', fontSize: '0.75rem', borderBottom: `1px solid ${theme.palette.divider}`, padding: '12px 16px' };
-  const cellSx = { borderBottom: `1px solid ${theme.palette.divider}`, padding: '12px 16px', color: theme.palette.text.primary, fontSize: '0.9rem' };
+  const headerSx = { bgcolor: alpha(theme.palette.primary.main, 0.08), color: theme.palette.text.secondary, fontWeight: '700', fontSize: '0.75rem', borderBottom: `1px solid ${theme.palette.divider}`, paddingInline: '16px', paddingY: '12px' };
+  const cellSx = { borderBottom: `1px solid ${theme.palette.divider}`, paddingInline: '16px', paddingY: '12px', color: theme.palette.text.primary, fontSize: '0.9rem' };
+  const inputSx = { 
+    bgcolor: theme.palette.mode === 'dark' ? alpha(theme.palette.background.paper, 0.5) : '#fff',
+    '& .MuiOutlinedInput-root': {
+      '& fieldset': { borderColor: alpha(theme.palette.divider, 0.2) },
+      '&:hover fieldset': { borderColor: theme.palette.primary.main },
+      '&.Mui-focused fieldset': { borderWidth: '2px' }
+    },
+    '& input::-webkit-outer-spin-button, & input::-webkit-inner-spin-button': {
+      '-webkit-appearance': 'none',
+      margin: 0,
+    },
+    '& input[type=number]': {
+      '-moz-appearance': 'textfield',
+    },
+    '& .MuiInputBase-input': {
+      padding: '8.5px 8px',
+      textAlign: 'center'
+    }
+  };
 
   useEffect(() => {
     const fetchData = async () => {
@@ -72,7 +92,7 @@ const PricingForm: React.FC<PricingFormProps> = ({ contractId, onSaveSuccess }) 
             const stockContracts = contractsRes.data.filter((c: any) => c.contract_type === 'stock_market' && c.pricing_status !== 'approved');
             setContracts(stockContracts);
         }
-      } catch (err) { setNotification({ open: true, message: 'Error loading data', severity: 'error' }); } 
+      } catch (err) { setNotification({ open: true, message: t('errorLoadingData'), severity: 'error' }); } 
       finally { setLoading(false); }
     };
     fetchData();
@@ -102,7 +122,7 @@ const PricingForm: React.FC<PricingFormProps> = ({ contractId, onSaveSuccess }) 
     if (contract && articles.length > 0) {
       const mappedItems = contract.items.map((i: any) => {
         const articleObj = articles.find(a => a.id === i.article_id);
-        const name = articleObj ? `${articleObj.article_name}` : 'Unknown';
+        const name = articleObj ? `${articleObj.article_name}` : t('Unknown');
         const premium = parseFloat(i.premium || 0);
         const qty = parseFloat(i.qty_ton || i.quantity || 0);
         
@@ -184,36 +204,24 @@ const PricingForm: React.FC<PricingFormProps> = ({ contractId, onSaveSuccess }) 
     const marketPrice = parseFloat(item.market_price || '0');
     
     if (qtyToPrice <= 0 || qtyToPrice > item.qty_remaining) {
-      setNotification({ open: true, message: 'Invalid quantity', severity: 'error' });
+      setNotification({ open: true, message: t('pricing_module.invalid_qty'), severity: 'error' });
       return;
     }
     
     if (marketPrice <= 0) {
-      setNotification({ open: true, message: 'Enter market price', severity: 'error' });
+      setNotification({ open: true, message: t('pricing_module.enter_price'), severity: 'error' });
       return;
     }
     
     try {
-      console.log('Sending partial pricing request:', {
+      await api.post(`/contracts/${selectedContract.id}/partial-price`, {
         item_id: itemId,
         qty_priced: qtyToPrice,
         market_price: marketPrice,
         pricing_date: pricingDate
       });
       
-      const token = localStorage.getItem('access_token');
-      console.log('Token exists:', !!token);
-      
-      const response = await api.post(`/contracts/${selectedContract.id}/partial-price`, {
-        item_id: itemId,
-        qty_priced: qtyToPrice,
-        market_price: marketPrice,
-        pricing_date: pricingDate
-      });
-      
-      console.log('Response:', response.data);
-      
-      setNotification({ open: true, message: 'Partial pricing saved', severity: 'success' });
+      setNotification({ open: true, message: t('pricing_module.save_success'), severity: 'success' });
       setPartialQty({...partialQty, [itemId]: ''});
       
       // Reload data
@@ -222,15 +230,46 @@ const PricingForm: React.FC<PricingFormProps> = ({ contractId, onSaveSuccess }) 
       
       if (onSaveSuccess) onSaveSuccess();
     } catch (e: any) {
-      console.error('Error saving partial pricing:', e);
-      console.error('Error response:', e.response?.data);
-      console.error('Error status:', e.response?.status);
-      
       const errorMsg = e.response?.status === 401 
-        ? 'Session expired. Please login again.' 
-        : e.response?.data?.detail || 'Error saving';
+        ? t('Session expired. Please login again.') 
+        : e.response?.data?.detail || t('pricing_module.save_error');
       
       setNotification({ open: true, message: errorMsg, severity: 'error' });
+    }
+  };
+
+  const handleSaveAll = async () => {
+    if (!selectedContract) return;
+    
+    // Find all items with entries
+    const itemsWithEntries = items.filter(item => {
+      const qty = parseFloat(partialQty[item.id] || '0');
+      const price = parseFloat(item.market_price || '0');
+      return qty > 0 && price > 0;
+    });
+
+    if (itemsWithEntries.length === 0) return;
+
+    setSavingAll(true);
+    try {
+      for (const item of itemsWithEntries) {
+        await api.post(`/contracts/${selectedContract.id}/partial-price`, {
+          item_id: item.id,
+          qty_priced: parseFloat(partialQty[item.id]),
+          market_price: parseFloat(item.market_price),
+          pricing_date: pricingDate
+        });
+      }
+      
+      setNotification({ open: true, message: t('pricing_module.save_success'), severity: 'success' });
+      setPartialQty({});
+      fetchPricingHistory(selectedContract.id);
+      loadPricingTree(selectedContract.id, items);
+      if (onSaveSuccess) onSaveSuccess();
+    } catch (e: any) {
+      setNotification({ open: true, message: t('pricing_module.save_error'), severity: 'error' });
+    } finally {
+      setSavingAll(false);
     }
   };
 
@@ -240,19 +279,19 @@ const PricingForm: React.FC<PricingFormProps> = ({ contractId, onSaveSuccess }) 
     // Check if all quantities are fully priced
     const allFullyPriced = items.every(i => i.qty_remaining === 0);
     if (!allFullyPriced) {
-      setNotification({ open: true, message: 'All quantities must be priced before confirming', severity: 'error' });
+      setNotification({ open: true, message: t('pricing_module.all_must_be_priced'), severity: 'error' });
       return;
     }
     
     try {
       await api.post(`/contracts/${selectedContract.id}/approve-pricing`);
-      setNotification({ open: true, message: 'Pricing confirmed successfully', severity: 'success' });
+      setNotification({ open: true, message: t('pricing_module.confirm_success'), severity: 'success' });
       
       if (onSaveSuccess) onSaveSuccess();
     } catch (e: any) {
       const errorMsg = e.response?.status === 401 
-        ? 'Session expired. Please login again.' 
-        : 'Error confirming pricing.';
+        ? t('Session expired. Please login again.') 
+        : t('pricing_module.confirm_error');
       setNotification({ open: true, message: errorMsg, severity: 'error' });
     }
   };
@@ -266,203 +305,223 @@ const PricingForm: React.FC<PricingFormProps> = ({ contractId, onSaveSuccess }) 
             <Box>
                 <Box display="flex" gap={1.5} alignItems="center" mb={1}>
                     <Box p={1} bgcolor={alpha(theme.palette.primary.main, 0.1)} borderRadius={2} color="primary.main"><PriceCheck /></Box>
-                    <Typography variant="h4" fontWeight="800" color="text.primary">{t('Price Fixation')}</Typography>
+                    <Typography variant="h4" fontWeight="800" color="text.primary">{t('pricing_module.title')}</Typography>
                 </Box>
             </Box>
-            <Chip label="Market Active" color="success" icon={<TrendingUp />} variant="outlined" />
+            <Chip label={t("pricing_module.market_active")} color="success" icon={<TrendingUp />} variant="outlined" />
         </Box>
       )}
 
       <Grid container spacing={3}>
-        <Grid size={{ xs: 12, lg: 8 }}>
+        {/* ✅ Summary Section at the top */}
+        {selectedContract && items.length > 0 && (
+          <Grid size={{ xs: 12 }}>
+            <Card elevation={0} sx={{ border: `1px solid ${theme.palette.divider}`, bgcolor: alpha(theme.palette.background.paper, 0.6), borderRadius: 3, mb: 1 }}>
+              <CardContent sx={{ p: 1.5, '&:last-child': { pb: 1.5 } }}>
+                <Box display="flex" flexWrap="wrap" alignItems="center" justifyContent="space-between" gap={2}>
+                  <Box display="flex" alignItems="center" gap={1}><Assessment color="primary" fontSize="small" /><Typography variant="subtitle1" fontWeight="bold">{t('pricing_module.summary')}</Typography></Box>
+                  
+                  <Box display="flex" flexWrap="wrap" gap={3} alignItems="center">
+                    <Box><Typography variant="caption" color="text.secondary" display="block" sx={{ fontSize: '0.65rem' }}>{t('pricing_module.total_contract_qty')}</Typography><Typography variant="body2" fontWeight="bold">{summary.totalQty.toLocaleString()} {t('pricing_module.mt')}</Typography></Box>
+                    <Box><Typography variant="caption" color="text.secondary" display="block" sx={{ fontSize: '0.65rem' }}>{t('pricing_module.total_priced_qty')}</Typography><Typography variant="body2" fontWeight="bold" color="success.main">{summary.totalPricedQty.toLocaleString()} {t('pricing_module.mt')}</Typography></Box>
+                    <Box><Typography variant="caption" color="text.secondary" display="block" sx={{ fontSize: '0.65rem' }}>{t('pricing_module.avg_price')}</Typography><Typography variant="body2" fontWeight="bold">${summary.avgPrice.toLocaleString(undefined, {maximumFractionDigits:2})} / {t('pricing_module.mt')}</Typography></Box>
+                    <Box sx={{ minWidth: 120 }}><Typography variant="caption" color="text.secondary" display="block" sx={{ fontSize: '0.65rem' }}>{t('pricing_module.priced_value')}</Typography><Typography variant="h6" fontWeight="800" color="info.main">${summary.totalValue.toLocaleString()}</Typography></Box>
+                  </Box>
+
+                  <Box display="flex" gap={1.5}>
+                    {items.some(i => (parseFloat(partialQty[i.id] || '0') > 0 && parseFloat(i.market_price || '0') > 0)) && (
+                      <Button 
+                        variant="outlined" 
+                        size="small" 
+                        startIcon={savingAll ? <CircularProgress size={16} /> : <PriceCheck />} 
+                        onClick={handleSaveAll} 
+                        disabled={savingAll}
+                        sx={{ fontWeight: 'bold', fontSize: '0.75rem' }}
+                      >
+                        {t('pricing_module.save_session')}
+                      </Button>
+                    )}
+                    <Button variant="contained" size="small" startIcon={<Send />} onClick={handleSave} sx={{ bgcolor: 'primary.main', color: 'white', fontWeight: 'bold', fontSize: '0.75rem' }}>{t('pricing_module.confirm_pricing')}</Button>
+                  </Box>
+                </Box>
+              </CardContent>
+            </Card>
+          </Grid>
+        )}
+
+        <Grid size={{ xs: 12 }}>
            <Card elevation={0} sx={{ border: `1px solid ${theme.palette.divider}`, mb: 3, borderRadius: 3 }}>
              <CardContent>
                <Grid container spacing={2}>
-                 {!isEmbedded && (<Grid size={{ xs: 12, md: 8 }}><Typography variant="caption" fontWeight="bold" color="text.secondary">SELECT CONTRACT</Typography><Autocomplete options={contracts} getOptionLabel={(opt) => opt.contract_no} value={selectedContract} onChange={(_, val) => handleContractSelect(val)} renderInput={(params) => <TextField {...params} size="small" />} /></Grid>)}
-                 <Grid size={{ xs: 12, md: isEmbedded ? 6 : 4 }}><Typography variant="caption" fontWeight="bold" color="text.secondary">PRICING DATE</Typography><TextField type="date" fullWidth size="small" value={pricingDate} onChange={e => setPricingDate(e.target.value)} /></Grid>
+                 {!isEmbedded && (<Grid size={{ xs: 12, md: 8 }}><Typography variant="caption" fontWeight="bold" color="text.secondary">{t("pricing_module.select_contract")}</Typography><Autocomplete options={contracts} getOptionLabel={(opt) => opt.contract_no} value={selectedContract} onChange={(_, val) => handleContractSelect(val)} renderInput={(params) => <TextField {...params} size="small" />} /></Grid>)}
+                 <Grid size={{ xs: 12, md: isEmbedded ? 6 : 4 }}><Typography variant="caption" fontWeight="bold" color="text.secondary">{t("pricing_module.pricing_date")}</Typography><TextField type="date" fullWidth size="small" value={pricingDate} onChange={e => setPricingDate(e.target.value)} /></Grid>
                </Grid>
              </CardContent>
            </Card>
 
            {selectedContract ? (
-             <Card elevation={0} sx={{ border: `1px solid ${theme.palette.divider}`, borderRadius: 3, overflow: 'hidden' }}>
-               <TableContainer>
-                 <Table>
-                   <TableHead>
-                     <TableRow>
-                       <TableCell sx={{...headerSx, width: '25%'}}>Article</TableCell>
-                       <TableCell sx={{...headerSx, width: '10%', textAlign: 'center'}}>Total Qty</TableCell>
-                       <TableCell sx={{...headerSx, width: '10%', textAlign: 'center'}}>Priced</TableCell>
-                       <TableCell sx={{...headerSx, width: '10%', textAlign: 'center'}}>Remaining</TableCell>
-                       <TableCell sx={{...headerSx, width: '8%', textAlign: 'center'}}>Premium</TableCell>
-                       <TableCell sx={{...headerSx, width: '12%', bgcolor: alpha(theme.palette.info.main, 0.08), color: theme.palette.info.main, textAlign: 'center'}}>Market Price</TableCell>
-                       <TableCell sx={{...headerSx, width: '12%', textAlign: 'center'}}>Qty to Price</TableCell>
-                       <TableCell sx={{...headerSx, width: '13%', textAlign: 'center'}}>Action</TableCell>
-                     </TableRow>
-                   </TableHead>
-                   <TableBody>
-                     {items.map((item, idx) => (
-                       <React.Fragment key={item.id}>
-                         <TableRow hover sx={{ bgcolor: item.qty_remaining === 0 ? alpha(theme.palette.success.main, 0.05) : 'inherit' }}>
-                           <TableCell sx={cellSx}>
-                             <Box>
-                               <Typography fontWeight="bold" fontSize="0.9rem">{item.article_name}</Typography>
-                               {pricingTree[item.id] && pricingTree[item.id].length > 0 && (
-                                 <Chip label={`${pricingTree[item.id].length} pricing(s)`} size="small" sx={{ mt: 0.5, height: 18, fontSize: '0.65rem' }} />
-                               )}
-                             </Box>
-                           </TableCell>
-                           <TableCell sx={{...cellSx, textAlign: 'center'}}>
-                             <Typography fontWeight="bold" fontSize="0.9rem">{Number(item.qty_ton).toLocaleString()}</Typography>
-                             <Typography variant="caption" color="text.secondary">MT</Typography>
-                           </TableCell>
-                           <TableCell sx={{...cellSx, textAlign: 'center'}}>
-                             <Typography fontWeight="bold" fontSize="0.9rem" color="success.main">{item.qty_priced.toLocaleString()}</Typography>
-                             <Typography variant="caption" color="text.secondary">MT</Typography>
-                           </TableCell>
-                           <TableCell sx={{...cellSx, textAlign: 'center'}}>
-                             <Typography fontWeight="bold" fontSize="0.9rem" color={item.qty_remaining > 0 ? 'primary.main' : 'success.main'}>{item.qty_remaining.toLocaleString()}</Typography>
-                             <Typography variant="caption" color="text.secondary">MT</Typography>
-                           </TableCell>
-                           <TableCell sx={{...cellSx, textAlign: 'center'}}>
-                             <Typography fontWeight="bold" fontSize="0.9rem">${item.premium}</Typography>
-                           </TableCell>
-                           <TableCell sx={{ p: 1.5, bgcolor: alpha(theme.palette.info.main, 0.03) }}>
-                             <TextField 
-                               fullWidth 
-                               size="small" 
-                               type="number" 
-                               value={item.market_price} 
-                               onChange={e => handlePriceChange(idx, e.target.value)} 
-                               InputProps={{ 
-                                 startAdornment: <InputAdornment position="start">$</InputAdornment>, 
-                                 sx: { bgcolor: alpha(theme.palette.background.paper, 0.8), fontWeight: 'bold' } 
-                               }} 
-                               disabled={item.qty_remaining === 0}
-                             />
-                           </TableCell>
-                           <TableCell sx={{ p: 1.5 }}>
-                             <TextField 
-                               fullWidth 
-                               size="small" 
-                               type="number" 
-                               value={partialQty[item.id] || ''} 
-                               onChange={e => setPartialQty({...partialQty, [item.id]: e.target.value})} 
-                               placeholder={item.qty_remaining.toString()} 
-                               InputProps={{ 
-                                 endAdornment: <InputAdornment position="end">MT</InputAdornment>,
-                                 inputProps: { min: 0, max: item.qty_remaining, step: 1 }
-                               }} 
-                               disabled={item.qty_remaining === 0}
-                             />
-                           </TableCell>
-                           <TableCell sx={{ p: 1.5, textAlign: 'center' }}>
-                             <Button 
-                               size="small" 
-                               variant="contained" 
-                               onClick={() => handlePartialSave(item.id)} 
-                               disabled={item.qty_remaining === 0 || !partialQty[item.id] || parseFloat(partialQty[item.id]) <= 0}
-                               startIcon={<PriceCheck />}
-                               fullWidth
-                             >
-                               Price
-                             </Button>
-                           </TableCell>
-                         </TableRow>
-                         {pricingTree[item.id] && pricingTree[item.id].length > 0 && (
-                           <TableRow>
-                             <TableCell colSpan={8} sx={{ p: 0, bgcolor: alpha(theme.palette.background.default, 0.3), borderTop: `1px dashed ${theme.palette.divider}` }}>
-                               <Box sx={{ p: 2.5, pl: 5 }}>
-                                 <Typography variant="caption" fontWeight="bold" color="text.secondary" sx={{ mb: 1.5, display: 'flex', alignItems: 'center', gap: 1 }}>
-                                   <History fontSize="small" />
-                                   PRICING HISTORY:
-                                 </Typography>
-                                 <Stack spacing={1}>
-                                   {pricingTree[item.id].map((pricing, i) => (
-                                     <Box key={pricing.id} sx={{ display: 'flex', alignItems: 'center', gap: 2, p: 1.5, bgcolor: 'background.paper', borderRadius: 1.5, border: `1px solid ${theme.palette.divider}` }}>
-                                       <Box sx={{ minWidth: 28, height: 28, borderRadius: '50%', bgcolor: alpha(theme.palette.primary.main, 0.1), display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                                         <Typography variant="caption" fontWeight="bold" color="primary.main" fontSize="0.75rem">{i + 1}</Typography>
-                                       </Box>
-                                       <Box flexGrow={1}>
-                                         <Typography variant="body2" fontWeight="bold" fontSize="0.85rem">{pricing.qty_priced.toLocaleString()} MT @ ${pricing.price.toLocaleString()}/MT</Typography>
-                                         <Typography variant="caption" color="text.secondary" fontSize="0.7rem">{pricing.date} • {pricing.reference}</Typography>
-                                       </Box>
-                                       <Chip label={`$${pricing.total_value.toLocaleString()}`} size="small" color="success" variant="outlined" sx={{ fontWeight: 'bold', fontSize: '0.75rem' }} />
-                                       <Button size="small" color="error" onClick={async () => {
-                                         if (window.confirm('Delete this pricing?')) {
-                                           try {
-                                             await api.delete(`/financial-transactions/${pricing.id}`);
-                                             setNotification({ open: true, message: 'Pricing deleted', severity: 'success' });
-                                             fetchPricingHistory(selectedContract.id);
-                                             loadPricingTree(selectedContract.id, items);
-                                           } catch (e) {
-                                             setNotification({ open: true, message: 'Error deleting', severity: 'error' });
-                                           }
-                                         }
-                                       }}>Delete</Button>
-                                     </Box>
-                                   ))}
-                                 </Stack>
+             <Box>
+               <Card elevation={0} sx={{ border: `1px solid ${theme.palette.divider}`, borderRadius: 3, overflow: 'hidden', mb: 3 }}>
+                 <TableContainer>
+                   <Table>
+                     <TableHead>
+                      <TableRow>
+                        <TableCell sx={{...headerSx, width: '18%'}}>{t("pricing_module.article")}</TableCell>
+                        <TableCell sx={{...headerSx, width: '8%', textAlign: 'center'}}>{t("pricing_module.total_qty")}</TableCell>
+                        <TableCell sx={{...headerSx, width: '8%', textAlign: 'center'}}>{t("pricing_module.priced")}</TableCell>
+                        <TableCell sx={{...headerSx, width: '8%', textAlign: 'center'}}>{t("pricing_module.remaining")}</TableCell>
+                        <TableCell sx={{...headerSx, width: '8%', textAlign: 'center'}}>{t("pricing_module.premium")}</TableCell>
+                        <TableCell sx={{...headerSx, width: '18%', bgcolor: alpha(theme.palette.info.main, 0.08), color: theme.palette.info.main, textAlign: 'center'}}>{t("pricing_module.market_price")}</TableCell>
+                        <TableCell sx={{...headerSx, width: '18%', textAlign: 'center'}}>{t("pricing_module.qty_to_price")}</TableCell>
+                        <TableCell sx={{...headerSx, width: '14%', textAlign: 'center'}}>{t("pricing_module.action")}</TableCell>
+                      </TableRow>
+                    </TableHead>
+                     <TableBody>
+                       {items.map((item, idx) => (
+                         <React.Fragment key={item.id}>
+                           <TableRow hover sx={{ bgcolor: item.qty_remaining === 0 ? alpha(theme.palette.success.main, 0.05) : 'inherit' }}>
+                             <TableCell sx={cellSx}>
+                               <Box>
+                                 <Typography fontWeight="bold" fontSize="0.9rem">{item.article_name}</Typography>
+                                 {pricingTree[item.id] && pricingTree[item.id].length > 0 && (
+                                   <Chip label={`${pricingTree[item.id].length} pricing(s)`} size="small" sx={{ mt: 0.5, height: 18, fontSize: '0.65rem' }} />
+                                 )}
                                </Box>
                              </TableCell>
+                             <TableCell sx={{...cellSx, textAlign: 'center'}}>
+                               <Typography fontWeight="bold" fontSize="0.9rem">{Number(item.qty_ton).toLocaleString()}</Typography>
+                               <Typography variant="caption" color="text.secondary">{t("pricing_module.mt")}</Typography>
+                             </TableCell>
+                             <TableCell sx={{...cellSx, textAlign: 'center'}}>
+                               <Typography fontWeight="bold" fontSize="0.9rem" color="success.main">{item.qty_priced.toLocaleString()}</Typography>
+                               <Typography variant="caption" color="text.secondary">{t("pricing_module.mt")}</Typography>
+                             </TableCell>
+                             <TableCell sx={{...cellSx, textAlign: 'center'}}>
+                               <Typography fontWeight="bold" fontSize="0.9rem" color={item.qty_remaining > 0 ? 'primary.main' : 'success.main'}>{item.qty_remaining.toLocaleString()}</Typography>
+                               <Typography variant="caption" color="text.secondary">{t("pricing_module.mt")}</Typography>
+                             </TableCell>
+                             <TableCell sx={{...cellSx, textAlign: 'center'}}>
+                               <Typography fontWeight="bold" fontSize="0.9rem">${item.premium}</Typography>
+                             </TableCell>
+                             <TableCell sx={{ p: 1, bgcolor: alpha(theme.palette.info.main, 0.03) }}>
+                               <TextField 
+                                 fullWidth 
+                                 size="small" 
+                                 type="number" 
+                                 value={item.market_price} 
+                                 onChange={e => handlePriceChange(idx, e.target.value)} 
+                                 InputProps={{ 
+                                   startAdornment: <InputAdornment position="start" sx={{ mr: 0.2 }}><Typography variant="caption" fontWeight="bold" color="text.secondary" sx={{ fontSize: '0.7rem' }}>$</Typography></InputAdornment>, 
+                                   sx: { ...inputSx, fontWeight: 'bold' } 
+                                 }} 
+                                 disabled={item.qty_remaining === 0}
+                               />
+                             </TableCell>
+                             <TableCell sx={{ p: 1 }}>
+                               <TextField 
+                                 fullWidth 
+                                 size="small" 
+                                 type="number" 
+                                 value={partialQty[item.id] || ''} 
+                                 onChange={e => setPartialQty({...partialQty, [item.id]: e.target.value})} 
+                                 placeholder={item.qty_remaining.toString()} 
+                                 InputProps={{ 
+                                   endAdornment: <InputAdornment position="end" sx={{ ml: 0.2 }}><Typography variant="caption" fontWeight="bold" color="text.secondary" sx={{ fontSize: '0.6rem' }}>{t("pricing_module.mt")}</Typography></InputAdornment>,
+                                   inputProps: { min: 0, max: item.qty_remaining, step: 1 },
+                                   sx: inputSx
+                                 }} 
+                                 disabled={item.qty_remaining === 0}
+                               />
+                             </TableCell>
+                             <TableCell sx={{ p: 1.5, textAlign: 'center' }}>
+                               <Button 
+                                 size="small" 
+                                 variant="contained" 
+                                 onClick={() => handlePartialSave(item.id)} 
+                                 disabled={item.qty_remaining === 0 || !partialQty[item.id] || parseFloat(partialQty[item.id]) <= 0}
+                                 startIcon={<PriceCheck />}
+                                 fullWidth
+                               >
+                                 {t("pricing_module.price")}
+                               </Button>
+                             </TableCell>
                            </TableRow>
-                         )}
-                       </React.Fragment>
-                     ))}
-                   </TableBody>
-                 </Table>
-               </TableContainer>
-             </Card>
-           ) : (<Alert severity="info" variant="outlined">Select a contract to start.</Alert>)}
-        </Grid>
+                           {pricingTree[item.id] && pricingTree[item.id].length > 0 && (
+                             <TableRow>
+                               <TableCell colSpan={8} sx={{ p: 0, bgcolor: alpha(theme.palette.background.default, 0.3), borderTop: `1px dashed ${theme.palette.divider}` }}>
+                                 <Box sx={{ p: 2.5, pl: 5 }}>
+                                   <Typography variant="caption" fontWeight="bold" color="text.secondary" sx={{ mb: 1.5, display: 'flex', alignItems: 'center', gap: 1 }}>
+                                     <History fontSize="small" />
+                                     {t("pricing_module.history")}
+                                   </Typography>
+                                   <Stack spacing={1}>
+                                     {pricingTree[item.id].map((pricing, i) => (
+                                       <Box key={pricing.id} sx={{ display: 'flex', alignItems: 'center', gap: 2, p: 1.5, bgcolor: 'background.paper', borderRadius: 1.5, border: `1px solid ${theme.palette.divider}` }}>
+                                         <Box sx={{ minWidth: 28, height: 28, borderRadius: '50%', bgcolor: alpha(theme.palette.primary.main, 0.1), display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                           <Typography variant="caption" fontWeight="bold" color="primary.main" fontSize="0.75rem">{i + 1}</Typography>
+                                         </Box>
+                                         <Box flexGrow={1}>
+                                           <Typography variant="body2" fontWeight="bold" fontSize="0.85rem">{pricing.qty_priced.toLocaleString()} {t("pricing_module.mt")} @ ${pricing.price.toLocaleString()}/{t("pricing_module.mt")}</Typography>
+                                           <Typography variant="caption" color="text.secondary" fontSize="0.7rem">{pricing.date} • {pricing.reference}</Typography>
+                                         </Box>
+                                         <Chip label={`$${pricing.total_value.toLocaleString()}`} size="small" color="success" variant="outlined" sx={{ fontWeight: 'bold', fontSize: '0.75rem' }} />
+                                         <Button size="small" color="error" onClick={async () => {
+                                           if (window.confirm(t('pricing_module.delete_pricing'))) {
+                                             try {
+                                               await api.delete(`/financial-transactions/${pricing.id}`);
+                                               setNotification({ open: true, message: t('pricing_module.save_success'), severity: 'success' });
+                                               fetchPricingHistory(selectedContract.id);
+                                               loadPricingTree(selectedContract.id, items);
+                                             } catch (e) {
+                                               setNotification({ open: true, message: 'Error deleting', severity: 'error' });
+                                             }
+                                           }
+                                         }}>{t('Delete')}</Button>
+                                       </Box>
+                                     ))}
+                                   </Stack>
+                                 </Box>
+                               </TableCell>
+                             </TableRow>
+                           )}
+                         </React.Fragment>
+                       ))}
+                     </TableBody>
+                   </Table>
+                 </TableContainer>
+               </Card>
 
-        <Grid size={{ xs: 12, lg: 4 }}>
-          {selectedContract && items.length > 0 && (
-             <Card elevation={0} sx={{ border: `1px solid ${theme.palette.divider}`, bgcolor: alpha(theme.palette.background.paper, 0.6), borderRadius: 3 }}>
-               <CardContent sx={{ p: 3 }}>
-                 <Box display="flex" alignItems="center" gap={1} mb={2}><Assessment color="primary" /><Typography variant="h6" fontWeight="bold">Summary</Typography></Box>
-                 <Divider sx={{ mb: 2 }} />
-                 <Stack spacing={2}>
-                    <Box display="flex" justifyContent="space-between"><Typography color="text.secondary">Total Qty:</Typography><Typography fontWeight="bold">{summary.totalQty.toLocaleString()} MT</Typography></Box>
-                    <Box display="flex" justifyContent="space-between"><Typography color="text.secondary">Priced Qty:</Typography><Typography fontWeight="bold" color="success.main">{summary.totalPricedQty.toLocaleString()} MT</Typography></Box>
-                    <Box display="flex" justifyContent="space-between"><Typography color="text.secondary">Avg Price:</Typography><Typography fontWeight="bold">${summary.avgPrice.toLocaleString(undefined, {maximumFractionDigits:2})} / MT</Typography></Box>
-                    <Divider />
-                    <Box><Typography variant="caption" color="text.secondary">PRICED VALUE (SO FAR)</Typography><Typography variant="h4" fontWeight="800" color="info.main">${summary.totalValue.toLocaleString()}</Typography></Box>
-                 </Stack>
-                 <Button fullWidth variant="contained" size="large" startIcon={<Send />} onClick={handleSave} sx={{ mt: 3, bgcolor: 'primary.main', color: 'white', fontWeight: 'bold' }}>Confirm Pricing</Button>
-               </CardContent>
-             </Card>
-          )}
-          
-          {/* ✅ Pricing History Log */}
-          <Card elevation={0} sx={{ border: `1px solid ${theme.palette.divider}`, mt: 3, borderRadius: 3 }}>
-            <CardContent sx={{ p: 0 }}>
-                <Box p={2} display="flex" alignItems="center" gap={1} borderBottom={`1px solid ${theme.palette.divider}`}>
-                    <History fontSize="small" color="action" />
-                    <Typography variant="subtitle2" fontWeight="bold">Pricing Log (Updates)</Typography>
-                </Box>
-                <List dense>
-                    {priceHistory.length > 0 ? (
-                        priceHistory.map((tx, i) => (
-                            <React.Fragment key={tx.id}>
-                                <ListItem>
-                                    <ListItemIcon><Receipt fontSize="small" color="primary" /></ListItemIcon>
-                                    <ListItemText 
-                                        primary={`Updated Value: $${tx.amount.toLocaleString()}`}
-                                        secondary={`${tx.transaction_date} • ${tx.description}`}
-                                        primaryTypographyProps={{ fontWeight: 600, fontSize: '0.9rem' }}
-                                        secondaryTypographyProps={{ fontSize: '0.75rem' }}
-                                    />
-                                </ListItem>
-                                {i < priceHistory.length - 1 && <Divider variant="inset" component="li" />}
-                            </React.Fragment>
-                        ))
-                    ) : (
-                        <Box p={3} textAlign="center"><Typography variant="caption" color="text.secondary">No price fixations recorded yet.</Typography></Box>
-                    )}
-                </List>
-            </CardContent>
-          </Card>
+               {/* ✅ Pricing History Log at the bottom */}
+               <Card elevation={0} sx={{ border: `1px solid ${theme.palette.divider}`, borderRadius: 3 }}>
+                 <CardContent sx={{ p: 0 }}>
+                     <Box p={2} display="flex" alignItems="center" gap={1} borderBottom={`1px solid ${theme.palette.divider}`}>
+                         <History fontSize="small" color="action" />
+                         <Typography variant="subtitle2" fontWeight="bold">{t('pricing_module.pricing_log')}</Typography>
+                     </Box>
+                     <List dense>
+                         {priceHistory.length > 0 ? (
+                             priceHistory.map((tx, i) => (
+                                 <React.Fragment key={tx.id}>
+                                     <ListItem>
+                                         <ListItemIcon><Receipt fontSize="small" color="primary" /></ListItemIcon>
+                                         <ListItemText 
+                                             primary={`${t('pricing_module.updated_value')}: $${tx.amount.toLocaleString()}`}
+                                             secondary={`${tx.transaction_date} • ${tx.description}`}
+                                             primaryTypographyProps={{ fontWeight: 600, fontSize: '0.9rem' }}
+                                             secondaryTypographyProps={{ fontSize: '0.75rem' }}
+                                         />
+                                     </ListItem>
+                                     {i < priceHistory.length - 1 && <Divider variant="inset" component="li" />}
+                                 </React.Fragment>
+                             ))
+                         ) : (
+                             <Box p={3} textAlign="center"><Typography variant="caption" color="text.secondary">{t('pricing_module.no_fixations')}</Typography></Box>
+                         )}
+                     </List>
+                 </CardContent>
+               </Card>
+             </Box>
+           ) : (<Alert severity="info" variant="outlined">{t('pricing_module.select_contract_info')}</Alert>)}
         </Grid>
       </Grid>
       <Snackbar open={notification.open} autoHideDuration={4000} onClose={() => setNotification({...notification, open: false})}><Alert severity={notification.severity}>{notification.message}</Alert></Snackbar>

@@ -1,17 +1,23 @@
 import React, { useEffect, useState } from 'react';
-import { Box, Grid, Typography, Paper, useTheme, Card, CardContent, CircularProgress, alpha } from '@mui/material';
-import { People, AccessTime, Warning, CheckCircle, Cancel } from '@mui/icons-material';
-import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts'; // Assuming recharts is installed or I'll use simple placeholder if not
+import { Box, Grid, Typography, Paper, useTheme, CircularProgress, alpha } from '@mui/material';
+import { People, Warning, CheckCircle, Cancel } from '@mui/icons-material';
 import api from '../../services/api';
 import { useTranslation } from 'react-i18next';
 
 // Placeholder for charts if recharts is not available in package.json (I haven't checked but it's common)
 // I'll stick to KPI cards first for safety.
 
+interface HrStats {
+    total_employees: number;
+    present_today: number;
+    late_today: number;
+    absent_today: number;
+}
+
 const HrDashboard: React.FC = () => {
     const theme = useTheme();
     const { t } = useTranslation();
-    const [stats, setStats] = useState<any>(null);
+    const [stats, setStats] = useState<HrStats | null>(null);
     const [loading, setLoading] = useState(true);
 
     useEffect(() => {
@@ -19,7 +25,7 @@ const HrDashboard: React.FC = () => {
             try {
                 const res = await api.get('/hr/dashboard');
                 setStats(res.data);
-            } catch (error) {
+            } catch (error: unknown) {
                 console.error("Failed to load HR stats", error);
             } finally {
                 setLoading(false);

@@ -19,8 +19,8 @@ const Login: React.FC = () => {
   const navigate = useNavigate();
   const { refreshUser } = useAuth();
 
-  const [email, setEmail] = useState('admin@jandali.com'); // ✅ إضافة قيمة افتراضية للتجربة
-  const [password, setPassword] = useState('Admin@123'); // ✅ إضافة قيمة افتراضية للتجربة
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
@@ -53,18 +53,18 @@ const Login: React.FC = () => {
       console.log('Data saved to localStorage. Refreshing user context...');
       // تحديث AuthContext
       refreshUser();
-      
+
       // الحصول على معلومات المستخدم الكاملة من الخادم
       try {
         console.log('Fetching user info from /auth/me...');
         const userResponse = await api.get('/auth/me');
         console.log('User info response received:', userResponse.status);
         const userData = userResponse.data;
-        
+
         // حفظ معلومات المستخدم الإضافية
         localStorage.setItem('user_name', userData.name || 'User');
         localStorage.setItem('user_email', userData.email || email);
-        
+
         console.log('User info saved. Refreshing user context again...');
         // تحديث AuthContext مرة أخرى مع معلومات المستخدم
         refreshUser();
@@ -97,11 +97,6 @@ const Login: React.FC = () => {
     }
   };
 
-  // ✅ دالة للتحقق من حالة التسجيل
-  const checkAuthStatus = () => {
-    const token = localStorage.getItem('access_token');
-    console.log('Current auth token:', token);
-  };
 
   return (
     <Container component="main" maxWidth="xs">
@@ -162,6 +157,7 @@ const Login: React.FC = () => {
             >
               {loading ? <CircularProgress size={24} /> : (t('login') || 'تسجيل الدخول')}
             </Button>
+
           </Box>
 
 

@@ -6,7 +6,7 @@ from pydantic import BaseModel
 from core.database import get_db
 from models import archive_models, core_models
 import schemas.schemas as schemas
-from core.auth import get_current_user_obj, require_permission, get_user_from_raw_token
+from core.auth import get_current_user, require_permission, get_user_from_raw_token
 from crud import rbac_crud
 import os
 import shutil
@@ -16,6 +16,9 @@ import urllib.parse
 import subprocess
 import platform
 from typing import List, Optional
+
+import logging
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/archive", tags=["Archive Management"])
 
@@ -235,10 +238,9 @@ def search_archive(
     }
 
 @router.get("/stats")
-def get_archive_stats(
-    db: Session = Depends(get_db),
-    current_user = Depends(require_permission("archive_read"))
-):
+@router.get("/dashboard")
+async def get_archive_dashboard(db: Session = Depends(get_db), current_user = Depends(get_current_user)):
+
     try:
         total_folders = db.query(func.count(archive_models.ArchiveFolder.id)).scalar()
         total_files = db.query(func.count(archive_models.ArchiveFile.id)).scalar()
@@ -267,10 +269,21 @@ def get_archive_stats(
             
         # Files per month (last 6 months)
         six_months_ago = datetime.datetime.now() - datetime.timedelta(days=180)
-        monthly_stats_raw = db.query(
-            func.strftime('%Y-%m', archive_models.ArchiveFile.created_at).label('month'),
-            func.count(archive_models.ArchiveFile.id)
-        ).filter(archive_models.ArchiveFile.created_at >= six_months_ago).group_by('month').all()
+        
+        # Use different function for PostgreSQL vs SQLite
+        is_postgres = "postgresql" in str(db.get_bind().url)
+        if is_postgres:
+            # PostgreSQL syntax
+            monthly_stats_raw = db.query(
+                func.to_char(archive_models.ArchiveFile.created_at, 'YYYY-MM').label('month'),
+                func.count(archive_models.ArchiveFile.id)
+            ).filter(archive_models.ArchiveFile.created_at >= six_months_ago).group_by('month').all()
+        else:
+            # SQLite syntax
+            monthly_stats_raw = db.query(
+                func.strftime('%Y-%m', archive_models.ArchiveFile.created_at).label('month'),
+                func.count(archive_models.ArchiveFile.id)
+            ).filter(archive_models.ArchiveFile.created_at >= six_months_ago).group_by('month').all()
         
         monthly_stats = [{"month": m, "count": c} for m, c in monthly_stats_raw]
 
@@ -283,6 +296,7 @@ def get_archive_stats(
             "monthly_stats": monthly_stats
         }
     except Exception as e:
+        logger.error(f"Error in get_archive_dashboard: {str(e)}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"Failed to fetch archive stats: {str(e)}")
 
 @router.post("/folders/{folder_id}/explore")
@@ -377,6 +391,112 @@ async def upload_file(
     db.commit()
     db.refresh(new_file)
     return new_file
+
+@router.post("/bulk-upload")
+async def bulk_upload(
+    parent_folder_id: int = Form(...),
+    files: List[UploadFile] = File(...),
+    relative_paths: str = Form(...), # JSON string list of paths
+    db: Session = Depends(get_db),
+    current_user = Depends(require_permission("archive_upload"))
+):
+    """
+    Upload multiple files and recreate their folder structure.
+    relative_paths is a JSON list of strings like ["Folder1/file.txt", "Folder1/Sub/file2.txt"]
+    """
+    import json
+    import re
+    
+    ensure_storage(db)
+    
+    try:
+        paths = json.loads(relative_paths)
+    except Exception:
+        raise HTTPException(status_code=400, detail="Invalid relative_paths format")
+        
+    if len(files) != len(paths):
+        raise HTTPException(status_code=400, detail="Files and paths count mismatch")
+        
+    parent_folder = db.query(archive_models.ArchiveFolder).get(parent_folder_id)
+    if not parent_folder:
+        raise HTTPException(status_code=404, detail="Parent folder not found")
+        
+    results = []
+    
+    # Cache for folder lookups to avoid redundant DB queries
+    folder_cache = {parent_folder_id: parent_folder}
+    
+    for file, rel_path in zip(files, paths):
+        # Normalize and split path
+        # rel_path might be "folder/sub/file.txt"
+        parts = rel_path.replace("\\", "/").split("/")
+        filename = parts[-1]
+        folder_structure = parts[:-1] # ["folder", "sub"]
+        
+        current_parent_id = parent_folder_id
+        
+        # Traverse/Create folder structure
+        for folder_name in folder_structure:
+            # Check if this folder exists under current parent
+            cache_key = f"{current_parent_id}_{folder_name}"
+            
+            # Simple check in DB
+            existing_folder = db.query(archive_models.ArchiveFolder).filter(
+                archive_models.ArchiveFolder.parent_id == current_parent_id,
+                archive_models.ArchiveFolder.name == folder_name
+            ).first()
+            
+            if not existing_folder:
+                # Create physical folder
+                parent_obj = db.query(archive_models.ArchiveFolder).get(current_parent_id)
+                new_folder_path = os.path.join(parent_obj.path, folder_name)
+                if not os.path.exists(new_folder_path):
+                    os.makedirs(new_folder_path)
+                    
+                existing_folder = archive_models.ArchiveFolder(
+                    name=folder_name,
+                    parent_id=current_parent_id,
+                    path=new_folder_path,
+                    created_by=current_user.id
+                )
+                db.add(existing_folder)
+                db.commit()
+                db.refresh(existing_folder)
+            
+            current_parent_id = existing_folder.id
+            
+        # Now current_parent_id is the target folder for the file
+        target_folder = db.query(archive_models.ArchiveFolder).get(current_parent_id)
+        
+        # Save file (reusing logic from upload_file but simplified)
+        orig_filename, orig_ext = os.path.splitext(filename)
+        date_str = datetime.date.today().strftime("%Y-%m-%d")
+        storage_filename = f"{date_str}_{orig_filename}{orig_ext}"
+        
+        file_path = os.path.join(target_folder.path, storage_filename)
+        counter = 1
+        while os.path.exists(file_path):
+            storage_filename = f"{date_str}_{orig_filename}_{counter}{orig_ext}"
+            file_path = os.path.join(target_folder.path, storage_filename)
+            counter += 1
+            
+        with open(file_path, "wb") as buffer:
+            shutil.copyfileobj(file.file, buffer)
+            
+        new_file = archive_models.ArchiveFile(
+            folder_id=current_parent_id,
+            name=storage_filename,
+            original_name=filename,
+            file_type=orig_ext.replace(".", ""),
+            file_size=os.path.getsize(file_path),
+            file_path=file_path,
+            created_by=current_user.id
+        )
+        db.add(new_file)
+        results.append(new_file)
+        
+    db.commit()
+    return {"status": "success", "uploaded_count": len(results)}
 
 @router.delete("/files/{file_id}")
 def delete_file(

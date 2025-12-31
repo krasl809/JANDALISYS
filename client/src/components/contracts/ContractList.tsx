@@ -15,6 +15,7 @@ import {
   ChevronLeft, ChevronRight 
 } from '@mui/icons-material';
 import { alpha, useTheme } from '@mui/material/styles';
+import { useTranslation } from 'react-i18next';
 
 import { ContractSummary } from '../../types/contracts';
 import MetricStrip from '../common/MetricStrip';
@@ -22,6 +23,7 @@ import MetricStrip from '../common/MetricStrip';
 const ContractList = () => {
   const navigate = useNavigate();
   const theme = useTheme();
+  const { t } = useTranslation();
   const { hasPermission } = useAuth();
   
   // --- States ---
@@ -55,9 +57,9 @@ const ContractList = () => {
       setLoading(true);
       setError(null);
       const skip = (page - 1) * pagination.per_page;
-      const response = await api.get(`/contracts/?skip=${skip}&limit=${pagination.per_page}`);
+      const response = await api.get(`/contracts/?skip=${skip}&limit=${pagination.per_page}&search=${searchQuery}&tab=${currentTab}`);
       
-      const contractsData = response.data.contracts.map((contract: any) => ({
+      const contractsData: ContractSummary[] = response.data.contracts.map((contract: any) => ({
         id: contract.id,
         no: contract.contract_no || 'N/A',
         type: contract.direction === 'import' ? 'Import' : 'Export',
@@ -74,13 +76,14 @@ const ContractList = () => {
       
       setContracts(contractsData);
       setPagination(response.data.pagination);
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Failed to fetch contracts:', error);
-      if (error.response?.status === 401) {
+      const apiError = error as { response?: { status?: number } };
+      if (apiError.response?.status === 401) {
         setError('Authentication failed. Please log in again.');
-      } else if (error.response?.status === 403) {
+      } else if (apiError.response?.status === 403) {
         setError('You do not have permission to view contracts.');
-      } else if (error.response?.status === 404) {
+      } else if (apiError.response?.status === 404) {
         setError('Contracts endpoint not found.');
       } else {
         setError('Failed to load contracts. Please try again later.');
@@ -155,15 +158,15 @@ const ContractList = () => {
       // Close dialog
       setDeleteDialogOpen(false);
       setContractToDelete(null);
-      // Optional: Show success notification
-      console.log('Contract deleted successfully');
-    } catch (error: any) {
+      // Contract deleted successfully
+    } catch (error: unknown) {
       console.error('Failed to delete contract:', error);
+      const apiError = error as { response?: { data?: { detail?: string } }; message?: string };
       // Close dialog on error
       setDeleteDialogOpen(false);
       setContractToDelete(null);
       // Show error message to user
-      alert(`Failed to delete contract: ${error.response?.data?.detail || error.message || 'Unknown error'}`);
+      alert(`Failed to delete contract: ${apiError.response?.data?.detail || apiError.message || 'Unknown error'}`);
     }
   };
 
@@ -211,8 +214,8 @@ const ContractList = () => {
       {/* 1. Header & Actions */}
       <Box display="flex" justifyContent="space-between" alignItems="center" mb={3}>
         <Box>
-           <Typography variant="h4" fontWeight="800" color="text.primary">Contract Management</Typography>
-           <Typography variant="body2" color="text.secondary">Track, manage and analyze your trade agreements</Typography>
+           <Typography variant="h4" fontWeight="800" color="text.primary">{t('Contract Management')}</Typography>
+           <Typography variant="body2" color="text.secondary">{t('Track, manage and analyze your trade agreements')}</Typography>
         </Box>
         
         <Box>
@@ -223,7 +226,7 @@ const ContractList = () => {
                 onClick={handleCreateMenuOpen}
                 sx={{ borderRadius: 3, px: 3, py: 1, boxShadow: theme.shadows[3] }}
             >
-              New Contract
+              {t('New Contract')}
             </Button>
             <Menu
                 anchorEl={createAnchorEl}
@@ -233,11 +236,11 @@ const ContractList = () => {
             >
                 <MenuItem onClick={() => handleCreate('import')}>
                     <ListItemIcon><ArrowDownward fontSize="small" color="secondary" /></ListItemIcon>
-                    <ListItemText primary="Import Contract" secondary="Buy from suppliers" />
+                    <ListItemText primary={t('Import Contract')} secondary={t('Buy from suppliers')} />
                 </MenuItem>
                 <MenuItem onClick={() => handleCreate('export')}>
                     <ListItemIcon><ArrowUpward fontSize="small" color="primary" /></ListItemIcon>
-                    <ListItemText primary="Export Contract" secondary="Sell to customers" />
+                    <ListItemText primary={t('Export Contract')} secondary={t('Sell to customers')} />
                 </MenuItem>
             </Menu>
         </Box>
@@ -247,18 +250,18 @@ const ContractList = () => {
       <Card sx={{ mb: 3, borderRadius: 3, boxShadow: 'none', border: `1px solid ${theme.palette.divider}` }}>
         <Box sx={{ borderBottom: 1, borderColor: 'divider', px: 2, pt: 2 }}>
           <Tabs value={currentTab} onChange={(_, v) => setCurrentTab(v)} textColor="primary" indicatorColor="primary">
-            <Tab label="All Contracts" sx={{ fontWeight: 600 }} />
+            <Tab label={t('All Contracts')} sx={{ fontWeight: 600 }} />
             <Tab 
                 label={
                     <Stack direction="row" alignItems="center" gap={1}>
-                        Action Required 
+                        {t('Action Required')} 
                         <Badge badgeContent={contracts.filter(c => c.status === 'Pending' || c.status === 'Draft').length} color="error" sx={{ '& .MuiBadge-badge': { fontSize: 10, height: 16, minWidth: 16 } }} />
                     </Stack>
                 } 
                 sx={{ fontWeight: 600 }} 
             />
-            <Tab label="Active / Shipping" sx={{ fontWeight: 600 }} />
-            <Tab label="Completed" sx={{ fontWeight: 600 }} />
+            <Tab label={t('Active / Shipping')} sx={{ fontWeight: 600 }} />
+            <Tab label={t('Completed')} sx={{ fontWeight: 600 }} />
           </Tabs>
         </Box>
         
@@ -266,7 +269,7 @@ const ContractList = () => {
         <Box p={2} display="flex" alignItems="center" gap={2} flexWrap="wrap">
             <TextField 
                 size="small" 
-                placeholder="Search contract no, client, item..." 
+                placeholder={t('Search contract no, client, item...')} 
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 InputProps={{ 
@@ -276,7 +279,7 @@ const ContractList = () => {
                 sx={{ width: { xs: '100%', md: 350 } }}
             />
             <Button variant="outlined" startIcon={<FilterList />} sx={{ borderRadius: 2, borderColor: theme.palette.divider, color: 'text.secondary' }}>
-                Filters
+                {t('Filters')}
             </Button>
             
             <Box flexGrow={1} />
@@ -289,13 +292,13 @@ const ContractList = () => {
         <Table>
             <TableHead sx={{ bgcolor: alpha(theme.palette.primary.main, 0.04) }}>
                 <TableRow>
-                    <TableCell sx={{ fontWeight: 700, color: 'text.secondary' }}>Contract No</TableCell>
-                    <TableCell sx={{ fontWeight: 700, color: 'text.secondary' }}>Type</TableCell>
-                    <TableCell sx={{ fontWeight: 700, color: 'text.secondary' }}>Counterparty</TableCell>
-                    <TableCell sx={{ fontWeight: 700, color: 'text.secondary' }}>Commodity</TableCell>
-                    <TableCell sx={{ fontWeight: 700, color: 'text.secondary' }}>Value</TableCell>
-                    <TableCell sx={{ fontWeight: 700, color: 'text.secondary' }}>Status</TableCell>
-                    <TableCell sx={{ fontWeight: 700, color: 'text.secondary' }}>Progress</TableCell>
+                    <TableCell sx={{ fontWeight: 700, color: 'text.secondary' }}>{t('Contract No')}</TableCell>
+                    <TableCell sx={{ fontWeight: 700, color: 'text.secondary' }}>{t('Type')}</TableCell>
+                    <TableCell sx={{ fontWeight: 700, color: 'text.secondary' }}>{t('Counterparty')}</TableCell>
+                    <TableCell sx={{ fontWeight: 700, color: 'text.secondary' }}>{t('Commodity')}</TableCell>
+                    <TableCell sx={{ fontWeight: 700, color: 'text.secondary' }}>{t('Value')}</TableCell>
+                    <TableCell sx={{ fontWeight: 700, color: 'text.secondary' }}>{t('Status')}</TableCell>
+                    <TableCell sx={{ fontWeight: 700, color: 'text.secondary' }}>{t('Progress')}</TableCell>
                     <TableCell></TableCell>
                 </TableRow>
             </TableHead>
@@ -303,22 +306,22 @@ const ContractList = () => {
                 {loading ? (
                     <TableRow>
                         <TableCell colSpan={8} align="center" sx={{ py: 8 }}>
-                            <Typography color="text.secondary">Loading contracts...</Typography>
+                            <Typography color="text.secondary">{t('Loading contracts...')}</Typography>
                         </TableCell>
                     </TableRow>
                 ) : error ? (
                     <TableRow>
                         <TableCell colSpan={8} align="center" sx={{ py: 8 }}>
-                            <Typography color="error" variant="body1">{error}</Typography>
+                            <Typography color="error" variant="body1">{t(error)}</Typography>
                             <Button variant="outlined" onClick={() => fetchContracts()} sx={{ mt: 2 }}>
-                                Retry
+                                {t('Retry')}
                             </Button>
                         </TableCell>
                     </TableRow>
                 ) : filteredContracts.length === 0 ? (
                     <TableRow>
                         <TableCell colSpan={8} align="center" sx={{ py: 8 }}>
-                            <Typography color="text.secondary">No contracts found matching your filters.</Typography>
+                            <Typography color="text.secondary">{t('No contracts found matching your filters.')}</Typography>
                         </TableCell>
                     </TableRow>
                 ) : (
@@ -352,7 +355,7 @@ const ContractList = () => {
                             <TableCell>
                                 <Chip 
                                     icon={row.type === 'Import' ? <ArrowDownward fontSize="small" /> : <ArrowUpward fontSize="small" />}
-                                    label={row.type} 
+                                    label={t(row.type)} 
                                     size="small" 
                                     sx={{ 
                                         borderRadius: 1,
@@ -375,7 +378,7 @@ const ContractList = () => {
                             </TableCell>
                             <TableCell>
                                 <Chip 
-                                    label={row.status} 
+                                    label={t(row.status)} 
                                     size="small" 
                                     color={getStatusColor(row.status) as any}
                                     variant={row.status === 'Draft' ? 'outlined' : 'filled'}
@@ -421,28 +424,28 @@ const ContractList = () => {
         {/* Executive View Option */}
         <MenuItem onClick={() => handleAction('lifecycle')} sx={{ color: theme.palette.secondary.main, bgcolor: alpha(theme.palette.secondary.main, 0.05) }}>
             <ListItemIcon><Timeline fontSize="small" color="secondary" /></ListItemIcon>
-            <ListItemText primary="Executive View" primaryTypographyProps={{ fontWeight: 'bold' }} />
+            <ListItemText primary={t('Executive View')} primaryTypographyProps={{ fontWeight: 'bold' }} />
         </MenuItem>
         
         <Divider />
         
         <MenuItem onClick={() => handleAction('view')}>
             <ListItemIcon><Visibility fontSize="small" /></ListItemIcon>
-            <ListItemText>Open Contract</ListItemText>
+            <ListItemText>{t('Open Contract')}</ListItemText>
         </MenuItem>
         <MenuItem onClick={() => handleAction('edit')}>
             <ListItemIcon><Edit fontSize="small" /></ListItemIcon>
-            <ListItemText>Edit Details</ListItemText>
+            <ListItemText>{t('Edit Details')}</ListItemText>
         </MenuItem>
         <MenuItem onClick={() => handleAction('duplicate')}>
             <ListItemIcon><ContentCopy fontSize="small" /></ListItemIcon>
-            <ListItemText>Duplicate</ListItemText>
+            <ListItemText>{t('Duplicate')}</ListItemText>
         </MenuItem>
         <Divider />
         {hasPermission('delete_contracts') && (
           <MenuItem onClick={() => handleAction('delete')} sx={{ color: 'error.main' }}>
               <ListItemIcon><DeleteOutline fontSize="small" color="error" /></ListItemIcon>
-              <ListItemText>Delete</ListItemText>
+              <ListItemText>{t('Delete')}</ListItemText>
           </MenuItem>
         )}
       </Menu>
@@ -451,7 +454,11 @@ const ContractList = () => {
       {pagination.pages > 1 && (
         <Box display="flex" justifyContent="between" alignItems="center" mt={2} px={2} py={1}>
           <Typography variant="body2" color="text.secondary">
-            Showing {((pagination.page - 1) * pagination.per_page) + 1} to {Math.min(pagination.page * pagination.per_page, pagination.total)} of {pagination.total} contracts
+            {t('Showing {{start}} to {{end}} of {{total}} contracts', {
+              start: ((pagination.page - 1) * pagination.per_page) + 1,
+              end: Math.min(pagination.page * pagination.per_page, pagination.total),
+              total: pagination.total
+            })}
           </Typography>
           <Box display="flex" alignItems="center" gap={1}>
             <Button
@@ -460,10 +467,10 @@ const ContractList = () => {
               disabled={pagination.page === 1 || loading || !!error}
               startIcon={<ChevronLeft />}
             >
-              Previous
+              {t('Previous')}
             </Button>
             <Typography variant="body2" color="text.secondary">
-              Page {pagination.page} of {pagination.pages}
+              {t('Page {{page}} of {{pages}}', { page: pagination.page, pages: pagination.pages })}
             </Typography>
             <Button
               size="small"
@@ -471,7 +478,7 @@ const ContractList = () => {
               disabled={pagination.page === pagination.pages || loading || !!error}
               endIcon={<ChevronRight />}
             >
-              Next
+              {t('Next')}
             </Button>
           </Box>
         </Box>
@@ -484,16 +491,16 @@ const ContractList = () => {
         maxWidth="sm"
         fullWidth
       >
-        <DialogTitle>Delete Contract</DialogTitle>
+        <DialogTitle>{t('Delete Contract')}</DialogTitle>
         <DialogContent>
           <Typography>
-            Are you sure you want to delete contract "{contractToDelete?.no}"? This action cannot be undone.
+            {t('confirmDeleteContract', { no: contractToDelete?.no })}
           </Typography>
         </DialogContent>
         <DialogActions>
-          <Button onClick={handleDeleteCancel}>Cancel</Button>
+          <Button onClick={handleDeleteCancel}>{t('Cancel')}</Button>
           <Button onClick={handleDeleteConfirm} color="error" variant="contained">
-            Delete
+            {t('Delete')}
           </Button>
         </DialogActions>
       </Dialog>

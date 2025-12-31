@@ -15,7 +15,6 @@ import {
     Security,
     Business,
     Add,
-    InfoOutlined,
     Groups,
     AdminPanelSettings,
     VerifiedUser
@@ -57,7 +56,7 @@ const UserManagementNew: React.FC = () => {
             ]);
             // Ensure we always have arrays
             const usersData = Array.isArray(usersRes.data) ? usersRes.data :
-                              (usersRes.data?.users || usersRes.data?.data || []);
+                (usersRes.data?.users || usersRes.data?.data || []);
             setUsers(usersData);
             setDepartments(Array.isArray(deptsRes.data) ? deptsRes.data : (deptsRes.data?.data || []));
             setPositions(Array.isArray(posRes.data) ? posRes.data : (posRes.data?.data || []));
@@ -108,24 +107,24 @@ const UserManagementNew: React.FC = () => {
     };
 
     const GuideCard = ({ icon, title, description, color }: any) => (
-        <Card sx={{ 
-            height: '100%', 
-            border: '1px solid', 
+        <Card sx={{
+            height: '100%',
+            border: '1px solid',
             borderColor: alpha(color, 0.2),
             bgcolor: theme.palette.mode === 'dark' ? alpha(color, 0.05) : alpha(color, 0.02),
             transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
-            '&:hover': { 
-                transform: 'translateY(-8px)', 
+            '&:hover': {
+                transform: 'translateY(-8px)',
                 boxShadow: theme.palette.mode === 'dark' ? `0 12px 30px ${alpha(color, 0.15)}` : theme.shadows[8],
                 borderColor: color,
                 bgcolor: alpha(color, 0.05)
             }
         }}>
             <CardContent sx={{ display: 'flex', gap: { xs: 1.5, md: 2 }, alignItems: 'flex-start', p: { xs: 2, md: 3 } }}>
-                <Box sx={{ 
-                    p: { xs: 1, md: 1.5 }, 
-                    borderRadius: 2, 
-                    bgcolor: alpha(color, 0.1), 
+                <Box sx={{
+                    p: { xs: 1, md: 1.5 },
+                    borderRadius: 2,
+                    bgcolor: alpha(color, 0.1),
                     color: color,
                     display: 'flex',
                     boxShadow: `0 4px 12px ${alpha(color, 0.2)}`
@@ -145,18 +144,18 @@ const UserManagementNew: React.FC = () => {
     );
 
     return (
-        <Box sx={{ 
-            width: '100%', 
-            minHeight: '100vh', 
-            bgcolor: alpha(theme.palette.background.default, 0.5), 
-            p: { xs: 1, sm: 2, md: 4 } 
+        <Box sx={{
+            width: '100%',
+            minHeight: '100vh',
+            bgcolor: alpha(theme.palette.background.default, 0.5),
+            p: { xs: 1, sm: 2, md: 4 }
         }}>
 
             {/* Header / Hero Section */}
-            <Box sx={{ 
-                mb: 4, 
-                p: { xs: 2, md: 4 }, 
-                borderRadius: { xs: 2, md: 4 }, 
+            <Box sx={{
+                mb: 4,
+                p: { xs: 2, md: 4 },
+                borderRadius: { xs: 2, md: 4 },
                 background: `linear-gradient(135deg, ${theme.palette.primary.main} 0%, ${theme.palette.primary.dark} 100%)`,
                 color: 'white',
                 position: 'relative',
@@ -164,13 +163,13 @@ const UserManagementNew: React.FC = () => {
                 boxShadow: '0 10px 30px rgba(0,0,0,0.1)'
             }}>
                 <Box sx={{ position: 'relative', zIndex: 1 }}>
-                    <Box sx={{ 
-                        display: 'flex', 
+                    <Box sx={{
+                        display: 'flex',
                         flexDirection: { xs: 'column', md: 'row' },
-                        justifyContent: 'space-between', 
-                        alignItems: { xs: 'flex-start', md: 'center' }, 
+                        justifyContent: 'space-between',
+                        alignItems: { xs: 'flex-start', md: 'center' },
                         gap: 2,
-                        mb: 2 
+                        mb: 2
                     }}>
                         <Box>
                             <Typography variant="h3" fontWeight="800" gutterBottom sx={{ fontSize: { xs: '1.8rem', md: '3rem' } }}>
@@ -185,8 +184,8 @@ const UserManagementNew: React.FC = () => {
                             size="large"
                             startIcon={<Add />}
                             onClick={handleCreateUser}
-                            sx={{ 
-                                bgcolor: 'white', 
+                            sx={{
+                                bgcolor: 'white',
                                 color: 'primary.main',
                                 fontWeight: 'bold',
                                 borderRadius: 3,
@@ -201,11 +200,11 @@ const UserManagementNew: React.FC = () => {
                     </Box>
                 </Box>
                 {/* Decorative Elements */}
-                <Security sx={{ 
-                    position: 'absolute', 
-                    right: -20, 
-                    bottom: -20, 
-                    fontSize: { xs: 100, md: 200 }, 
+                <Security sx={{
+                    position: 'absolute',
+                    right: -20,
+                    bottom: -20,
+                    fontSize: { xs: 100, md: 200 },
                     opacity: 0.1,
                     transform: 'rotate(-15deg)'
                 }} />
@@ -214,25 +213,25 @@ const UserManagementNew: React.FC = () => {
             {/* Explanation Cards */}
             <Grid container spacing={2} sx={{ mb: 4 }}>
                 <Grid item xs={12} sm={6} md={4}>
-                    <GuideCard 
-                        icon={<Groups />} 
-                        title={t('Users')} 
+                    <GuideCard
+                        icon={<Groups />}
+                        title={t('Users')}
                         description={t('rbac_users_desc')}
                         color={theme.palette.info.main}
                     />
                 </Grid>
                 <Grid item xs={12} sm={6} md={4}>
-                    <GuideCard 
-                        icon={<AdminPanelSettings />} 
-                        title={t('Roles')} 
+                    <GuideCard
+                        icon={<AdminPanelSettings />}
+                        title={t('Roles')}
                         description={t('rbac_roles_desc')}
                         color={theme.palette.warning.main}
                     />
                 </Grid>
                 <Grid item xs={12} sm={12} md={4}>
-                    <GuideCard 
-                        icon={<VerifiedUser />} 
-                        title={t('Permissions')} 
+                    <GuideCard
+                        icon={<VerifiedUser />}
+                        title={t('Permissions')}
                         description={t('rbac_perms_desc')}
                         color={theme.palette.success.main}
                     />
@@ -250,10 +249,10 @@ const UserManagementNew: React.FC = () => {
                     sx={{
                         borderBottom: 1,
                         borderColor: 'divider',
-                        '& .MuiTab-root': { 
+                        '& .MuiTab-root': {
                             py: 2,
-                            textTransform: 'none', 
-                            fontWeight: 700, 
+                            textTransform: 'none',
+                            fontWeight: 700,
                             fontSize: { xs: '0.875rem', md: '1rem' },
                             minHeight: 64
                         },
@@ -271,10 +270,10 @@ const UserManagementNew: React.FC = () => {
                 {/* Content Area */}
                 <Box sx={{ p: { xs: 1, sm: 2, md: 3 }, minHeight: 600 }}>
                     {error && (
-                        <Alert 
-                            severity="error" 
-                            variant="filled" 
-                            onClose={() => setError(null)} 
+                        <Alert
+                            severity="error"
+                            variant="filled"
+                            onClose={() => setError(null)}
                             sx={{ mb: 3, borderRadius: 2 }}
                         >
                             {error}

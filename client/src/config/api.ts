@@ -1,6 +1,6 @@
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://91.144.22.3:8001';
+const API_BASE_URL = '';
 
-const DASHBOARD_BASE = `${API_BASE_URL}/api/dashboard`;
+const DASHBOARD_BASE = `/dashboard`;
 
 export const API_ENDPOINTS = {
   DASHBOARD: {

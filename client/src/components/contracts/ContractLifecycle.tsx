@@ -1,15 +1,16 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { 
-  Box, Container, Typography, Grid, Card, CardContent, Divider, Chip, 
+  Box, Container, Typography, Grid, Card, Divider, Chip, 
   Stepper, Step, StepLabel, StepConnector, Button, IconButton, Stack,
   CircularProgress, Alert, Table, TableHead, TableBody, TableRow, TableCell
 } from '@mui/material';
 import { styled, useTheme, alpha } from '@mui/material/styles';
 import { 
-  Description, LocalShipping, AccountBalance, CheckCircle, ArrowBack, 
+  Description, LocalShipping, AccountBalance, ArrowBack, 
   Warning, Edit, ReceiptLong, History
 } from '@mui/icons-material';
+import { useTranslation } from 'react-i18next';
 import { stepConnectorClasses } from '@mui/material/StepConnector';
 import api from '../../services/api';
 import { Contract, FinancialTransaction } from '../../types/contracts';
@@ -57,13 +58,18 @@ function ColorlibStepIcon(props: ColorlibStepIconProps) {
 const ContractLifecycle = () => {
   const theme = useTheme();
   const navigate = useNavigate();
+  const { t } = useTranslation();
   const { id } = useParams();
   const [contract, setContract] = useState<Contract | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [ledger, setLedger] = useState<FinancialTransaction[]>([]);
 
-  const steps = ['Contract Signed', 'Shipping / Transit', 'Clearance & Payment'];
+  const steps = [
+    t('contracts.steps.signed'),
+    t('contracts.steps.shipping'),
+    t('contracts.steps.clearance')
+  ];
 
   useEffect(() => {
     const fetchContract = async () => {
@@ -88,14 +94,14 @@ const ContractLifecycle = () => {
       } catch (err: any) {
         console.error('Error fetching contract:', err);
         
-        let errorMessage = 'Failed to fetch contract data';
+        let errorMessage = t('contracts.errors.fetch_failed');
         
         if (err.response?.status === 404) {
-          errorMessage = 'Contract not found';
+          errorMessage = t('contracts.errors.not_found');
         } else if (err.response?.status === 401) {
-          errorMessage = 'Please login first';
+          errorMessage = t('common.errors.login_required');
         } else if (err.code === 'NETWORK_ERROR' || err.message.includes('Network Error')) {
-          errorMessage = 'Failed to connect to server. Make sure server is running';
+          errorMessage = t('common.errors.network_error');
         } else if (err.response?.data?.detail) {
           errorMessage = err.response.data.detail;
         }
@@ -107,13 +113,13 @@ const ContractLifecycle = () => {
     if (id) {
         fetchContract();
     }
-  }, [id]);
+  }, [id, t]);
 
   if (loading) {
     return (
       <Container sx={{ mt: 10, textAlign: 'center' }}>
         <CircularProgress />
-        <Typography variant="h6" sx={{ mt: 2 }}>Loading contract data...</Typography>
+        <Typography variant="h6" sx={{ mt: 2 }}>{t('common.loading')}</Typography>
       </Container>
     );
   }
@@ -127,13 +133,13 @@ const ContractLifecycle = () => {
             variant="contained" 
             onClick={() => window.location.reload()}
           >
-            Retry
+            {t('common.retry')}
           </Button>
           <Button 
             variant="outlined" 
             onClick={() => navigate('/contracts')}
           >
-            Back to Contracts
+            {t('contracts.back_to_list')}
           </Button>
         </Box>
       </Container>
@@ -143,8 +149,8 @@ const ContractLifecycle = () => {
   if (!contract) {
     return (
       <Container sx={{ mt: 10, textAlign: 'center' }}>
-        <Typography variant="h5">Contract Not Found</Typography>
-        <Button onClick={() => navigate('/contracts')}>Back</Button>
+        <Typography variant="h5">{t('contracts.errors.not_found')}</Typography>
+        <Button onClick={() => navigate('/contracts')}>{t('common.back')}</Button>
       </Container>
     );
   }
@@ -197,17 +203,17 @@ const ContractLifecycle = () => {
         <Box>
             <Box display="flex" alignItems="center" gap={2}>
                 <Typography variant="h4" fontWeight="800" color="primary.main">
-                  {contract.contract_no || 'Draft Contract'}
+                  {contract.contract_no || t('contracts.draft_contract')}
                 </Typography>
                 <Chip 
-                  label={contract.status.toUpperCase()} 
+                  label={t(`contracts.status.${contract.status.toLowerCase()}`).toUpperCase()} 
                   color={getStatusColor(contract.status) as any} 
                   sx={{ fontWeight: 'bold', borderRadius: 1.5 }} 
                 />
             </Box>
             <Typography variant="body1" color="text.secondary">
-              {contract.direction === 'import' ? 'Import Operation' : 'Export Operation'} — 
-              {contract.items?.[0]?.article_name || 'Generic Commodity'}
+              {contract.direction === 'import' ? t('contracts.import_operation') : t('contracts.export_operation')} — 
+              {contract.items?.[0]?.article_name || t('contracts.generic_commodity')}
             </Typography>
         </Box>
         <Box flexGrow={1} />
@@ -218,7 +224,7 @@ const ContractLifecycle = () => {
             onClick={() => navigate(`/contracts/${id}/edit`)}
             sx={{ borderRadius: 2 }}
           >
-            Edit Contract
+            {t('contracts.edit_contract')}
           </Button>
         </Stack>
       </Box>
@@ -231,7 +237,7 @@ const ContractLifecycle = () => {
         {contract.status === 'cancelled' ? (
           <Box textAlign="center">
             <Warning color="error" sx={{ fontSize: 40, mb: 1 }} />
-            <Typography variant="h6" color="error.main" fontWeight="700">This contract has been cancelled</Typography>
+            <Typography variant="h6" color="error.main" fontWeight="700">{t('contracts.messages.cancelled')}</Typography>
           </Box>
         ) : (
           <Stepper alternativeLabel activeStep={currentStep} connector={<ColorlibConnector />}>
@@ -247,24 +253,24 @@ const ContractLifecycle = () => {
       <Grid container spacing={3}>
         <Grid item xs={12} md={8}>
             <Card elevation={0} sx={{ height: '100%', borderRadius: 4, p: 3, border: `1px solid ${theme.palette.divider}` }}>
-                <SectionHeader title="Financial Summary" icon={<AccountBalance fontSize="small" />} />
+                <SectionHeader title={t('contracts.financial_summary')} icon={<AccountBalance fontSize="small" />} />
                 <Box display="flex" justifyContent="space-around" textAlign="center" py={2}>
                     <Box>
-                      <Typography variant="caption" color="text.secondary" fontWeight="700" sx={{ textTransform: 'uppercase' }}>Average Price</Typography>
+                      <Typography variant="caption" color="text.secondary" fontWeight="700" sx={{ textTransform: 'uppercase' }}>{t('contracts.average_price')}</Typography>
                       <Typography variant="h5" fontWeight="800" sx={{ mt: 1 }}>
                         {avgPrice.toLocaleString(undefined, { minimumFractionDigits: 2 })} <Typography component="span" variant="body2" color="text.secondary">/ MT</Typography>
                       </Typography>
                     </Box>
                     <Divider orientation="vertical" flexItem />
                     <Box>
-                      <Typography variant="caption" color="text.secondary" fontWeight="700" sx={{ textTransform: 'uppercase' }}>Total Value</Typography>
+                      <Typography variant="caption" color="text.secondary" fontWeight="700" sx={{ textTransform: 'uppercase' }}>{t('contracts.total_value')}</Typography>
                       <Typography variant="h5" fontWeight="800" color="primary.main" sx={{ mt: 1 }}>
                         {totalValue.toLocaleString(undefined, { minimumFractionDigits: 2 })}
                       </Typography>
                     </Box>
                     <Divider orientation="vertical" flexItem />
                     <Box>
-                      <Typography variant="caption" color="text.secondary" fontWeight="700" sx={{ textTransform: 'uppercase' }}>Currency</Typography>
+                      <Typography variant="caption" color="text.secondary" fontWeight="700" sx={{ textTransform: 'uppercase' }}>{t('contracts.currency')}</Typography>
                       <Typography variant="h5" fontWeight="800" color="success.main" sx={{ mt: 1 }}>
                         {contract.contract_currency || 'USD'}
                       </Typography>
@@ -274,22 +280,22 @@ const ContractLifecycle = () => {
         </Grid>
         <Grid item xs={12} md={4}>
             <Card elevation={0} sx={{ borderRadius: 4, p: 3, border: `1px solid ${theme.palette.divider}` }}>
-                <SectionHeader title="Key Milestones" icon={<Description fontSize="small" />} />
+                <SectionHeader title={t('contracts.key_milestones')} icon={<Description fontSize="small" />} />
                 <Stack spacing={2.5} sx={{ mt: 2 }}>
                     <Box display="flex" justifyContent="space-between">
-                      <Typography variant="body2" color="text.secondary" fontWeight="600">Issue Date</Typography>
+                      <Typography variant="body2" color="text.secondary" fontWeight="600">{t('contracts.issue_date')}</Typography>
                       <Typography variant="body2" fontWeight="700">{contract.issue_date || '—'}</Typography>
                     </Box>
                     <Box display="flex" justifyContent="space-between">
-                      <Typography variant="body2" color="text.secondary" fontWeight="600">Shipment Date</Typography>
+                      <Typography variant="body2" color="text.secondary" fontWeight="600">{t('contracts.shipment_date')}</Typography>
                       <Typography variant="body2" fontWeight="700">{contract.shipment_date || '—'}</Typography>
                     </Box>
                     <Box display="flex" justifyContent="space-between">
-                      <Typography variant="body2" color="text.secondary" fontWeight="600">Payment Terms</Typography>
+                      <Typography variant="body2" color="text.secondary" fontWeight="600">{t('contracts.payment_terms')}</Typography>
                       <Typography variant="body2" fontWeight="700">{contract.payment_terms || '—'}</Typography>
                     </Box>
                     <Box display="flex" justifyContent="space-between">
-                      <Typography variant="body2" color="text.secondary" fontWeight="600">Destination</Typography>
+                      <Typography variant="body2" color="text.secondary" fontWeight="600">{t('contracts.destination')}</Typography>
                       <Typography variant="body2" fontWeight="700">{contract.destination || '—'}</Typography>
                     </Box>
                 </Stack>
@@ -300,23 +306,23 @@ const ContractLifecycle = () => {
       {/* 4. Financial Ledger Section */}
       <Card elevation={0} sx={{ mt: 3, borderRadius: 4, border: `1px solid ${theme.palette.divider}`, overflow: 'hidden' }}>
         <Box sx={{ p: 3 }}>
-          <SectionHeader title="Transaction History & Ledger" icon={<History fontSize="small" />} />
+          <SectionHeader title={t('contracts.ledger.title')} icon={<History fontSize="small" />} />
           {ledger.length === 0 ? (
             <Box textAlign="center" py={6}>
               <ReceiptLong sx={{ fontSize: 48, color: 'text.disabled', mb: 1 }} />
-              <Typography color="text.secondary">No financial transactions recorded for this contract yet.</Typography>
+              <Typography color="text.secondary">{t('contracts.ledger.no_transactions')}</Typography>
             </Box>
           ) : (
             <Box sx={{ mt: 2, overflowX: 'auto' }}>
               <Table size="small">
                 <TableHead>
                   <TableRow>
-                    <TableCell sx={{ fontWeight: 'bold', bgcolor: alpha(theme.palette.primary.main, 0.04) }}>Date</TableCell>
-                    <TableCell sx={{ fontWeight: 'bold', bgcolor: alpha(theme.palette.primary.main, 0.04) }}>Description</TableCell>
-                    <TableCell sx={{ fontWeight: 'bold', bgcolor: alpha(theme.palette.primary.main, 0.04) }}>Reference</TableCell>
-                    <TableCell align="right" sx={{ fontWeight: 'bold', bgcolor: alpha(theme.palette.primary.main, 0.04) }}>Debit</TableCell>
-                    <TableCell align="right" sx={{ fontWeight: 'bold', bgcolor: alpha(theme.palette.primary.main, 0.04) }}>Credit</TableCell>
-                    <TableCell align="right" sx={{ fontWeight: 'bold', bgcolor: alpha(theme.palette.primary.main, 0.04) }}>Balance</TableCell>
+                    <TableCell sx={{ fontWeight: 'bold', bgcolor: alpha(theme.palette.primary.main, 0.04) }}>{t('contracts.ledger.date')}</TableCell>
+                    <TableCell sx={{ fontWeight: 'bold', bgcolor: alpha(theme.palette.primary.main, 0.04) }}>{t('contracts.ledger.description')}</TableCell>
+                    <TableCell sx={{ fontWeight: 'bold', bgcolor: alpha(theme.palette.primary.main, 0.04) }}>{t('contracts.ledger.reference')}</TableCell>
+                    <TableCell align="right" sx={{ fontWeight: 'bold', bgcolor: alpha(theme.palette.primary.main, 0.04) }}>{t('contracts.ledger.debit')}</TableCell>
+                    <TableCell align="right" sx={{ fontWeight: 'bold', bgcolor: alpha(theme.palette.primary.main, 0.04) }}>{t('contracts.ledger.credit')}</TableCell>
+                    <TableCell align="right" sx={{ fontWeight: 'bold', bgcolor: alpha(theme.palette.primary.main, 0.04) }}>{t('contracts.ledger.balance')}</TableCell>
                   </TableRow>
                 </TableHead>
                 <TableBody>
@@ -345,7 +351,7 @@ const ContractLifecycle = () => {
                     '& td': { borderTop: `2px solid ${theme.palette.primary.main}` }
                   }}>
                     <TableCell colSpan={3} sx={{ fontWeight: 'bold', textAlign: 'right', py: 2, fontSize: '0.85rem' }}>
-                      SUMMARY TOTALS ({contract.contract_currency})
+                      {t('contracts.ledger.summary_totals')} ({contract.contract_currency})
                     </TableCell>
                     <TableCell align="right" sx={{ fontWeight: '800', color: 'error.main', fontSize: '0.9rem' }}>
                       {ledger.reduce((sum, tx) => sum + (tx.debit || 0), 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}
@@ -371,12 +377,5 @@ const ContractLifecycle = () => {
     </Container>
   );
 };
-
-const DocItem = ({ label, status }: { label: string, status: boolean }) => (
-    <Box display="flex" justifyContent="space-between" alignItems="center" p={1.5} border="1px solid #eee" borderRadius={2}>
-        <Box display="flex" gap={1}>{status ? <CheckCircle color="success" fontSize="small"/> : <Warning color="warning" fontSize="small"/>}<Typography>{label}</Typography></Box>
-        <Chip label={status?"OK":"Pending"} size="small" color={status?"success":"warning"} />
-    </Box>
-);
 
 export default ContractLifecycle;

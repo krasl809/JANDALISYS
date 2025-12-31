@@ -118,14 +118,14 @@ Icon
 .Trashes
 
 # Test files and debug scripts
-test_*.py
+#test_*.py
 debug_*.py
 check_*.py
 *_test.py
 *_debug.py
 *_check.py
 fix_*.py
-add_*.py
+#add_*.py
 create_*.py
 seed_*.py
 reset_*.py
@@ -136,7 +136,7 @@ final_*.py
 test_import.xlsx
 
 # Production scripts
-*_production.*
+#*_production.*
 setup_*.bat
 setup_*.ps1
 build_*.ps1

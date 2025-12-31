@@ -1,10 +1,10 @@
 import React from 'react';
-import { Box, Card, CardContent, Grid, Typography, useTheme, alpha, Chip, Stepper, Step, StepLabel, CircularProgress, InputAdornment, RadioGroup, FormControlLabel, Radio, Tooltip, IconButton, Divider, Stack, Button, TextField } from '@mui/material';
-import { ArrowForward, ImportExport, Event, EditCalendar, Map, Business, AttachMoney, Description, PriceCheck, LocalShipping, Receipt, Payment, AccountBalanceWallet, Folder, Print, Save, Send, Delete, AddCircleOutline, Remove } from '@mui/icons-material';
+import { Box, Card, CardContent, Grid, Typography, useTheme, alpha, CircularProgress, InputAdornment, RadioGroup, FormControlLabel, Radio, Tooltip, IconButton, Stack, Button, TextField } from '@mui/material';
+import { Event, EditCalendar, Map, Business, AttachMoney, Description, LocalShipping, Receipt, AddCircleOutline } from '@mui/icons-material';
+import { useTranslation } from 'react-i18next';
 import FormField from '../common/FormField';
 import DataTable, { Column } from '../common/DataTable';
 import SectionHeader from '../common/SectionHeader';
-import { v4 as uuidv4 } from 'uuid';
 import { ContractDetailsTabProps, Article } from '../../types/contracts';
 
 const ContractDetailsTab: React.FC<ContractDetailsTabProps> = ({
@@ -20,15 +20,12 @@ const ContractDetailsTab: React.FC<ContractDetailsTabProps> = ({
   handleAddItem,
   handleRemoveItem,
   setIsShipmentDate,
-  canEditContract,
-  handleSave,
   handleGenerateNumber,
   isGeneratingNo,
   id,
-  navigate,
-  setDeleteDialogOpen,
 }) => {
   const theme = useTheme();
+  const { t } = useTranslation();
 
   const headerSx = {
     backgroundColor: alpha(theme.palette.primary.main, 0.04),
@@ -52,7 +49,7 @@ const ContractDetailsTab: React.FC<ContractDetailsTabProps> = ({
   const itemColumns: Column[] = [
     {
       key: 'article_id',
-      label: 'Article',
+      label: t('contracts.article'),
       type: 'autocomplete' as const,
       width: '25%',
       options: lists.articles,
@@ -60,40 +57,40 @@ const ContractDetailsTab: React.FC<ContractDetailsTabProps> = ({
     },
     ...(mode === 'import' ? [{
       key: 'qty_lot',
-      label: 'Qty (Lot)',
+      label: t('contracts.qty_lot'),
       type: 'number' as const,
-    }] : []),
+    } as Column] : []),
     {
       key: 'qty_ton',
-      label: mode === 'export' ? 'Quantity (MT)' : 'Qty (Ton)',
+      label: mode === 'export' ? t('contracts.quantity_mt') : t('contracts.qty_ton'),
       type: 'number' as const,
       endAdornment: <Typography variant="caption">MT</Typography>,
-    },
+    } as Column,
     {
       key: 'packing',
-      label: 'Packing',
+      label: t('contracts.packing'),
       type: 'text' as const,
-    },
+    } as Column,
     ...(mode === 'import' && !isFixedPrice ? [{
       key: 'premium',
-      label: 'Premium',
+      label: t('contracts.premium'),
       type: 'number' as const,
-    }] : [{
+    } as Column] : [{
       key: 'price',
-      label: 'Price',
+      label: t('contracts.price'),
       type: 'number' as const,
-    }]),
-    {
+    } as Column]),
+    ...(isFixedPrice ? [{
       key: 'total',
-      label: 'Total',
+      label: t('contracts.total'),
       type: 'text' as const,
-      align: 'right',
+      align: 'right' as const,
       renderCell: (value: number) => (
         <Typography sx={{ fontWeight: 'bold', color: theme.palette.primary.main }}>
           {value.toLocaleString(undefined, { minimumFractionDigits: 2 })}
         </Typography>
       ),
-    },
+    } as Column] : []),
   ];
 
   return (
@@ -103,10 +100,10 @@ const ContractDetailsTab: React.FC<ContractDetailsTabProps> = ({
         {/* 1. General Info */}
         <Card elevation={0} sx={{ mb: 3 }}>
           <CardContent>
-            <SectionHeader title="General Information" icon={<Description fontSize="small" />} />
+            <SectionHeader title={t('contracts.general_information')} icon={<Description fontSize="small" />} />
             <Grid container spacing={3}>
               <FormField
-                label="Contract Reference No."
+                label={t('contracts.contract_reference_no')}
                 type="text"
                 value={formData.contract_no}
                 disabled
@@ -120,7 +117,7 @@ const ContractDetailsTab: React.FC<ContractDetailsTabProps> = ({
                 <Grid xs={12} md={6}>
                   <div style={{ marginBottom: '8px' }}>
                     <span style={{ fontWeight: 700, fontSize: '0.7rem', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
-                      Pricing Model
+                      {t('contracts.pricing_model')}
                     </span>
                   </div>
                   <RadioGroup
@@ -133,13 +130,13 @@ const ContractDetailsTab: React.FC<ContractDetailsTabProps> = ({
                       handleItemChange('all', 'total', 0);
                     }}
                   >
-                    <FormControlLabel value="fixed_price" control={<Radio size="small"/>} label={<Typography variant="body2">Fixed Price</Typography>} />
-                    <FormControlLabel value="stock_market" control={<Radio size="small"/>} label={<Typography variant="body2">Stock Market</Typography>} />
+                    <FormControlLabel value="fixed_price" control={<Radio size="small"/>} label={<Typography variant="body2">{t('contracts.fixed_price')}</Typography>} />
+                    <FormControlLabel value="stock_market" control={<Radio size="small"/>} label={<Typography variant="body2">{t('contracts.stock_market')}</Typography>} />
                   </RadioGroup>
                 </Grid>
               )}
               <FormField
-                label="Currency"
+                label={t('contracts.currency')}
                 type="select"
                 value={formData.contract_currency}
                 onChange={(value: string) => handleInputChange('contract_currency', value)}
@@ -147,7 +144,7 @@ const ContractDetailsTab: React.FC<ContractDetailsTabProps> = ({
                 gridSize={{ xs: 12, md: 6 }}
               />
               <FormField
-                label="Issue Date"
+                label={t('contracts.issue_date')}
                 type="date"
                 value={formData.issue_date}
                 onChange={(value: string) => handleInputChange('issue_date', value)}
@@ -155,7 +152,7 @@ const ContractDetailsTab: React.FC<ContractDetailsTabProps> = ({
                 gridSize={{ xs: 12, md: 6 }}
               />
               <FormField
-                label="Actual Shipped Quantity"
+                label={t('contracts.actual_shipped_quantity')}
                 type="number"
                 value={formData.actual_shipped_quantity}
                 onChange={(value: string) => handleInputChange('actual_shipped_quantity', value)}
@@ -171,7 +168,7 @@ const ContractDetailsTab: React.FC<ContractDetailsTabProps> = ({
         {/* 2. Product Details Table */}
         <Card elevation={0} sx={{ mb: 3, overflow: 'hidden' }}>
           <Box sx={{ p: 2, bgcolor: theme.palette.background.paper }}>
-            <SectionHeader title="Product Specifications" icon={<Receipt fontSize="small" />} />
+            <SectionHeader title={t('contracts.product_specifications')} icon={<Receipt fontSize="small" />} />
           </Box>
           <DataTable
             columns={itemColumns}
@@ -185,13 +182,15 @@ const ContractDetailsTab: React.FC<ContractDetailsTabProps> = ({
             inputTableSx={inputTableSx}
           />
           <Box sx={{ p: 2, display: 'flex', justifyContent: 'space-between', alignItems: 'center', bgcolor: alpha(theme.palette.primary.main, 0.02) }}>
-            <Button startIcon={<AddCircleOutline />} onClick={handleAddItem} size="small" variant="text">Add Line Item</Button>
-            <Box textAlign="right">
-              <Typography variant="caption" color="text.secondary">GRAND TOTAL ({formData.contract_currency})</Typography>
-              <Typography variant="h5" fontWeight="800" color="primary.main">
-                {totalAmount.toLocaleString(undefined, {minimumFractionDigits: 2})}
-              </Typography>
-            </Box>
+            <Button startIcon={<AddCircleOutline />} onClick={handleAddItem} size="small" variant="text">{t('contracts.add_line_item')}</Button>
+            {isFixedPrice && (
+              <Box textAlign="right">
+                <Typography variant="caption" color="text.secondary">{t('contracts.grand_total')} ({formData.contract_currency})</Typography>
+                <Typography variant="h5" fontWeight="800" color="primary.main">
+                  {totalAmount.toLocaleString(undefined, {minimumFractionDigits: 2})}
+                </Typography>
+              </Box>
+            )}
           </Box>
         </Card>
 
@@ -199,18 +198,18 @@ const ContractDetailsTab: React.FC<ContractDetailsTabProps> = ({
         {mode === 'import' && (
           <Card elevation={0} sx={{ mb: 3 }}>
             <CardContent>
-              <SectionHeader title="Charter Party" icon={<LocalShipping fontSize="small" />} />
+              <SectionHeader title={t('contracts.charter_party')} icon={<LocalShipping fontSize="small" />} />
               <Grid container spacing={3}>
                 <FormField
-                  label="Vessel Name"
+                  label={t('contracts.vessel_name')}
                   type="text"
                   value={formData.vessel_name}
                   onChange={(value: string) => handleInputChange('vessel_name', value)}
                   gridSize={{ xs: 12 }}
-                  placeholder="Enter vessel name"
+                  placeholder={t('contracts.enter_vessel_name')}
                 />
                 <FormField
-                  label="Demurrage Rate"
+                  label={t('contracts.demurrage_rate')}
                   type="number"
                   value={formData.demurrage_rate}
                   onChange={(value: string) => handleInputChange('demurrage_rate', value)}
@@ -220,7 +219,7 @@ const ContractDetailsTab: React.FC<ContractDetailsTabProps> = ({
                   }}
                 />
                 <FormField
-                  label="Discharge Rate"
+                  label={t('contracts.discharge_rate')}
                   type="number"
                   value={formData.discharge_rate}
                   onChange={(value: string) => handleInputChange('discharge_rate', value)}
@@ -230,7 +229,7 @@ const ContractDetailsTab: React.FC<ContractDetailsTabProps> = ({
                   }}
                 />
                 <FormField
-                  label="Dispatch Rate"
+                  label={t('contracts.dispatch_rate')}
                   type="select"
                   value={formData.dispatch_rate}
                   onChange={(value: string) => handleInputChange('dispatch_rate', value)}
@@ -240,22 +239,22 @@ const ContractDetailsTab: React.FC<ContractDetailsTabProps> = ({
                   }}
                   selectProps={{
                     displayEmpty: true,
-                    renderValue: (): React.ReactNode => formData.dispatch_rate || 'Select Option',
+                    renderValue: (): React.ReactNode => formData.dispatch_rate || t('common.select_option'),
                   }}
                   options={[
-                    { value: "free", label: "Free" },
-                    { value: "half", label: "Half Demurrage Rate" }
+                    { value: "free", label: t('contracts.free') },
+                    { value: "half", label: t('contracts.half_demurrage_rate') }
                   ]}
                 />
                 <FormField
-                  label="Laycan Date (From)"
+                  label={t('contracts.laycan_date_from')}
                   type="date"
                   value={formData.laycan_date_from}
                   onChange={(value: string) => handleInputChange('laycan_date_from', value)}
                   gridSize={{ xs: 12, md: 6 }}
                 />
                 <FormField
-                  label="Laycan Date (To)"
+                  label={t('contracts.laycan_date_to')}
                   type="date"
                   value={formData.laycan_date_to}
                   onChange={(value: string) => handleInputChange('laycan_date_to', value)}
@@ -273,10 +272,10 @@ const ContractDetailsTab: React.FC<ContractDetailsTabProps> = ({
           {/* 4. Parties */}
           <Card elevation={0}>
             <CardContent>
-              <SectionHeader title="Business Parties" icon={<Business fontSize="small" />} />
+              <SectionHeader title={t('contracts.business_parties')} icon={<Business fontSize="small" />} />
               <Stack spacing={2}>
                 <FormField
-                  label="Seller"
+                  label={t('contracts.seller')}
                   type="autocomplete"
                   value={formData.seller_id}
                   onChange={(value: string) => {
@@ -288,7 +287,7 @@ const ContractDetailsTab: React.FC<ContractDetailsTabProps> = ({
                   required
                 />
                 <FormField
-                  label="Buyer"
+                  label={t('contracts.buyer')}
                   type="autocomplete"
                   value={formData.buyer_id}
                   onChange={(value: string) => handleInputChange('buyer_id', value)}
@@ -297,7 +296,7 @@ const ContractDetailsTab: React.FC<ContractDetailsTabProps> = ({
                   required
                 />
                 <FormField
-                  label="Shipper"
+                  label={t('contracts.shipper')}
                   type="autocomplete"
                   value={formData.shipper_id}
                   onChange={(value: string) => handleInputChange('shipper_id', value)}
@@ -307,7 +306,7 @@ const ContractDetailsTab: React.FC<ContractDetailsTabProps> = ({
                 {mode === 'import' && (
                   <>
                     <FormField
-                      label="Broker"
+                      label={t('contracts.broker')}
                       type="autocomplete"
                       value={formData.broker_id}
                       onChange={(value: string) => handleInputChange('broker_id', value)}
@@ -315,7 +314,7 @@ const ContractDetailsTab: React.FC<ContractDetailsTabProps> = ({
                       getOptionLabel={(opt: any) => opt.contact_name}
                     />
                     <FormField
-                      label="Agent"
+                      label={t('contracts.agent')}
                       type="autocomplete"
                       value={formData.agent_id}
                       onChange={(value: string) => handleInputChange('agent_id', value)}
@@ -323,7 +322,7 @@ const ContractDetailsTab: React.FC<ContractDetailsTabProps> = ({
                       getOptionLabel={(opt: any) => opt.contact_name}
                     />
                     <FormField
-                      label="Conveyor"
+                      label={t('contracts.conveyor')}
                       type="autocomplete"
                       value={formData.conveyor_id}
                       onChange={(value: string) => handleInputChange('conveyor_id', value)}
@@ -338,17 +337,17 @@ const ContractDetailsTab: React.FC<ContractDetailsTabProps> = ({
 
           <Card elevation={0}>
             <CardContent>
-              <SectionHeader title="Commercial Terms" icon={<AttachMoney fontSize="small" />} />
+              <SectionHeader title={t('contracts.commercial_terms')} icon={<AttachMoney fontSize="small" />} />
               <Grid container spacing={2}>
                 <FormField
-                  label="Payment Terms"
+                  label={t('contracts.payment_terms')}
                   type="text"
                   value={formData.payment_terms}
                   onChange={(value: string) => handleInputChange('payment_terms', value)}
                   gridSize={{ xs: 12 }}
                 />
                 <FormField
-                  label="Incoterms"
+                  label={t('contracts.incoterms')}
                   type="text"
                   value={formData.incoterms}
                   onChange={(value: string) => handleInputChange('incoterms', value)}
@@ -357,7 +356,7 @@ const ContractDetailsTab: React.FC<ContractDetailsTabProps> = ({
                 <Grid xs={12} md={6}>
                   <div style={{ marginBottom: '8px' }}>
                     <span style={{ fontWeight: 700, fontSize: '0.7rem', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
-                      {mode === 'export' ? "Shipment Date *" : (isShipmentDate ? "Shipment Date *" : "Shipment Period (FTA) *")}
+                      {mode === 'export' ? t('contracts.shipment_date_required') : (isShipmentDate ? t('contracts.shipment_date_required') : t('contracts.shipment_period_fta_required'))}
                     </span>
                   </div>
                   {mode === 'export' ? (
@@ -381,7 +380,7 @@ const ContractDetailsTab: React.FC<ContractDetailsTabProps> = ({
                       InputProps={{
                         endAdornment: (
                           <InputAdornment position="end">
-                            <Tooltip title="Switch to FTA">
+                            <Tooltip title={t('contracts.switch_to_fta')}>
                               <IconButton
                                 size="small"
                                 onClick={() => setIsShipmentDate(false)}
@@ -399,7 +398,7 @@ const ContractDetailsTab: React.FC<ContractDetailsTabProps> = ({
                       type="text"
                       fullWidth
                       size="small"
-                      placeholder="e.g. Prompt Shipment"
+                      placeholder={t('contracts.prompt_shipment_placeholder')}
                       value={formData.shipment_period || ''}
                       onChange={(e) => {
                         handleInputChange('shipment_period', e.target.value);
@@ -409,7 +408,7 @@ const ContractDetailsTab: React.FC<ContractDetailsTabProps> = ({
                       InputProps={{
                         endAdornment: (
                           <InputAdornment position="end">
-                            <Tooltip title="Switch to Date">
+                            <Tooltip title={t('contracts.switch_to_date')}>
                               <IconButton
                                 size="small"
                                 onClick={() => setIsShipmentDate(true)}
@@ -426,7 +425,7 @@ const ContractDetailsTab: React.FC<ContractDetailsTabProps> = ({
                 </Grid>
                 {mode === 'export' ? (
                   <FormField
-                    label="Destination"
+                    label={t('contracts.destination')}
                     type="text"
                     value={formData.destination}
                     onChange={(value: string) => handleInputChange('destination', value)}
@@ -444,32 +443,32 @@ const ContractDetailsTab: React.FC<ContractDetailsTabProps> = ({
                     }}>
                       <Box display="flex" alignItems="center" gap={1} mb={1}>
                         <Map fontSize="small" color="info" />
-                        <Typography variant="subtitle2" fontWeight="700" color="info.main">Logistics Route</Typography>
+                        <Typography variant="subtitle2" fontWeight="700" color="info.main">{t('contracts.logistics_route')}</Typography>
                       </Box>
                       <Grid container spacing={2}>
                         <FormField
-                          label="Port of Loading (POL)"
+                          label={t('contracts.port_of_loading')}
                           type="text"
                           value={formData.port_of_loading}
                           onChange={(value: string) => handleInputChange('port_of_loading', value)}
                           gridSize={{ xs: 12, md: 6 }}
                         />
                         <FormField
-                          label="Port of Discharge (POD)"
+                          label={t('contracts.port_of_discharge')}
                           type="text"
                           value={formData.destination}
                           onChange={(value: string) => handleInputChange('destination', value)}
                           gridSize={{ xs: 12, md: 6 }}
                         />
                         <FormField
-                          label="Place of Origin"
+                          label={t('contracts.place_of_origin')}
                           type="text"
                           value={formData.place_of_origin}
                           onChange={(value: string) => handleInputChange('place_of_origin', value)}
                           gridSize={{ xs: 12, md: 6 }}
                         />
                         <FormField
-                          label="Place of Delivery"
+                          label={t('contracts.place_of_delivery')}
                           type="text"
                           value={formData.place_of_delivery}
                           onChange={(value: string) => handleInputChange('place_of_delivery', value)}
@@ -480,7 +479,7 @@ const ContractDetailsTab: React.FC<ContractDetailsTabProps> = ({
                   </Grid>
                 )}
                 <FormField
-                  label="Bank Details"
+                  label={t('contracts.bank_details')}
                   type="text"
                   value={formData.bank_details}
                   onChange={(value: string) => handleInputChange('bank_details', value)}
@@ -498,12 +497,12 @@ const ContractDetailsTab: React.FC<ContractDetailsTabProps> = ({
           {id && (
             <Card elevation={0} sx={{ bgcolor: alpha(theme.palette.info.main, 0.03), border: `1px solid ${alpha(theme.palette.info.main, 0.2)}` }}>
               <CardContent>
-                <SectionHeader title="Contract Info" icon={<Description fontSize="small" />} />
+                <SectionHeader title={t('contracts.contract_info')} icon={<Description fontSize="small" />} />
                 <Stack spacing={1.5}>
-                  <Box><Typography variant="caption" color="text.secondary" fontWeight="bold">Posted by:</Typography><Typography variant="body2">{formData.posted_by || 'N/A'}</Typography></Box>
-                  <Box><Typography variant="caption" color="text.secondary" fontWeight="bold">Finance Notified by:</Typography><Typography variant="body2">{formData.finance_notified_by || 'N/A'}</Typography></Box>
-                  <Box><Typography variant="caption" color="text.secondary" fontWeight="bold">Posted Date:</Typography><Typography variant="body2">{formData.posted_date || 'N/A'}</Typography></Box>
-                  <Box><Typography variant="caption" color="text.secondary" fontWeight="bold">Modified Date:</Typography><Typography variant="body2">{formData.modified_date || 'N/A'}</Typography></Box>
+                  <Box><Typography variant="caption" color="text.secondary" fontWeight="bold">{t('contracts.posted_by')}</Typography><Typography variant="body2">{formData.posted_by || t('common.na')}</Typography></Box>
+                  <Box><Typography variant="caption" color="text.secondary" fontWeight="bold">{t('contracts.finance_notified_by')}</Typography><Typography variant="body2">{formData.finance_notified_by || t('common.na')}</Typography></Box>
+                  <Box><Typography variant="caption" color="text.secondary" fontWeight="bold">{t('contracts.posted_date')}</Typography><Typography variant="body2">{formData.posted_date || t('common.na')}</Typography></Box>
+                  <Box><Typography variant="caption" color="text.secondary" fontWeight="bold">{t('contracts.modified_date')}</Typography><Typography variant="body2">{formData.modified_date || t('common.na')}</Typography></Box>
                 </Stack>
               </CardContent>
             </Card>

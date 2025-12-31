@@ -124,6 +124,10 @@ const ArchiveBrowser: React.FC = () => {
   const [uploading, setUploading] = useState(false);
   const [uploadName, setUploadName] = useState(''); // Added for renaming before save
   const [uploadDescription, setUploadDescription] = useState('');
+  
+  const folderInputRef = React.useRef<HTMLInputElement>(null);
+  const [bulkUploading, setBulkUploading] = useState(false);
+  const [bulkProgress, setBulkProgress] = useState(0);
 
   const canUpload = hasPermission(PERMISSIONS.UPLOAD_ARCHIVE) || hasPermission(PERMISSIONS.MANAGE_ARCHIVE);
   const canDelete = hasPermission(PERMISSIONS.DELETE_ARCHIVE) || hasPermission(PERMISSIONS.MANAGE_ARCHIVE);
@@ -560,6 +564,52 @@ const ArchiveBrowser: React.FC = () => {
         }
     };
 
+    const handleFolderUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+        const files = event.target.files;
+        if (!files || files.length === 0 || !currentFolder) return;
+
+        setBulkUploading(true);
+        setBulkProgress(0);
+
+        const formData = new FormData();
+        formData.append('parent_folder_id', currentFolder.id.toString());
+        
+        const relativePaths: string[] = [];
+        
+        for (let i = 0; i < files.length; i++) {
+            const file = files[i];
+            formData.append('files', file);
+            // webkitRelativePath contains the path starting from the folder name
+            relativePaths.push((file as any).webkitRelativePath || file.name);
+        }
+        
+        formData.append('relative_paths', JSON.stringify(relativePaths));
+
+        try {
+            await api.post('/archive/bulk-upload', formData, {
+                headers: {
+                    'Content-Type': 'multipart/form-data',
+                },
+                onUploadProgress: (progressEvent) => {
+                    const percentCompleted = Math.round((progressEvent.loaded * 100) / (progressEvent.total || 1));
+                    setBulkProgress(percentCompleted);
+                },
+            });
+            
+            fetchContent(currentFolder.id);
+            alert(t('Folder structure uploaded successfully'));
+        } catch (error: any) {
+            console.error('Bulk upload failed', error);
+            alert(t('Failed to upload folder structure'));
+        } finally {
+            setBulkUploading(false);
+            setBulkProgress(0);
+            if (folderInputRef.current) {
+                folderInputRef.current.value = '';
+            }
+        }
+    };
+
   return (
     <Box sx={{ p: { xs: 1, sm: 3 }, bgcolor: 'background.default', minHeight: '100vh' }}>
       {/* Header and Toolbar */}
@@ -610,9 +660,25 @@ const ArchiveBrowser: React.FC = () => {
                   variant="contained"
                   startIcon={<CloudUpload />}
                   onClick={() => setOpenUploadDialog(true)}
-                  disabled={!currentFolder}
+                  disabled={!currentFolder || bulkUploading}
                 >
-                  {t('Upload')}
+                  {t('Upload File')}
+                </Button>
+                <input
+                  type="file"
+                  ref={folderInputRef}
+                  style={{ display: 'none' }}
+                  onChange={handleFolderUpload}
+                  {...({ webkitdirectory: "", directory: "" } as any)}
+                />
+                <Button
+                  variant="contained"
+                  color="secondary"
+                  startIcon={bulkUploading ? <CircularProgress size={20} color="inherit" /> : <CreateNewFolder />}
+                  onClick={() => folderInputRef.current?.click()}
+                  disabled={!currentFolder || bulkUploading}
+                >
+                  {bulkUploading ? `${bulkProgress}%` : t('Upload Folder Tree')}
                 </Button>
               </>
             )}

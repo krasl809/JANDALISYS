@@ -3,7 +3,8 @@ import {
     Box, Typography, Paper, Avatar, TablePagination,
     useTheme
 } from '@mui/material';
-import { format, parseISO, startOfMonth, endOfMonth, eachDayOfInterval, isSameDay, isToday, isWeekend } from 'date-fns';
+import { format, parseISO, startOfMonth, endOfMonth, eachDayOfInterval, isToday, isWeekend } from 'date-fns';
+import { ar, enUS } from 'date-fns/locale';
 import { useTranslation } from 'react-i18next';
 import { ATTENDANCE_COLORS } from './AttendancePage';
 
@@ -33,8 +34,8 @@ interface AttendanceRecord {
 
 interface MonthViewProps {
     rows: AttendanceRecord[];
-    employees: any[];
-    filters: any;
+    employees: Array<{ id: string; full_name: string }>;
+    filters: { startDate?: Date; endDate?: Date };
     totalEmployees: number;
     page: number;
     rowsPerPage: number;
@@ -53,7 +54,9 @@ const MonthView: React.FC<MonthViewProps> = React.memo(({
     handleRowsPerPageChange
 }) => {
     const theme = useTheme();
-    const { t } = useTranslation();
+    const { t, i18n } = useTranslation();
+    const isRtl = i18n.language === 'ar';
+    const dateLocale = isRtl ? ar : enUS;
 
     // Memoized days calculation
     const days = useMemo(() => {
@@ -115,7 +118,7 @@ const MonthView: React.FC<MonthViewProps> = React.memo(({
                         p: 1.5
                     }}>
                         <Typography variant="h6" fontWeight="600" color="primary">
-                            {filters.startDate ? format(filters.startDate, 'MMMM yyyy') : format(new Date(), 'MMMM yyyy')}
+                            {filters.startDate ? format(filters.startDate, 'MMMM yyyy', { locale: dateLocale }) : format(new Date(), 'MMMM yyyy', { locale: dateLocale })}
                         </Typography>
                     </Box>
 
@@ -126,10 +129,10 @@ const MonthView: React.FC<MonthViewProps> = React.memo(({
                             width: 180,
                             flexShrink: 0,
                             backgroundColor: 'background.default',
-                            borderRight: `1px solid ${theme.palette.divider}`
+                            borderInlineEnd: `1px solid ${theme.palette.divider}`
                         }}>
                             {paginatedEmployees.map((employee, index) => (
-                                <Box key={employee.id || employee.employee_id} sx={{
+                                <Box key={employee.id} sx={{
                                     height: 50,
                                     display: 'flex',
                                     alignItems: 'center',
@@ -137,12 +140,12 @@ const MonthView: React.FC<MonthViewProps> = React.memo(({
                                     borderBottom: `1px solid ${theme.palette.divider}`,
                                     backgroundColor: index % 2 === 0 ? 'transparent' : 'action.hover'
                                 }}>
-                                    <Avatar sx={{ width: 28, height: 28, mr: 1.5, bgcolor: ATTENDANCE_COLORS.present, fontSize: '0.75rem' }}>
-                                        {employee.name?.[0]}
+                                    <Avatar sx={{ width: 28, height: 28, marginInlineEnd: 1.5, bgcolor: ATTENDANCE_COLORS.present, fontSize: '0.75rem' }}>
+                                        {employee.full_name?.[0]}
                                     </Avatar>
                                     <Box>
-                                        <Typography variant="body2" fontWeight="500">{employee.name}</Typography>
-                                        <Typography variant="caption" color="text.secondary">{employee.employee_id}</Typography>
+                                        <Typography variant="body2" fontWeight="500">{employee.full_name}</Typography>
+                                        <Typography variant="caption" color="text.secondary">{employee.id}</Typography>
                                     </Box>
                                 </Box>
                             ))}
@@ -154,7 +157,7 @@ const MonthView: React.FC<MonthViewProps> = React.memo(({
                                 <Box key={dIdx} sx={{
                                     flex: 1,
                                     position: 'relative',
-                                    borderLeft: `1px solid ${theme.palette.divider}`,
+                                    borderInlineStart: `1px solid ${theme.palette.divider}`,
                                     backgroundColor: isWeekend(day) ? 'action.hover' : 'transparent'
                                 }}>
                                     {/* Day Header */}
@@ -168,19 +171,19 @@ const MonthView: React.FC<MonthViewProps> = React.memo(({
                                         backgroundColor: isToday(day) ? 'action.selected' : 'transparent'
                                     }}>
                                         <Typography variant="caption" fontWeight="600" color={isToday(day) ? 'primary' : 'text.secondary'}>
-                                            {format(day, 'EEE')}
+                                            {format(day, 'EEE', { locale: dateLocale })}
                                         </Typography>
                                         <Typography variant="body2" fontWeight="600" color={isToday(day) ? 'primary' : 'text.primary'}>
-                                            {format(day, 'd')}
+                                            {format(day, 'd', { locale: dateLocale })}
                                         </Typography>
                                     </Box>
 
                                     {/* Employee Rows */}
                                     {paginatedEmployees.map((employee, eIdx) => {
-                                        const employeeAttendance = employeeAttendanceMap[employee.employee_id]?.[format(day, 'yyyy-MM-dd')] || [];
+                                        const employeeAttendance = employeeAttendanceMap[employee.id]?.[format(day, 'yyyy-MM-dd')] || [];
 
                                         return (
-                                            <Box key={employee.id || employee.employee_id} sx={{
+                                            <Box key={employee.id} sx={{
                                                 height: 50,
                                                 borderBottom: `1px solid ${theme.palette.divider}`,
                                                 backgroundColor: eIdx % 2 === 0 ? 'transparent' : 'action.hover',
@@ -218,11 +221,11 @@ const MonthView: React.FC<MonthViewProps> = React.memo(({
                                                                 }}
                                                             >
                                                                 <Typography variant="caption" sx={{ fontSize: '0.6rem', lineHeight: 1, fontWeight: 600 }}>
-                                                                    {format(parseISO(session.check_in), 'HH:mm')}
+                                                                    {format(parseISO(session.check_in), 'HH:mm', { locale: dateLocale })}
                                                                 </Typography>
                                                                 {session.actual_work > 0 && (
                                                                     <Typography variant="caption" sx={{ fontSize: '0.5rem', opacity: 0.9 }}>
-                                                                        {session.actual_work}h
+                                                                        {session.actual_work}{t('h')}
                                                                     </Typography>
                                                                 )}
                                                             </Box>

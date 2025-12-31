@@ -4,6 +4,7 @@ import {
     Stack, LinearProgress, useTheme
 } from '@mui/material';
 import { format, parseISO, eachDayOfInterval, isToday, isWeekend, differenceInMinutes, endOfDay } from 'date-fns';
+import { ar, enUS } from 'date-fns/locale';
 import { useTranslation } from 'react-i18next';
 import { ATTENDANCE_COLORS } from './AttendancePage';
 
@@ -43,7 +44,9 @@ const CalendarView: React.FC<CalendarViewProps> = React.memo(({
     filters
 }) => {
     const theme = useTheme();
-    const { t } = useTranslation();
+    const { t, i18n } = useTranslation();
+    const isRtl = i18n.language === 'ar';
+    const dateLocale = isRtl ? ar : enUS;
 
     // Memoized days calculation
     const days = useMemo(() => {
@@ -117,13 +120,13 @@ const CalendarView: React.FC<CalendarViewProps> = React.memo(({
                                     flex: 1,
                                     textAlign: 'center',
                                     py: 1.5,
-                                    borderLeft: `1px solid ${theme.palette.divider}`
+                                    borderInlineStart: `1px solid ${theme.palette.divider}`
                                 }}>
                                     <Typography variant="caption" fontWeight="600" color={isToday(day) ? 'primary.main' : 'text.secondary'}>
-                                        {format(day, 'EEE')}
+                                        {format(day, 'EEE', { locale: dateLocale })}
                                     </Typography>
                                     <Typography variant="h6" fontWeight="600" color={isToday(day) ? 'primary.main' : 'text.primary'}>
-                                        {format(day, 'd')}
+                                        {format(day, 'd', { locale: dateLocale })}
                                     </Typography>
                                 </Box>
                             ))}
@@ -136,10 +139,10 @@ const CalendarView: React.FC<CalendarViewProps> = React.memo(({
                                 width: 60,
                                 flexShrink: 0,
                                 bgcolor: 'background.default',
-                                borderRight: `1px solid ${theme.palette.divider}`
+                                borderInlineEnd: `1px solid ${theme.palette.divider}`
                             }}>
                                 {Array.from({ length: 24 }).map((_, h) => (
-                                    <Box key={h} sx={{ height: 40, pr: 1, textAlign: 'right' }}>
+                                    <Box key={h} sx={{ height: 40, paddingInlineEnd: 1, textAlign: isRtl ? 'left' : 'right' }}>
                                         <Typography variant="caption" sx={{
                                             fontWeight: 500,
                                             color: 'text.secondary',
@@ -157,7 +160,7 @@ const CalendarView: React.FC<CalendarViewProps> = React.memo(({
                                     <Box key={dIdx} sx={{
                                         flex: 1,
                                         position: 'relative',
-                                        borderLeft: `1px solid ${theme.palette.divider}`,
+                                        borderInlineStart: `1px solid ${theme.palette.divider}`,
                                         backgroundColor: isWeekend(day) ? 'action.hover' : 'transparent'
                                     }}>
                                         {/* Hour lines */}
@@ -181,8 +184,8 @@ const CalendarView: React.FC<CalendarViewProps> = React.memo(({
                                                         position: 'absolute',
                                                         top: `${startMin}px`,
                                                         height: `${duration}px`,
-                                                        left: 2,
-                                                        right: 2,
+                                                        insetInlineStart: 2,
+                                                        insetInlineEnd: 2,
                                                         borderRadius: 1,
                                                         backgroundColor: statusColor,
                                                         color: 'white',
@@ -215,7 +218,7 @@ const CalendarView: React.FC<CalendarViewProps> = React.memo(({
                                                             fontSize: '0.6rem',
                                                             opacity: 0.9
                                                         }}>
-                                                            {session.actual_work}h
+                                                            {session.actual_work}{t('h')}
                                                         </Typography>
                                                     )}
                                                 </Box>
@@ -242,13 +245,13 @@ const CalendarView: React.FC<CalendarViewProps> = React.memo(({
                                 <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                                     <Typography variant="body2" color="text.secondary">{t('Total Work')}</Typography>
                                     <Typography variant="h6" fontWeight="600" color="primary">
-                                        {summaryMetrics.totalActualWork}h
+                                        {summaryMetrics.totalActualWork}{t('h')}
                                     </Typography>
                                 </Box>
                                 <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                                     <Typography variant="body2" color="text.secondary">{t('Target')}</Typography>
                                     <Typography variant="h6" fontWeight="600" color="text.secondary">
-                                        {summaryMetrics.targetCapacity}h
+                                        {summaryMetrics.targetCapacity}{t('h')}
                                     </Typography>
                                 </Box>
                                 <Box sx={{ mt: 1 }}>

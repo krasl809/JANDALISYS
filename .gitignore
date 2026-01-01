@@ -1,0 +1,192 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# PyInstaller
+*.manifest
+*.spec
+
+# Unit test / coverage reports
+htmlcov/
+.tox/
+.nox/
+.coverage
+.coverage.*
+.cache
+nosetests.xml
+coverage.xml
+*.cover
+.hypothesis/
+.pytest_cache/
+
+# Virtual environments
+.venv
+venv/
+ENV/
+env/
+
+# IDEs
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Logs
+*.log
+logs/
+server_debug.log
+
+# Database
+*.db
+*.sqlite
+*.sqlite3
+cashflow.db
+sql_app.db
+
+# Environment variables
+.env
+.env.local
+.env.production
+client/.env
+client/.env.production
+server/.env
+
+# Node.js (for client)
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+
+# Build outputs
+dist/
+build/
+dev-dist/
+client/dist/
+client/build/
+client/dev-dist/
+
+# Temporary files
+*.tmp
+*.temp
+
+# Uploads (comment out if you want to track sample uploads)
+uploads/
+
+# Windows
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+Icon
+._*
+.Spotlight-V100
+.Trashes
+
+# Test files and debug scripts
+#test_*.py
+debug_*.py
+check_*.py
+*_test.py
+*_debug.py
+*_check.py
+fix_*.py
+#add_*.py
+create_*.py
+seed_*.py
+reset_*.py
+verify_*.py
+migrate_*.py
+simple_*.py
+final_*.py
+test_import.xlsx
+
+# Production scripts
+#*_production.*
+setup_*.bat
+setup_*.ps1
+build_*.ps1
+deploy_*.ps1
+start_*.bat
+start_*.py
+
+# Documentation and reports
+*.md
+!README.md
+*_REPORT.md
+*_SUMMARY.md
+*_GUIDE.md
+*_README.md
+*_ANALYSIS.md
+*_INTEGRATION.md
+*_FIX.md
+*_IMPLEMENTATION.md
+*_IMPROVEMENTS.md
+*_VERIFICATION.md
+
+# Firewall and network setup
+setup_firewall*.bat
+setup_port_forwarding.py
+
+# Internet access scripts
+start_internet_*.bat
+start_internet_*.py
+*_internet.*
+QUICK_INTERNET_ACCESS.md
+FULL_INTERNET_ACCESS.md
+ACCESS_FROM_INTERNET.md
+INTERNET_ACCESS_GUIDE.md
+PORT_FORWARDING_SETUP.md
+
+# Installation files
+install_*.sh
+install_*.bat
+INSTALLATION_SUMMARY.md
+WINDOWS_DEPLOYMENT_GUIDE.md
+WINDOWS_PRODUCTION_DEPLOYMENT.md
+WINDOWS_PRODUCTION_README.md
+
+# Deployment files
+build-frontend-production.ps1
+setup-backend-production.ps1
+setup-monitoring.ps1
+deploy-production.ps1
+
+# Temporary and backup files
+*.bak
+*.backup
+*~

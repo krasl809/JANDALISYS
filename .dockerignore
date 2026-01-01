@@ -1,0 +1,14 @@
+__pycache__
+*.pyc
+venv
+.venv
+node_modules
+dist
+.git
+.env
+*.db
+*.sqlite
+storage/archive/*
+client/dist
+client/node_modules
+server/__pycache__

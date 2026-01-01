@@ -1,0 +1,50 @@
+# Core Framework
+fastapi==0.109.0
+uvicorn[standard]==0.26.0
+pydantic==2.5.3
+pydantic-settings==2.1.0
+
+# Database
+sqlalchemy==2.0.25
+alembic==1.13.1
+psycopg2-binary==2.9.9
+asyncpg==0.29.0
+
+# Security
+python-jose[cryptography]==3.3.0
+passlib[bcrypt]==1.7.4
+bcrypt==4.1.2
+python-multipart==0.0.6
+
+# Environment & Config
+python-dotenv==1.0.0
+
+# Caching & Performance (Optional but recommended)
+redis==5.0.1
+hiredis==2.3.2
+
+# ZKTeco Device Integration
+zk==0.9.4
+
+# HTTP Client
+httpx==0.26.0
+requests==2.31.0
+
+# WebSocket Support
+websockets==12.0
+
+# File Handling
+aiofiles==23.2.1
+
+# Testing
+pytest==7.4.4
+pytest-asyncio==0.23.3
+pytest-cov==4.1.0
+
+# Code Quality (Development)
+black==23.12.1
+flake8==7.0.0
+mypy==1.8.0
+
+# Monitoring
+sentry-sdk[fastapi]==1.40.0

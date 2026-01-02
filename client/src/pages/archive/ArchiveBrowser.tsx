@@ -1467,7 +1467,6 @@ const ArchiveBrowser: React.FC = () => {
                       width="100%"
                       height="100%"
                       title={previewFile.name}
-                      type="application/pdf"
                       style={{ 
                         border: 'none', 
                         backgroundColor: 'white', 

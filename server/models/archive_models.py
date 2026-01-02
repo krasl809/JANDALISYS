@@ -19,7 +19,8 @@ class ArchiveFolder(Base):
     description = Column(String, nullable=True)
     is_system = Column(Boolean, default=False) # To prevent deletion of core folders
     
-    parent = relationship("ArchiveFolder", remote_side=[id], backref="subfolders")
+    parent = relationship("ArchiveFolder", remote_side=[id], back_populates="subfolders")
+    subfolders = relationship("ArchiveFolder", cascade="all, delete-orphan", back_populates="parent")
     files = relationship("ArchiveFile", back_populates="folder", cascade="all, delete-orphan")
 
 class ArchiveFile(Base):

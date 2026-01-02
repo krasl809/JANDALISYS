@@ -33,16 +33,10 @@ STORAGE_PATH = os.path.join(BASE_DIR, "storage", "archive")
 def ensure_storage(db: Session):
     if not os.path.exists(STORAGE_PATH):
         os.makedirs(STORAGE_PATH)
-    
-    # Create initial system folders in DB if not exist
-    system_folders = ["General", "Administrative", "Financial", "Projects"]
-    for folder_name in system_folders:
-        existing = db.query(archive_models.ArchiveFolder).filter(
-            archive_models.ArchiveFolder.name == folder_name,
-            archive_models.ArchiveFolder.parent_id == None
-        ).first()
         
-        if not existing:
+        # Create initial folders ONLY if the entire storage path was missing (first time setup)
+        system_folders = ["General", "Administrative", "Financial", "Projects"]
+        for folder_name in system_folders:
             folder_path = os.path.join(STORAGE_PATH, folder_name)
             if not os.path.exists(folder_path):
                 os.makedirs(folder_path)
@@ -50,11 +44,11 @@ def ensure_storage(db: Session):
             new_folder = archive_models.ArchiveFolder(
                 name=folder_name,
                 path=folder_path,
-                is_system=True,
-                description=f"System folder for {folder_name} documents"
+                is_system=False,
+                description=f"Initial folder for {folder_name} documents"
             )
             db.add(new_folder)
-    db.commit()
+        db.commit()
 
 @router.get("/init")
 def init_archive(db: Session = Depends(get_db), current_user = Depends(require_permission("archive_write"))):
@@ -322,8 +316,10 @@ def explore_folder(
     db: Session = Depends(get_db),
     current_user = Depends(require_permission("archive_read"))
 ):
+    logger.info(f"Attempting to explore folder: {folder_id}")
     folder = db.query(archive_models.ArchiveFolder).get(folder_id)
     if not folder:
+        logger.warning(f"Folder {folder_id} not found for exploration")
         raise HTTPException(status_code=404, detail="Folder not found")
         
     normalized_path = os.path.normpath(folder.path)

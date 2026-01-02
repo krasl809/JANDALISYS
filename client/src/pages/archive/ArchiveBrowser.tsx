@@ -1120,7 +1120,7 @@ const ArchiveBrowser: React.FC = () => {
                       (selectedFiles.length > 0 || selectedFolders.length > 0) &&
                       (selectedFiles.length < files.length || selectedFolders.length < folders.length)
                     }
-                    checked={files.length > 0 && selectedFiles.length === files.length && selectedFolders.length === folders.length}
+                    checked={(files.length > 0 || folders.length > 0) && selectedFiles.length === files.length && selectedFolders.length === folders.length}
                     onChange={(e) => handleSelectAll(e.target.checked)}
                   />
                 </TableCell>

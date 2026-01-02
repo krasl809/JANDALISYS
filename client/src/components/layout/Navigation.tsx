@@ -34,13 +34,13 @@ const Navigation: React.FC<NavProps> = ({ width, mobileOpen, handleDrawerToggle 
   const [empOpen, setEmpOpen] = React.useState(true);
 
   // Dynamic Theme Colors
-  const sidebarBg = theme.palette.mode === 'dark' ? theme.palette.background.paper : '#0F172A';
+  const sidebarBg = theme.palette.mode === 'dark' ? theme.palette.background.paper : theme.palette.background.default;
   const textActive = theme.palette.primary.main;
-  const textInactive = theme.palette.mode === 'dark' ? theme.palette.text.secondary : '#94A3B8';
+  const textInactive = theme.palette.text.secondary;
   const accentColor = theme.palette.primary.main;
-  const dividerColor = theme.palette.mode === 'dark' ? theme.palette.divider : 'rgba(255,255,255,0.08)';
-  const hoverTextColor = theme.palette.mode === 'dark' ? theme.palette.text.primary : '#fff';
-  const brandTextColor = theme.palette.mode === 'dark' ? theme.palette.text.primary : '#fff';
+  const dividerColor = theme.palette.divider;
+  const hoverTextColor = theme.palette.text.primary;
+  const brandTextColor = theme.palette.text.primary;
 
   const menuItems = [
     { text: t('dashboard'), path: '/', icon: <Dashboard />, permission: PERMISSIONS.VIEW_DASHBOARD },
@@ -226,7 +226,7 @@ const Navigation: React.FC<NavProps> = ({ width, mobileOpen, handleDrawerToggle 
 
               <ListItemButton
                 onClick={() => navigate('/hr')}
-                sx={{ borderRadius: 2, mb: 0.5, color: location.pathname === '/hr' ? textActive : textInactive, '&:hover': { color: theme.palette.mode === 'dark' ? 'text.primary' : '#fff' } }}
+                sx={{ borderRadius: 2, mb: 0.5, color: location.pathname === '/hr' ? textActive : textInactive, '&:hover': { color: hoverTextColor } }}
               >
                 <ListItemIcon sx={{ minWidth: 40, color: location.pathname === '/hr' ? accentColor : 'inherit' }}>
                   <Dashboard />
@@ -236,7 +236,7 @@ const Navigation: React.FC<NavProps> = ({ width, mobileOpen, handleDrawerToggle 
 
               <ListItemButton
                 onClick={() => setEmpOpen(!empOpen)}
-                sx={{ borderRadius: 2, mb: 0.5, color: location.pathname.startsWith('/employees') ? textActive : textInactive, '&:hover': { color: theme.palette.mode === 'dark' ? 'text.primary' : '#fff' } }}
+                sx={{ borderRadius: 2, mb: 0.5, color: location.pathname.startsWith('/employees') ? textActive : textInactive, '&:hover': { color: hoverTextColor } }}
               >
                 <ListItemIcon sx={{ minWidth: 40, color: location.pathname.startsWith('/employees') ? accentColor : 'inherit' }}>
                   <People />
@@ -253,7 +253,7 @@ const Navigation: React.FC<NavProps> = ({ width, mobileOpen, handleDrawerToggle 
                       pl: isRTL ? 2 : 6.5, pr: isRTL ? 6.5 : 2,
                       borderRadius: 2, mb: 0.5,
                       color: location.pathname === '/employees' ? textActive : textInactive,
-                      '&:hover': { color: theme.palette.mode === 'dark' ? 'text.primary' : '#fff' }
+                      '&:hover': { color: hoverTextColor }
                     }}
                   >
                     <ListItemIcon sx={{ minWidth: 20 }}>
@@ -270,7 +270,7 @@ const Navigation: React.FC<NavProps> = ({ width, mobileOpen, handleDrawerToggle 
                           pl: isRTL ? 2 : 6.5, pr: isRTL ? 6.5 : 2,
                           borderRadius: 2, mb: 0.5,
                           color: location.pathname === '/employees/import' ? textActive : textInactive,
-                          '&:hover': { color: theme.palette.mode === 'dark' ? 'text.primary' : '#fff' }
+                          '&:hover': { color: hoverTextColor }
                         }}
                       >
                         <ListItemIcon sx={{ minWidth: 20 }}>
@@ -285,7 +285,7 @@ const Navigation: React.FC<NavProps> = ({ width, mobileOpen, handleDrawerToggle 
                           pl: isRTL ? 2 : 6.5, pr: isRTL ? 6.5 : 2,
                           borderRadius: 2, mb: 0.5,
                           color: location.pathname === '/employees/add' ? textActive : textInactive,
-                          '&:hover': { color: theme.palette.mode === 'dark' ? 'text.primary' : '#fff' }
+                          '&:hover': { color: hoverTextColor }
                         }}
                       >
                         <ListItemIcon sx={{ minWidth: 20 }}>
@@ -300,7 +300,7 @@ const Navigation: React.FC<NavProps> = ({ width, mobileOpen, handleDrawerToggle 
 
               <ListItemButton
                 onClick={() => navigate('/hr/attendance')}
-                sx={{ borderRadius: 2, mb: 0.5, color: location.pathname === '/hr/attendance' ? textActive : textInactive, '&:hover': { color: theme.palette.mode === 'dark' ? 'text.primary' : '#fff' } }}
+                sx={{ borderRadius: 2, mb: 0.5, color: location.pathname === '/hr/attendance' ? textActive : textInactive, '&:hover': { color: hoverTextColor } }}
               >
                 <ListItemIcon sx={{ minWidth: 40, color: location.pathname === '/hr/attendance' ? accentColor : 'inherit' }}>
                   <AccessTime />
@@ -310,7 +310,7 @@ const Navigation: React.FC<NavProps> = ({ width, mobileOpen, handleDrawerToggle 
 
               <ListItemButton
                 onClick={() => navigate('/hr/shifts')}
-                sx={{ borderRadius: 2, mb: 0.5, color: location.pathname === '/hr/shifts' ? textActive : textInactive, '&:hover': { color: theme.palette.mode === 'dark' ? 'text.primary' : '#fff' } }}
+                sx={{ borderRadius: 2, mb: 0.5, color: location.pathname === '/hr/shifts' ? textActive : textInactive, '&:hover': { color: hoverTextColor } }}
               >
                 <ListItemIcon sx={{ minWidth: 40, color: location.pathname === '/hr/shifts' ? accentColor : 'inherit' }}>
                   <Schedule />
@@ -321,7 +321,7 @@ const Navigation: React.FC<NavProps> = ({ width, mobileOpen, handleDrawerToggle 
               {hasPermission(PERMISSIONS.MANAGE_HR) && (
                 <ListItemButton
                   onClick={() => navigate('/hr/devices')}
-                  sx={{ borderRadius: 2, mb: 0.5, color: location.pathname === '/hr/devices' ? textActive : textInactive, '&:hover': { color: theme.palette.mode === 'dark' ? 'text.primary' : '#fff' } }}
+                  sx={{ borderRadius: 2, mb: 0.5, color: location.pathname === '/hr/devices' ? textActive : textInactive, '&:hover': { color: hoverTextColor } }}
                 >
                   <ListItemIcon sx={{ minWidth: 40, color: location.pathname === '/hr/devices' ? accentColor : 'inherit' }}>
                     <SettingsInputComponent />

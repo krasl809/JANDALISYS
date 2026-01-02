@@ -426,11 +426,17 @@ const ArchiveBrowser: React.FC = () => {
     setTouchStartDist(null);
   };
 
-  const getFilePreviewUrl = (fileId: number) => {
+  const getFilePreviewUrl = (fileId: number, forIframe: boolean = false) => {
     const token = localStorage.getItem('access_token');
     // Use relative path for robustness
     let url = `/api/archive/files/${fileId}/view`;
-    return token ? `${url}?token=${token}` : url;
+    
+    if (forIframe) {
+      // Add toolbar=0 and navpanes=0 for cleaner PDF view in iframe
+      url += '#toolbar=0&navpanes=0';
+    }
+
+    return token ? `${url}${forIframe ? '&' : '?'}token=${token}` : url;
   };
 
   const handleGoUp = () => {
@@ -1342,7 +1348,7 @@ const ArchiveBrowser: React.FC = () => {
             </Typography>
           </Box>
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-            {previewTab === 0 && isZoomable(previewFile?.file_type || '') && (
+            {previewTab === 0 && !previewFile?.name.toLowerCase().endsWith('.pdf') && isZoomable(previewFile?.file_type || '') && (
               <>
                 <Tooltip title={t('Zoom Out')}>
                   <IconButton 
@@ -1434,7 +1440,7 @@ const ArchiveBrowser: React.FC = () => {
                >
                 <Box
                   component={motion.div}
-                  drag={zoom > 1}
+                  drag={zoom > 1 && !previewFile.name.toLowerCase().endsWith('.pdf')}
                   dragMomentum={false}
                   dragElastic={0.1}
                   animate={{ scale: zoom }}
@@ -1461,9 +1467,9 @@ const ArchiveBrowser: React.FC = () => {
                         pointerEvents: zoomMode === 'none' ? 'auto' : 'none'
                       }}
                     />
-                  ) : previewFile.file_type === 'pdf' ? (
+                  ) : previewFile.file_type === 'pdf' || previewFile.name.toLowerCase().endsWith('.pdf') ? (
                     <iframe
-                      src={getFilePreviewUrl(previewFile.id)}
+                      src={getFilePreviewUrl(previewFile.id, true)}
                       width="100%"
                       height="100%"
                       title={previewFile.name}
@@ -1471,7 +1477,7 @@ const ArchiveBrowser: React.FC = () => {
                         border: 'none', 
                         backgroundColor: 'white', 
                         minHeight: '80vh',
-                        pointerEvents: zoomMode === 'none' ? 'auto' : 'none'
+                        pointerEvents: 'auto' // PDF needs mouse interaction
                       }}
                     >
                       <Box sx={{ p: 3, textAlign: 'center' }}>

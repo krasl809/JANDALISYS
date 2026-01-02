@@ -188,16 +188,19 @@ def view_file(
         else:
             raise HTTPException(status_code=404, detail="Physical file not found")
             
-    mime_type, _ = mimetypes.guess_type(normalized_path)
-    if not mime_type:
-        if normalized_path.lower().endswith('.pdf'):
-            mime_type = 'application/pdf'
-        else:
+    # Determine mime type
+    ext = os.path.splitext(normalized_path)[1].lower()
+    if ext == '.pdf':
+        mime_type = 'application/pdf'
+    else:
+        mime_type, _ = mimetypes.guess_type(normalized_path)
+        if not mime_type:
             mime_type = 'application/octet-stream'
             
     return FileResponse(
         path=normalized_path,
         media_type=mime_type,
+        filename=file_record.original_name,
         content_disposition_type="inline"
     )
 
@@ -398,6 +401,9 @@ async def upload_file(
     
     # Use provided name or original filename
     base_name = name if name else orig_filename
+    
+    # Remove extension from base_name if it exists to prevent double extensions
+    base_name, _ = os.path.splitext(base_name)
     
     # Sanitize base_name for filesystem
     import re

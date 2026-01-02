@@ -54,7 +54,8 @@ import {
   ZoomIn,
   ZoomOut,
   RestartAlt,
-  Print
+  Print,
+  OpenInNew
 } from '@mui/icons-material';
 import { useNavigate } from 'react-router-dom';
 import api from '../../services/api';
@@ -1377,6 +1378,18 @@ const ArchiveBrowser: React.FC = () => {
               <Tooltip title={t('Print')}>
                 <IconButton onClick={() => { if (previewFile) handlePrint(previewFile.id); }} color="inherit" size="small" sx={{ mr: 1 }}>
                   <Print />
+                </IconButton>
+              </Tooltip>
+            )}
+            {previewFile?.file_type === 'pdf' && (
+              <Tooltip title={t('Open in Full Screen')}>
+                <IconButton 
+                  onClick={() => window.open(getFilePreviewUrl(previewFile.id), '_blank')} 
+                  color="inherit" 
+                  size="small" 
+                  sx={{ mr: 1 }}
+                >
+                  <OpenInNew />
                 </IconButton>
               </Tooltip>
             )}

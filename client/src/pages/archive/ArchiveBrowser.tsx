@@ -1417,7 +1417,7 @@ const ArchiveBrowser: React.FC = () => {
           </Tabs>
         </Box>
 
-        <DialogContent dividers sx={{ p: 0, display: 'flex', flexDirection: 'column', bgcolor: '#f5f5f5', overflow: 'hidden' }}>
+        <DialogContent dividers sx={{ p: 0, display: 'flex', flexDirection: 'column', bgcolor: theme.palette.mode === 'dark' ? 'background.default' : '#f5f5f5', overflow: 'hidden' }}>
           {previewFile && (
             previewTab === 0 ? (
               <Box 

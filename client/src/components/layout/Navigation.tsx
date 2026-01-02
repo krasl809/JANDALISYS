@@ -38,6 +38,9 @@ const Navigation: React.FC<NavProps> = ({ width, mobileOpen, handleDrawerToggle 
   const textActive = theme.palette.primary.main;
   const textInactive = theme.palette.mode === 'dark' ? theme.palette.text.secondary : '#94A3B8';
   const accentColor = theme.palette.primary.main;
+  const dividerColor = theme.palette.mode === 'dark' ? theme.palette.divider : 'rgba(255,255,255,0.08)';
+  const hoverTextColor = theme.palette.mode === 'dark' ? theme.palette.text.primary : '#fff';
+  const brandTextColor = theme.palette.mode === 'dark' ? theme.palette.text.primary : '#fff';
 
   const menuItems = [
     { text: t('dashboard'), path: '/', icon: <Dashboard />, permission: PERMISSIONS.VIEW_DASHBOARD },
@@ -92,16 +95,16 @@ const Navigation: React.FC<NavProps> = ({ width, mobileOpen, handleDrawerToggle 
           </Box>
         </motion.div>
         <Box>
-          <Typography variant="h6" sx={{ color: theme.palette.mode === 'dark' ? 'text.primary' : '#fff', fontWeight: 700, lineHeight: 1 }}>
+          <Typography variant="h6" sx={{ color: brandTextColor, fontWeight: 700, lineHeight: 1 }}>
             {t('JANDALISYS')}
           </Typography>
-          <Typography variant="caption" sx={{ fontSize: '0.65rem', opacity: 0.6, letterSpacing: 1, textTransform: 'uppercase' }}>
+          <Typography variant="caption" sx={{ fontSize: '0.65rem', opacity: 0.6, letterSpacing: 1, textTransform: 'uppercase', color: textInactive }}>
             {t('Enterprise Management System')}
           </Typography>
         </Box>
       </Box>
 
-      <Divider sx={{ borderColor: 'rgba(255,255,255,0.08)', mb: 2 }} />
+      <Divider sx={{ borderColor: dividerColor, mb: 2 }} />
 
       {/* Menu Items */}
       <Box sx={{ flexGrow: 1, overflowY: 'auto', px: 2 }}>
@@ -124,7 +127,7 @@ const Navigation: React.FC<NavProps> = ({ width, mobileOpen, handleDrawerToggle 
                     color: isActive ? textActive : textInactive,
                     position: 'relative',
                     overflow: 'hidden',
-                    '&:hover': { color: theme.palette.mode === 'dark' ? 'text.primary' : '#fff', bgcolor: 'transparent' }
+                    '&:hover': { color: hoverTextColor, bgcolor: 'transparent' }
                   }}
                 >
                   {/* ✅ Active Background Animation */}
@@ -197,7 +200,7 @@ const Navigation: React.FC<NavProps> = ({ width, mobileOpen, handleDrawerToggle 
                             pl: isRTL ? 2 : 6.5, pr: isRTL ? 6.5 : 2,
                             borderRadius: 2, mb: 0.5,
                             color: isActive ? textActive : textInactive,
-                            '&:hover': { color: theme.palette.mode === 'dark' ? 'text.primary' : '#fff' }
+                            '&:hover': { color: hoverTextColor }
                           }}
                         >
                           <ListItemIcon sx={{ minWidth: 20 }}>

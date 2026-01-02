@@ -1467,13 +1467,28 @@ const ArchiveBrowser: React.FC = () => {
                       width="100%"
                       height="100%"
                       title={previewFile.name}
+                      type="application/pdf"
                       style={{ 
                         border: 'none', 
                         backgroundColor: 'white', 
                         minHeight: '80vh',
                         pointerEvents: zoomMode === 'none' ? 'auto' : 'none'
                       }}
-                    />
+                    >
+                      <Box sx={{ p: 3, textAlign: 'center' }}>
+                        <Typography variant="body1">
+                          {t('Your browser does not support inline PDFs.')}
+                        </Typography>
+                        <Button 
+                          variant="contained" 
+                          href={getFilePreviewUrl(previewFile.id)} 
+                          target="_blank"
+                          sx={{ mt: 2 }}
+                        >
+                          {t('Open PDF in new tab')}
+                        </Button>
+                      </Box>
+                    </iframe>
                   ) : (
                     <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', p: 5 }}>
                       <InsertDriveFile sx={{ fontSize: 100, color: 'text.secondary', mb: 2 }} />

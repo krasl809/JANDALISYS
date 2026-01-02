@@ -200,7 +200,6 @@ def view_file(
     return FileResponse(
         path=normalized_path,
         media_type=mime_type,
-        filename=file_record.original_name,
         content_disposition_type="inline"
     )
 

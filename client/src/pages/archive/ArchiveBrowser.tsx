@@ -92,6 +92,9 @@ interface ArchiveFile {
   ocr_text?: string;
 }
 
+const ALLOWED_EXTENSIONS = ['.pdf', '.doc', '.docx', '.xls', '.xlsx', '.ppt', '.pptx', '.txt', '.csv', '.jpg', '.jpeg', '.png', '.tiff'];
+const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB
+
 const ArchiveBrowser: React.FC = () => {
   const { t } = useTranslation();
   const theme = useTheme();
@@ -564,9 +567,27 @@ const ArchiveBrowser: React.FC = () => {
         
         for (let i = 0; i < files.length; i++) {
             const file = files[i];
+            const ext = '.' + file.name.split('.').pop()?.toLowerCase();
+            
+            if (!ALLOWED_EXTENSIONS.includes(ext)) {
+                console.warn(`Skipping disallowed file type: ${file.name}`);
+                continue;
+            }
+            
+            if (file.size > MAX_FILE_SIZE) {
+                console.warn(`Skipping oversized file: ${file.name}`);
+                continue;
+            }
+
             formData.append('files', file);
             // webkitRelativePath contains the path starting from the folder name
             relativePaths.push((file as any).webkitRelativePath || file.name);
+        }
+        
+        if (relativePaths.length === 0) {
+            alert(t('No valid files found to upload (check types and sizes)'));
+            setBulkUploading(false);
+            return;
         }
         
         formData.append('relative_paths', JSON.stringify(relativePaths));
@@ -797,6 +818,7 @@ const ArchiveBrowser: React.FC = () => {
                   ref={folderInputRef}
                   style={{ display: 'none' }}
                   onChange={handleFolderUpload}
+                  accept={ALLOWED_EXTENSIONS.join(',')}
                   {...({ webkitdirectory: "", directory: "" } as any)}
                 />
                 <Button
@@ -1548,10 +1570,24 @@ const ArchiveBrowser: React.FC = () => {
               <input
                 type="file"
                 hidden
+                accept={ALLOWED_EXTENSIONS.join(',')}
                 onChange={(e) => {
                   if (e.target.files && e.target.files[0]) {
-                    setUploadFile(e.target.files[0]);
-                    setUploadName(e.target.files[0].name);
+                    const file = e.target.files[0];
+                    const ext = '.' + file.name.split('.').pop()?.toLowerCase();
+                    
+                    if (!ALLOWED_EXTENSIONS.includes(ext)) {
+                      alert(`${t('File type not allowed')}: ${ext}`);
+                      return;
+                    }
+                    
+                    if (file.size > MAX_FILE_SIZE) {
+                      alert(`${t('File too large')}: ${(file.size / (1024 * 1024)).toFixed(2)}MB. ${t('Max')}: 10MB`);
+                      return;
+                    }
+
+                    setUploadFile(file);
+                    setUploadName(file.name);
                   }
                 }}
               />

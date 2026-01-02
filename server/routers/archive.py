@@ -26,6 +26,26 @@ router = APIRouter(prefix="/archive", tags=["Archive Management"])
 PERM_ARCHIVE_READ = "archive_read"
 PERM_ARCHIVE_WRITE = "archive_write"
 
+# Restrictions
+ALLOWED_EXTENSIONS = {'.pdf', '.doc', '.docx', '.xls', '.xlsx', '.ppt', '.pptx', '.txt', '.csv', '.jpg', '.jpeg', '.png', '.tiff'}
+MAX_FILE_SIZE = 10 * 1024 * 1024  # 10MB
+
+def validate_file(file: UploadFile):
+    ext = os.path.splitext(file.filename)[1].lower()
+    if ext not in ALLOWED_EXTENSIONS:
+        raise HTTPException(
+            status_code=400, 
+            detail=f"File type {ext} not allowed. Allowed: {', '.join(ALLOWED_EXTENSIONS)}"
+        )
+    
+    # Check size if possible (spool file might not have size)
+    # file.file.seek(0, os.SEEK_END)
+    # size = file.file.tell()
+    # file.file.seek(0)
+    # However, FastAPI's UploadFile doesn't always have a size attribute until read.
+    # We will check size during/after saving for simplicity, or use a workaround.
+    return True
+
 # Base Storage Path - using absolute path to avoid issues
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 STORAGE_PATH = os.path.join(BASE_DIR, "storage", "archive")
@@ -174,11 +194,11 @@ def view_file(
             mime_type = 'application/pdf'
         else:
             mime_type = 'application/octet-stream'
-        
+            
     return FileResponse(
         path=normalized_path,
         media_type=mime_type,
-        headers={"Content-Disposition": "inline"}
+        content_disposition_type="inline"
     )
 
 @router.get("/files/{file_id}/download")
@@ -367,6 +387,7 @@ async def upload_file(
     db: Session = Depends(get_db),
     current_user = Depends(require_permission("archive_upload"))
 ):
+    validate_file(file)
     ensure_storage(db)
     folder = db.query(archive_models.ArchiveFolder).get(folder_id)
     if not folder:
@@ -418,12 +439,18 @@ async def upload_file(
         with open(file_path, "wb") as buffer:
             shutil.copyfileobj(file.file, buffer)
             
+        # Check size after saving
+        file_size = os.path.getsize(file_path)
+        if file_size > MAX_FILE_SIZE:
+            os.remove(file_path)
+            raise HTTPException(status_code=400, detail=f"File too large ({file_size} bytes). Max: {MAX_FILE_SIZE} bytes")
+            
         new_file = archive_models.ArchiveFile(
             folder_id=folder_id,
             name=storage_filename, 
             original_name=file.filename,
             file_type=orig_ext.replace(".", "").lower(),
-            file_size=os.path.getsize(file_path),
+            file_size=file_size,
             file_path=file_path,
             description=description,
             created_by=current_user.id
@@ -489,6 +516,9 @@ async def bulk_upload(
 
     try:
         for file, rel_path in zip(files, paths):
+            # Validate each file
+            validate_file(file)
+            
             # Normalize and split path
             # rel_path might be "folder/sub/file.txt"
             parts = rel_path.replace("\\", "/").split("/")
@@ -574,12 +604,19 @@ async def bulk_upload(
                 with open(file_path, "wb") as buffer:
                     shutil.copyfileobj(file.file, buffer)
                 
+                # Check size
+                file_size = os.path.getsize(file_path)
+                if file_size > MAX_FILE_SIZE:
+                    os.remove(file_path)
+                    results.append({"filename": original_filename, "status": "error", "message": f"File too large. Max {MAX_FILE_SIZE/(1024*1024)}MB"})
+                    continue
+
                 new_file = archive_models.ArchiveFile(
                     folder_id=target_folder.id,
                     name=storage_filename,
                     original_name=original_filename,
                     file_type=orig_ext.replace(".", ""),
-                    file_size=os.path.getsize(file_path),
+                    file_size=file_size,
                     file_path=file_path,
                     description=f"Bulk upload: {original_filename}",
                     created_by=current_user.id

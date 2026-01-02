@@ -176,11 +176,15 @@ def view_file(
             
     mime_type, _ = mimetypes.guess_type(normalized_path)
     if not mime_type:
-        mime_type = 'application/octet-stream'
+        if normalized_path.lower().endswith('.pdf'):
+            mime_type = 'application/pdf'
+        else:
+            mime_type = 'application/octet-stream'
         
     return FileResponse(
         path=normalized_path,
-        media_type=mime_type
+        media_type=mime_type,
+        headers={"Content-Disposition": "inline"}
     )
 
 @router.get("/files/{file_id}/download")
@@ -724,7 +728,7 @@ def bulk_move(
     # Move folders
     for folder_id in request.folder_ids:
         folder = db.query(archive_models.ArchiveFolder).get(folder_id)
-        if folder and not folder.is_system:
+        if folder: # Removed is_system restriction
             # Check if moving into itself or its subfolder
             if folder.id == request.target_folder_id:
                 continue

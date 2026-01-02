@@ -815,16 +815,22 @@ const ArchiveBrowser: React.FC = () => {
 
         <Paper sx={{ p: 1, display: 'flex', alignItems: 'center', gap: 2, flexWrap: 'wrap' }}>
           {/* Back Button and Breadcrumbs */}
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flexGrow: 1 }}>
-            <Tooltip title={t('Go Up')}>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, flexGrow: 1 }}>
+            <Tooltip title={t('Go up to parent folder')}>
               <IconButton 
                 onClick={handleGoUp} 
                 disabled={breadcrumbs.length <= 1}
-                size="small"
+                size="large"
                 color="primary"
-                sx={{ bgcolor: alpha(theme.palette.primary.main, 0.05) }}
+                sx={{ 
+                  bgcolor: alpha(theme.palette.primary.main, 0.1),
+                  '&:hover': { bgcolor: alpha(theme.palette.primary.main, 0.2) },
+                  '&.Mui-disabled': { bgcolor: 'transparent' },
+                  boxShadow: breadcrumbs.length > 1 ? 2 : 0,
+                  transition: 'all 0.2s'
+                }}
               >
-                <ArrowBack />
+                <ArrowBack fontSize="large" />
               </IconButton>
             </Tooltip>
             
@@ -1114,7 +1120,7 @@ const ArchiveBrowser: React.FC = () => {
                       (selectedFiles.length > 0 || selectedFolders.length > 0) &&
                       (selectedFiles.length < files.length || selectedFolders.length < folders.length)
                     }
-                    checked={files.length > 0 && selectedFiles.length === files.length && selectedFolders.length === folders.filter(f => !f.is_system).length}
+                    checked={files.length > 0 && selectedFiles.length === files.length && selectedFolders.length === folders.length}
                     onChange={(e) => handleSelectAll(e.target.checked)}
                   />
                 </TableCell>

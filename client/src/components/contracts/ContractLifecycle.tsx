@@ -69,7 +69,7 @@ function ColorlibStepIcon(props: ColorlibStepIconProps) {
 
 const ContractLifecycle = () => {
   const theme = useTheme();
-  const { palette, boxShadows } = theme as any;
+  const { palette } = theme as any;
   const navigate = useNavigate();
   const { t } = useTranslation();
   const { id } = useParams();
@@ -78,11 +78,45 @@ const ContractLifecycle = () => {
   const [error, setError] = useState<string | null>(null);
   const [ledger, setLedger] = useState<FinancialTransaction[]>([]);
 
+  useEffect(() => {
+    const fetchData = async () => {
+      try {
+        setLoading(true);
+        const response = await api.get(`contracts/${id}`);
+        setContract(response.data);
+        
+        // Try to fetch ledger, but don't fail if it's missing
+        try {
+          const ledgerRes = await api.get(`contracts/${id}/ledger`);
+          setLedger(ledgerRes.data);
+        } catch (lErr) {
+          console.warn('Ledger not available:', lErr);
+        }
+      } catch (err) {
+        console.error('Error fetching contract details:', err);
+        setError(t('common.errors.fetch_failed'));
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    if (id) {
+      fetchData();
+    }
+  }, [id, t]);
+
   const steps = [
     t('contracts.steps.signed'),
     t('contracts.steps.shipping'),
     t('contracts.steps.clearance')
   ];
+
+  const getStep = (status: string) => {
+    const s = (status || '').toLowerCase();
+    if (s === 'completed') return 2;
+    if (s === 'posted' || s === 'active') return 1;
+    return 0;
+  };
 
   const getStatusColor = (status: string) => {
     const s = (status || '').toLowerCase();
@@ -97,7 +131,28 @@ const ContractLifecycle = () => {
     }
   };
 
+  if (loading) {
+    return (
+      <Box display="flex" justifyContent="center" alignItems="center" minHeight="60vh">
+        <CircularProgress />
+      </Box>
+    );
+  }
+
+  if (error || !contract) {
+    return (
+      <Container sx={{ mt: 4 }}>
+        <Alert severity="error">{error || t('contracts.messages.not_found')}</Alert>
+        <Button onClick={() => navigate('/contracts')} sx={{ mt: 2 }}>{t('common.back')}</Button>
+      </Container>
+    );
+  }
+
   const currentStep = getStep(contract.status);
+  const avgPrice = contract.items?.length 
+    ? contract.items.reduce((acc, item) => acc + parseFloat(item.price || '0'), 0) / contract.items.length 
+    : 0;
+  const totalValue = contract.items?.reduce((acc, item) => acc + (item.total || 0), 0) || 0;
 
   return (
     <Container maxWidth={false} sx={{ mt: 4, pb: 4 }}>

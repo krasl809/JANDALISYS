@@ -5,7 +5,7 @@ import api from '../../services/api';
 import {
   Container, Table, TableBody, TableCell, TableContainer, TableHead, TableRow,
   Typography, Box, Button, Chip, TextField, Card, CardContent, InputAdornment, 
-  CircularProgress, useTheme, alpha, IconButton
+  CircularProgress, useTheme, alpha, IconButton, Stack
 } from '@mui/material';
 import Grid from '@mui/material/Grid2';
 import { PriceCheck, MonetizationOn, Search, FilterList, ArrowForward } from '@mui/icons-material';

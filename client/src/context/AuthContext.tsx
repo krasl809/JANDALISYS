@@ -32,7 +32,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [isAuthenticated, setIsAuthenticated] = useState<boolean>(false);
   const [isLoading, setIsLoading] = useState<boolean>(true);
 
-  const loadUserFromStorage = () => {
+  const loadUserFromStorage = React.useCallback(async () => {
     setIsLoading(true);
     const token = localStorage.getItem('access_token');
     const userId = localStorage.getItem('user_id');
@@ -49,6 +49,19 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         console.error("Failed to parse permissions", e);
       }
 
+      // Try to refresh permissions from backend if we have a token
+      try {
+        // We use a dynamic import or require to avoid circular dependency if api service uses useAuth
+        const api = (await import('../services/api')).default;
+        const response = await api.get(`rbac/user-permissions/${userId}`);
+        if (response.data && Array.isArray(response.data)) {
+          permissions = response.data;
+          localStorage.setItem('user_permissions', JSON.stringify(permissions));
+        }
+      } catch (error) {
+        console.warn("Could not refresh permissions from backend, using cached ones", error);
+      }
+
       const userData = {
         id: userId,
         name: userName,
@@ -58,7 +71,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       };
       
       if (import.meta.env.DEV) {
-        console.log('Loading user from storage:', userData);
+        console.log('Loading user with permissions:', userData);
       }
       setUser(userData);
       setIsAuthenticated(true);
@@ -67,12 +80,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       setIsAuthenticated(false);
     }
     setIsLoading(false);
-  };
+  }, []);
 
   // التحقق من التوكن المحفوظ عند بدء التطبيق
   useEffect(() => {
     loadUserFromStorage();
-  }, []);
+  }, [loadUserFromStorage]);
 
   const refreshUser = React.useCallback(() => {
     if (import.meta.env.DEV) {

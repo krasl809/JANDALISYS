@@ -292,6 +292,10 @@ def startup_event():
                 "read_payment_terms", "write_payment_terms", "read_incoterms", "write_incoterms",
                 "read_document_types", "write_document_types", "view_settings",
                 "view_agents", "manage_agents", "view_inventory", "manage_inventory"
+            ],
+            "hr_admin": [
+                "view_dashboard", "view_hr", "manage_hr", "view_reports", "view_settings",
+                "view_employees", "manage_employees", "view_employee_details", "edit_employee_info"
             ]
         }
         
@@ -473,6 +477,43 @@ def startup_event():
                         rbac_crud.assign_role_to_user(db, u_exists.id, u_role.id)
         
         logger.info("Contracts users initialized successfully")
+
+        # Create HR Admin users
+        hr_users = [
+            {"name": "أيمن حلواني", "email": "ayman.halwani@jandali.com", "role": "hr_admin"},
+            {"name": "سامر خوري", "email": "samer.khoury@jandali.com", "role": "hr_admin"},
+            {"name": "بتول الحمد", "email": "batoul.hamad@jandali.com", "role": "hr_admin"}
+        ]
+        
+        hr_password = os.getenv("DEFAULT_HR_PASSWORD", "HRAdmin@123")
+        default_hr_password_hash = get_password_hash(hr_password)
+        
+        for u_data in hr_users:
+            u_exists = db.query(core_models.User).filter(core_models.User.email == u_data["email"]).first()
+            if not u_exists:
+                logger.info(f"Creating HR admin user: {u_data['email']}")
+                new_u = core_models.User(
+                    name=u_data["name"],
+                    email=u_data["email"],
+                    password=default_hr_password_hash,
+                    role=u_data["role"],
+                    is_active=True
+                )
+                db.add(new_u)
+                db.commit()
+                db.refresh(new_u)
+                
+                # Assign role
+                u_role = rbac_crud.get_role_by_name(db, u_data["role"])
+                if u_role:
+                    rbac_crud.assign_role_to_user(db, new_u.id, u_role.id)
+            else:
+                # Ensure role assignment
+                u_role = rbac_crud.get_role_by_name(db, u_data["role"])
+                if u_role:
+                    user_roles_list = rbac_crud.get_user_roles(db, u_exists.id)
+                    if u_data["role"] not in user_roles_list:
+                        rbac_crud.assign_role_to_user(db, u_exists.id, u_role.id)
 
         # Initialize default exchange quote units
         logger.info("Initializing default exchange quote units...")

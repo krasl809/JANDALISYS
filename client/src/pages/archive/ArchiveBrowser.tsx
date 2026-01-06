@@ -57,7 +57,8 @@ import {
   ZoomOut,
   RestartAlt,
   Print,
-  OpenInNew
+  OpenInNew,
+  ExpandMore
 } from '@mui/icons-material';
 import { useNavigate } from 'react-router-dom';
 import api from '../../services/api';
@@ -134,6 +135,10 @@ const ArchiveBrowser: React.FC = () => {
   const [currentFolder, setCurrentFolder] = useState<ArchiveFolder | null>(null);
   const [breadcrumbs, setBreadcrumbs] = useState<{ id: number | null, name: string }[]>([{ id: null, name: t('Main Archive') }]);
   const [loading, setLoading] = useState(true);
+  const [skip, setSkip] = useState(0);
+  const [totalFiles, setTotalFiles] = useState(0);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const LIMIT = 50;
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
   const [searchQuery, setSearchQuery] = useState('');
 
@@ -309,11 +314,17 @@ const ArchiveBrowser: React.FC = () => {
     [files, searchQuery]
   );
 
-  const fetchContent = async (folderId: number | null) => {
-    setLoading(true);
+  const fetchContent = async (folderId: number | null, reset = true) => {
+    if (reset) {
+      setLoading(true);
+      setSkip(0);
+    } else {
+      setLoadingMore(true);
+    }
+
     try {
       // Initialize archive if needed (ensures system folders exist)
-      if (folderId === null) {
+      if (folderId === null && reset) {
         try {
           await api.get('archive/init');
         } catch (initError) {
@@ -322,19 +333,31 @@ const ArchiveBrowser: React.FC = () => {
         }
       }
       
-      const folderRes = await api.get(`archive/folders${folderId ? `?parent_id=${folderId}` : ''}`);
-      setFolders(folderRes.data);
+      if (reset) {
+        const folderRes = await api.get(`archive/folders${folderId ? `?parent_id=${folderId}` : ''}`);
+        setFolders(folderRes.data);
+      }
 
       if (folderId) {
-        const fileRes = await api.get(`archive/files?folder_id=${folderId}`);
-        setFiles(fileRes.data);
+        const currentSkip = reset ? 0 : skip + LIMIT;
+        const fileRes = await api.get(`archive/files?folder_id=${folderId}&skip=${currentSkip}&limit=${LIMIT}`);
+        
+        if (reset) {
+          setFiles(fileRes.data.files);
+          setTotalFiles(fileRes.data.total);
+        } else {
+          setFiles(prev => [...prev, ...fileRes.data.files]);
+          setSkip(currentSkip);
+        }
       } else {
         setFiles([]);
+        setTotalFiles(0);
       }
     } catch (error) {
       console.error("Failed to fetch archive content", error);
     } finally {
       setLoading(false);
+      setLoadingMore(false);
     }
   };
 
@@ -482,6 +505,15 @@ const ArchiveBrowser: React.FC = () => {
       url += '#toolbar=0&navpanes=0';
     }
 
+    return url;
+  };
+
+  const getFileThumbnailUrl = (fileId: number) => {
+    const token = localStorage.getItem('access_token');
+    let url = `/api/archive/files/${fileId}/thumbnail`;
+    if (token) {
+      url += `?token=${token}`;
+    }
     return url;
   };
 
@@ -1218,7 +1250,8 @@ const ArchiveBrowser: React.FC = () => {
                       {isImage(file.file_type) ? (
                         <Box
                           component="img"
-                          src={getFilePreviewUrl(file.id)}
+                          src={getFileThumbnailUrl(file.id)}
+                          loading="lazy"
                           sx={{
                             width: '100%',
                             height: 100,
@@ -1246,6 +1279,20 @@ const ArchiveBrowser: React.FC = () => {
               ))}
             </AnimatePresence>
           </Grid>
+          
+          {files.length < totalFiles && (
+            <Box sx={{ display: 'flex', justifyContent: 'center', mt: 4, mb: 2 }}>
+              <Button
+                variant="outlined"
+                onClick={() => fetchContent(currentFolder?.id || null, false)}
+                disabled={loadingMore}
+                startIcon={loadingMore ? <CircularProgress size={20} /> : <ExpandMore />}
+                sx={{ borderRadius: 4, px: 4 }}
+              >
+                {loadingMore ? t('Loading...') : t('Load More')}
+              </Button>
+            </Box>
+          )}
         </motion.div>
       ) : (
         /* List View */
@@ -1390,6 +1437,18 @@ const ArchiveBrowser: React.FC = () => {
               ))}
             </TableBody>
           </Table>
+          {files.length < totalFiles && (
+            <Box sx={{ display: 'flex', justifyContent: 'center', py: 2 }}>
+              <Button
+                variant="text"
+                onClick={() => fetchContent(currentFolder?.id || null, false)}
+                disabled={loadingMore}
+                startIcon={loadingMore ? <CircularProgress size={20} /> : <ExpandMore />}
+              >
+                {loadingMore ? t('Loading...') : t('Load More')}
+              </Button>
+            </Box>
+          )}
         </TableContainer>
       )}
 

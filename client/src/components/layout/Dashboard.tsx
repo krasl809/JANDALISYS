@@ -20,6 +20,8 @@ import api from '../../services/api';
 import { API_ENDPOINTS } from '../../config/api';
 
 import { useTranslation } from 'react-i18next';
+import { useAuth } from '../../context/AuthContext';
+import { useNavigate } from 'react-router-dom';
 
 // --- COMPONENTS ---
 
@@ -845,6 +847,16 @@ const Dashboard = () => {
   const [isOwnerMode, setIsOwnerMode] = useState(true);
   const theme = useTheme();
   const { t } = useTranslation();
+  const { user, hasPermission } = useAuth();
+  const navigate = useNavigate();
+
+  useEffect(() => {
+    // توجيه مستخدمي الأرشيف إلى لوحة تحكم الأرشيف إذا لم يكن لديهم صلاحية الوصول للوحة التحكم الرئيسية
+    if (user && !hasPermission('view_dashboard') && hasPermission('archive_read')) {
+      console.log('Redirecting archive user from main dashboard to archive dashboard');
+      navigate('/archive/dashboard', { replace: true });
+    }
+  }, [user, hasPermission, navigate]);
 
   return (
     <Container maxWidth={false} sx={{ py: 2 }}>

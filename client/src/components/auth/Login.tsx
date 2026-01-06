@@ -78,8 +78,16 @@ const Login: React.FC = () => {
         refreshUser();
       }
 
-      console.log('Login process complete. Navigating to home...');
-      navigate('/');
+      console.log('Login process complete. Determining redirection path...');
+      
+      // توجيه مستخدمي الأرشيف إلى لوحة تحكم الأرشيف مباشرة
+      if (role === 'archive_admin' || role === 'archive_viewer' || (permissions && permissions.includes('archive_read') && !permissions.includes('view_dashboard'))) {
+        console.log('Archive user detected. Navigating to archive dashboard...');
+        navigate('/archive/dashboard');
+      } else {
+        console.log('Standard user detected. Navigating to home...');
+        navigate('/');
+      }
     } catch (err: any) {
       console.error('Login error caught:', err);
       

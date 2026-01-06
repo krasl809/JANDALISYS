@@ -16,6 +16,8 @@ import urllib.parse
 import subprocess
 import platform
 from typing import List, Optional
+from PIL import Image
+import io
 
 import logging
 logger = logging.getLogger(__name__)
@@ -49,10 +51,13 @@ def validate_file(file: UploadFile):
 # Base Storage Path - using absolute path to avoid issues
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 STORAGE_PATH = os.path.join(BASE_DIR, "storage", "archive")
+THUMBNAIL_PATH = os.path.join(BASE_DIR, "storage", "thumbnails")
 
 def ensure_storage(db: Session):
     if not os.path.exists(STORAGE_PATH):
         os.makedirs(STORAGE_PATH)
+    if not os.path.exists(THUMBNAIL_PATH):
+        os.makedirs(THUMBNAIL_PATH)
         
         # Create initial folders ONLY if the entire storage path was missing (first time setup)
         system_folders = ["General", "Administrative", "Financial", "Projects"]
@@ -69,6 +74,58 @@ def ensure_storage(db: Session):
             )
             db.add(new_folder)
         db.commit()
+
+# --- Helper Functions ---
+
+def _generate_file_thumbnail(file_record: archive_models.ArchiveFile):
+    """Generate and save a thumbnail for an image file."""
+    try:
+        # Check if it's an image
+        ext = os.path.splitext(file_record.file_path)[1].lower()
+        if ext not in ['.jpg', '.jpeg', '.png', '.gif', '.webp']:
+            return None
+
+        thumb_filename = f"thumb_{file_record.id}_{os.path.basename(file_record.file_path)}"
+        thumb_path = os.path.join(THUMBNAIL_PATH, thumb_filename)
+
+        # Check cache
+        if os.path.exists(thumb_path):
+            return thumb_path
+
+        normalized_path = os.path.normpath(file_record.file_path)
+        if not os.path.exists(normalized_path):
+            return None
+
+        with Image.open(normalized_path) as img:
+            # Convert to RGB if necessary (for RGBA or P images)
+            if img.mode in ("RGBA", "P"):
+                img = img.convert("RGB")
+            
+            # Target size 200x200 (aspect ratio preserved)
+            img.thumbnail((200, 200))
+            
+            # Save to cache
+            if not os.path.exists(THUMBNAIL_PATH):
+                os.makedirs(THUMBNAIL_PATH)
+            img.save(thumb_path, "JPEG", quality=85)
+            
+        return thumb_path
+    except Exception as e:
+        logger.error(f"Failed to generate thumbnail for {file_record.id}: {str(e)}")
+        return None
+
+def _delete_file_thumbnail(file_id: int, file_path: str):
+    """Delete the thumbnail associated with a file."""
+    try:
+        thumb_filename = f"thumb_{file_id}_{os.path.basename(file_path)}"
+        thumb_path = os.path.join(THUMBNAIL_PATH, thumb_filename)
+        if os.path.exists(thumb_path):
+            os.remove(thumb_path)
+            logger.info(f"Deleted thumbnail: {thumb_path}")
+    except Exception as e:
+        logger.error(f"Failed to delete thumbnail for {file_id}: {str(e)}")
+
+# --- API Routes ---
 
 @router.get("/init")
 def init_archive(db: Session = Depends(get_db), current_user = Depends(require_permission("archive_write"))):
@@ -132,10 +189,20 @@ def create_folder(
 @router.get("/files")
 def get_files(
     folder_id: int,
+    skip: int = Query(0, ge=0),
+    limit: int = Query(50, ge=1, le=100),
     db: Session = Depends(get_db),
     current_user = Depends(require_permission("archive_read"))
 ):
-    return db.query(archive_models.ArchiveFile).filter(archive_models.ArchiveFile.folder_id == folder_id).all()
+    query = db.query(archive_models.ArchiveFile).filter(archive_models.ArchiveFile.folder_id == folder_id)
+    total = query.count()
+    files = query.offset(skip).limit(limit).all()
+    return {
+        "total": total,
+        "files": files,
+        "skip": skip,
+        "limit": limit
+    }
 
 import mimetypes
 
@@ -202,6 +269,65 @@ def view_file(
         media_type=mime_type,
         content_disposition_type="inline"
     )
+
+@router.get("/files/{file_id}/thumbnail")
+def get_thumbnail(
+    file_id: int,
+    token: Optional[str] = Query(None),
+    db: Session = Depends(get_db)
+):
+    # Manual auth check
+    if not token:
+        raise HTTPException(status_code=401, detail="Token required")
+        
+    try:
+        current_user = get_user_from_raw_token(token, db)
+        # Check permission
+        has_perm, _ = rbac_crud.check_user_permission(db, str(current_user.id), "archive_read")
+        if not has_perm:
+            raise HTTPException(status_code=403, detail="Permission archive_read required")
+    except Exception as e:
+        raise HTTPException(status_code=401, detail=f"Auth failed: {str(e)}")
+
+    file_record = db.query(archive_models.ArchiveFile).get(file_id)
+    if not file_record:
+        raise HTTPException(status_code=404, detail="File not found")
+    
+    # Check if it's an image
+    ext = os.path.splitext(file_record.file_path)[1].lower()
+    if ext not in ['.jpg', '.jpeg', '.png', '.gif', '.webp']:
+        # For non-images, we don't generate thumbnails here
+        # The frontend should handle this by showing icons
+        raise HTTPException(status_code=400, detail="Not an image file")
+
+    thumb_filename = f"thumb_{file_id}_{os.path.basename(file_record.file_path)}"
+    thumb_path = os.path.join(THUMBNAIL_PATH, thumb_filename)
+
+    # Check cache first
+    if os.path.exists(thumb_path):
+        return FileResponse(thumb_path, media_type="image/jpeg")
+
+    # If not in cache, try to generate it (fallback for existing files)
+    generated_path = _generate_file_thumbnail(file_record)
+    if generated_path and os.path.exists(generated_path):
+        return FileResponse(generated_path, media_type="image/jpeg")
+
+    # If generation failed or not an image, return error or fallback
+    normalized_path = os.path.normpath(file_record.file_path)
+    if not os.path.exists(normalized_path):
+        # Try alt path logic
+        filename = os.path.basename(normalized_path)
+        folder = db.query(archive_models.ArchiveFolder).get(file_record.folder_id)
+        if folder:
+            alt_path = os.path.join(folder.path, filename)
+            if os.path.exists(alt_path):
+                normalized_path = alt_path
+            else:
+                raise HTTPException(status_code=404, detail="Physical file not found")
+        else:
+            raise HTTPException(status_code=404, detail="Physical file not found")
+
+    return FileResponse(normalized_path, media_type="image/jpeg")
 
 @router.get("/files/{file_id}/download")
 def download_file(
@@ -463,6 +589,10 @@ async def upload_file(
         db.add(new_file)
         db.commit()
         db.refresh(new_file)
+        
+        # Generate thumbnail immediately
+        _generate_file_thumbnail(new_file)
+        
         return new_file
     except Exception as e:
         logger.error(f"Upload failed for user {current_user.email}: {str(e)}", exc_info=True)
@@ -627,6 +757,8 @@ async def bulk_upload(
                     created_by=current_user.id
                 )
                 db.add(new_file)
+                db.flush() # Get ID for thumbnail naming
+                _generate_file_thumbnail(new_file)
                 results.append({"filename": original_filename, "status": "success"})
             except Exception as e:
                 logger.error(f"Failed to save file {file_path}: {str(e)}")
@@ -654,6 +786,8 @@ def delete_file(
     # Remove physical file
     if file.file_path and os.path.exists(file.file_path):
         try:
+            # Delete thumbnail first
+            _delete_file_thumbnail(file.id, file.file_path)
             os.remove(file.file_path)
             logger.info(f"Deleted physical file: {file.file_path}")
         except Exception as e:
@@ -677,6 +811,19 @@ def delete_folder(
     # if folder.is_system:
     #    raise HTTPException(status_code=400, detail="Cannot delete system folder")
         
+    # Find all files in this folder and its subfolders to delete their thumbnails
+    def collect_file_ids(fld):
+        f_data = []
+        for fl in fld.files:
+            f_data.append((fl.id, fl.file_path))
+        for sub in fld.subfolders:
+            f_data.extend(collect_file_ids(sub))
+        return f_data
+
+    files_to_cleanup = collect_file_ids(folder)
+    for f_id, f_path in files_to_cleanup:
+        _delete_file_thumbnail(f_id, f_path)
+
     # Remove physical folder
     if folder.path and os.path.exists(folder.path):
         try:
@@ -707,6 +854,9 @@ def bulk_delete(
         for file_id in request.file_ids:
             file = db.query(archive_models.ArchiveFile).get(file_id)
             if file:
+                # Delete thumbnail
+                _delete_file_thumbnail(file.id, file.file_path)
+                
                 if os.path.exists(file.file_path):
                     try:
                         os.remove(file.file_path)
@@ -836,6 +986,8 @@ def bulk_copy(
                 created_by=current_user.id
             )
             db.add(new_file)
+            db.flush() # Get ID for thumbnail
+            _generate_file_thumbnail(new_file)
 
     # Copy folders
     for folder_id in request.folder_ids:
@@ -881,6 +1033,8 @@ def bulk_copy(
                         created_by=current_user.id
                     )
                     db.add(new_fl)
+                    db.flush()
+                    _generate_file_thumbnail(new_fl)
             
             clone_folder(folder, request.target_folder_id, new_path, is_root=True)
 
@@ -1012,4 +1166,8 @@ async def perform_scan(
     db.add(new_file)
     db.commit()
     db.refresh(new_file)
+    
+    # Generate thumbnail
+    _generate_file_thumbnail(new_file)
+    
     return new_file

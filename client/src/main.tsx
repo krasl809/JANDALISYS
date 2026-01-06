@@ -3,51 +3,17 @@ import ReactDOM from 'react-dom/client';
 import App from './App';
 import { AuthProvider } from './context/AuthContext';
 import { NotificationProvider } from './context/NotificationContext';
+import { ConfirmProvider } from './context/ConfirmContext';
 import './i18n/il8n';
-import { registerSW } from 'virtual:pwa-register';
-
-// Register Service Worker for PWA
-if (import.meta.env.PROD) {
-  registerSW({
-    onNeedRefresh() {
-      if (confirm('New version available. Reload?')) {
-        window.location.reload();
-      }
-    },
-    onOfflineReady() {
-      console.log('App ready to work offline');
-    },
-  });
-}
-
-// Suppress MUI aria-hidden accessibility warning in development
-if (import.meta.env.DEV) {
-  // Override console methods to suppress aria-hidden warnings
-  const originalError = console.error;
-  const originalWarn = console.warn;
-
-  console.error = (...args: any[]) => {
-    const message = args.join(' ');
-    if (message.includes('aria-hidden') || message.includes('Blocked aria-hidden') || message.includes('ariaHidden')) {
-      return; // Suppress MUI aria-hidden warnings
-    }
-    originalError.apply(console, args);
-  };
-
-  console.warn = (...args: any[]) => {
-    const message = args.join(' ');
-    if (message.includes('aria-hidden') || message.includes('Blocked aria-hidden') || message.includes('ariaHidden')) {
-      return; // Suppress MUI aria-hidden warnings
-    }
-    originalWarn.apply(console, args);
-  };
-}
+// import { registerSW } from 'virtual:pwa-register';
 
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>
     <AuthProvider>
       <NotificationProvider>
-        <App />
+        <ConfirmProvider>
+          <App />
+        </ConfirmProvider>
       </NotificationProvider>
     </AuthProvider>
   </React.StrictMode>,

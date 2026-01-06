@@ -2,6 +2,7 @@
 import React, { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import api from '../../services/api';
+import { useConfirm } from '../../context/ConfirmContext';
 import {
   Container,
   Paper,
@@ -38,7 +39,7 @@ interface Broker {
 
 const BrokersList: React.FC = () => {
   const { t } = useTranslation();
-
+  const { confirm } = useConfirm();
   const [brokers, setBrokers] = useState<Broker[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
@@ -59,8 +60,9 @@ const BrokersList: React.FC = () => {
   }, []);
 
   const fetchBrokers = async () => {
+    setLoading(true);
     try {
-      const response = await api.get('/brokers/');
+      const response = await api.get('brokers/');
       setBrokers(response.data);
     } catch (err: any) {
       console.error('Error fetching brokers:', err);
@@ -77,7 +79,7 @@ const BrokersList: React.FC = () => {
     }
 
     try {
-      const response = await api.post('/brokers/', newBroker);
+      const response = await api.post('brokers/', newBroker);
       setBrokers([...brokers, response.data]);
       setNewBroker({ contact_name: '', address: '', post_box: '', tel: '', fax: '', email: '', code: '' });
       setError(null);
@@ -96,7 +98,7 @@ const BrokersList: React.FC = () => {
     if (!currentBroker) return;
 
     try {
-      const response = await api.put(`/brokers/${currentBroker.id}`, currentBroker);
+      const response = await api.put(`brokers/${currentBroker.id}`, currentBroker);
       setBrokers(brokers.map(broker => 
         broker.id === currentBroker.id ? response.data : broker
       ));
@@ -109,10 +111,10 @@ const BrokersList: React.FC = () => {
   };
 
   const handleDeleteBroker = async (id: string) => {
-    if (!window.confirm(t('confirmDelete'))) return;
+    if (!await confirm({ message: t('confirmDelete') })) return;
 
     try {
-      await api.delete(`/brokers/${id}`);
+      await api.delete(`brokers/${id}`);
       setBrokers(brokers.filter(b => b.id !== id));
     } catch (err: any) {
       console.error('Error deleting broker:', err);

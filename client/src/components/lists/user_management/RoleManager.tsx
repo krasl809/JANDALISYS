@@ -3,17 +3,13 @@ import { useTranslation } from 'react-i18next';
 import api from '../../../services/api';
 import {
     Box,
-    Paper,
     Typography,
     List,
-    ListItem,
     ListItemButton,
     ListItemText,
     ListItemIcon,
     Checkbox,
-    Chip,
     Grid,
-    Divider,
     Button,
     CircularProgress,
     Alert,
@@ -25,7 +21,6 @@ import {
 import {
     Security,
     AdminPanelSettings,
-    CheckCircle,
     Save,
     VpnKey
 } from '@mui/icons-material';
@@ -67,10 +62,10 @@ const RoleManager: React.FC = () => {
     const fetchData = async () => {
         setLoading(true);
         try {
-            const [rolesRes, permsRes] = await Promise.all([
-                api.get('/rbac/roles'),
-                api.get('/rbac/permissions')
-            ]);
+                const [rolesRes, permsRes] = await Promise.all([
+                    api.get('rbac/roles'),
+                    api.get('rbac/permissions')
+                ]);
             setRoles(rolesRes.data);
             setPermissions(permsRes.data);
             if (rolesRes.data.length > 0) {
@@ -84,7 +79,7 @@ const RoleManager: React.FC = () => {
         }
     };
 
-    const fetchRolePermissions = async (roleId: string) => {
+    const fetchRolePermissions = async (_roleId: string) => {
         // Ideally the backend should return the list of permission IDs for a role.
         // If not, we might need to adjust logic. Assuming `GET /rbac/roles` might include them 
         // or we fetch `GET /rbac/role-permissions/{id}`. 
@@ -130,7 +125,7 @@ const RoleManager: React.FC = () => {
         if (!selectedRole) return;
         setSaving(true);
         try {
-            await api.put(`/rbac/roles/${selectedRole.id}/permissions`, {
+            await api.put(`rbac/roles/${selectedRole.id}/permissions`, {
                 permission_ids: rolePermissions
             });
             setFeedback({ type: 'success', message: `Permissions updated for ${selectedRole.name}` });

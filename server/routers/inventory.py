@@ -17,9 +17,7 @@ logger = logging.getLogger(__name__)
 
 # --- Warehouses ---
 @router.post("/warehouses/", response_model=schemas.Warehouse)
-def create_warehouse(wh: schemas.WarehouseCreate, db: Session = Depends(get_db), user=Depends(get_current_user)):
-    if user.role not in ['admin', 'manager']:
-        raise HTTPException(status_code=403, detail="Not authorized")
+def create_warehouse(wh: schemas.WarehouseCreate, db: Session = Depends(get_db), current_user=Depends(require_permission("manage_inventory"))):
     try:
         db_wh = core_models.Warehouse(**wh.dict())
         db.add(db_wh)

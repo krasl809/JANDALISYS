@@ -6,14 +6,8 @@ export default defineConfig({
   server: {
     host: '0.0.0.0',
     port: 5173,
-    allowedHosts: [
-      '91.144.22.3',
-      'localhost',
-      '127.0.0.1',
-      '.jandali.com'
-    ],
+    allowedHosts: true, // Allow all hosts for easier network access
     hmr: {
-      host: '91.144.22.3',
       clientPort: 5173
     },
     proxy: {
@@ -34,7 +28,7 @@ export default defineConfig({
     VitePWA({
       registerType: 'autoUpdate',
       devOptions: {
-        enabled: true
+        enabled: false
       },
       workbox: {
         navigateFallback: '/index.html',

@@ -1,25 +1,24 @@
 import React, { useState, useRef } from 'react';
 import {
-  Card, CardContent, Grid, TextField, Typography, Box, Button, IconButton,
+  Card, CardContent, Grid, TextField, Button, IconButton,
   List, ListItem, ListItemText, ListItemSecondaryAction, Chip, Alert,
   LinearProgress, Dialog, DialogTitle, DialogContent, DialogActions,
-  FormControl, FormLabel, RadioGroup, FormControlLabel, Radio, Divider
+  FormControl, FormLabel, RadioGroup, FormControlLabel, Radio, Paper
 } from '@mui/material';
 import {
   Folder, Upload, Delete, Visibility, Description, Badge, Person,
-  School, Work, Security, CheckCircle, Error, Warning
+  School, Work, Security, CheckCircle
 } from '@mui/icons-material';
+import { MDBox, MDTypography } from '../common/MDComponents';
 
 interface DocumentsSectionProps {
   formData: any;
   onInputChange: (field: string, value: any) => void;
-  onNestedInputChange: (parent: string, field: string, value: any) => void;
 }
 
 const DocumentsSection: React.FC<DocumentsSectionProps> = ({
   formData,
-  onInputChange,
-  onNestedInputChange
+  onInputChange
 }) => {
   const [uploadDialogOpen, setUploadDialogOpen] = useState(false);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
@@ -130,34 +129,37 @@ const DocumentsSection: React.FC<DocumentsSectionProps> = ({
     <Grid container spacing={3}>
       {/* Upload Area */}
       <Grid item xs={12}>
-        <Card elevation={0}>
-          <CardContent>
-            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, mb: 3 }}>
-              <Box sx={{ 
-                color: 'primary.main', 
-                display: 'flex', 
-                p: 0.5, 
-                borderRadius: 1, 
-                bgcolor: 'primary.light', 
-                opacity: 0.1 
-              }}>
-                <Upload />
-              </Box>
-              <Typography variant="h6" fontWeight="bold">
-                Upload Documents
-              </Typography>
-            </Box>
-
-            <Box
+        <Card sx={{ overflow: 'visible', mt: 4 }}>
+          <MDBox
+            variant="gradient"
+            bgColor="primary"
+            borderRadius="lg"
+            coloredShadow="primary"
+            mx={2}
+            mt={-3}
+            p={2}
+            mb={1}
+            textAlign="center"
+          >
+            <MDTypography variant="h6" fontWeight="medium" color="white">
+              Upload Documents
+            </MDTypography>
+          </MDBox>
+          <CardContent sx={{ pt: 4 }}>
+            <MDBox
               sx={{
                 border: '2px dashed',
                 borderColor: dragActive ? 'primary.main' : 'divider',
-                borderRadius: 2,
-                p: 4,
+                borderRadius: 3,
+                p: 6,
                 textAlign: 'center',
                 bgcolor: dragActive ? 'action.hover' : 'background.paper',
                 transition: 'all 0.3s ease',
-                cursor: 'pointer'
+                cursor: 'pointer',
+                '&:hover': {
+                  borderColor: 'primary.main',
+                  bgcolor: 'action.hover'
+                }
               }}
               onDragEnter={handleDrag}
               onDragLeave={handleDrag}
@@ -165,14 +167,19 @@ const DocumentsSection: React.FC<DocumentsSectionProps> = ({
               onDrop={handleDrop}
               onClick={() => fileInputRef.current?.click()}
             >
-              <Upload sx={{ fontSize: 48, color: 'text.secondary', mb: 2 }} />
-              <Typography variant="h6" gutterBottom>
+              <Upload sx={{ fontSize: 64, color: 'primary.main', mb: 2, opacity: 0.7 }} />
+              <MDTypography variant="h6" fontWeight="bold" gutterBottom>
                 Drag and drop files here
-              </Typography>
-              <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-                or click to select files from your computer
-              </Typography>
-              <Button variant="outlined" startIcon={<Upload />}>
+              </MDTypography>
+              <MDTypography variant="button" color="text" sx={{ mb: 3, display: 'block' }}>
+                Supported formats: PDF, DOC, DOCX, JPG, PNG (Max 10MB)
+              </MDTypography>
+              <Button 
+                variant="contained" 
+                color="primary"
+                startIcon={<Upload />}
+                sx={{ borderRadius: 2, px: 4 }}
+              >
                 Choose File
               </Button>
               <input
@@ -182,43 +189,58 @@ const DocumentsSection: React.FC<DocumentsSectionProps> = ({
                 onChange={handleFileSelect}
                 accept=".pdf,.doc,.docx,.jpg,.jpeg,.png,.gif"
               />
-            </Box>
-
-            <Alert severity="info" sx={{ mt: 2 }}>
-              <Typography variant="body2">
-                Supported formats: PDF, DOC, DOCX, JPG, JPEG, PNG, GIF. Maximum file size: 10MB
-              </Typography>
-            </Alert>
+            </MDBox>
           </CardContent>
         </Card>
       </Grid>
 
       {/* Document Types Guide */}
       <Grid item xs={12}>
-        <Card elevation={0}>
-          <CardContent>
-            <Typography variant="h6" fontWeight="bold" sx={{ mb: 2 }}>
+        <Card sx={{ overflow: 'visible', mt: 4 }}>
+          <MDBox
+            variant="gradient"
+            bgColor="info"
+            borderRadius="lg"
+            coloredShadow="info"
+            mx={2}
+            mt={-3}
+            p={2}
+            mb={1}
+            textAlign="center"
+          >
+            <MDTypography variant="h6" fontWeight="medium" color="white">
               Document Types
-            </Typography>
+            </MDTypography>
+          </MDBox>
+          <CardContent sx={{ pt: 4 }}>
             <Grid container spacing={2}>
               {documentTypes.map((type) => (
                 <Grid item xs={12} sm={6} md={4} key={type.value}>
-                  <Box sx={{ 
+                  <MDBox sx={{ 
                     display: 'flex', 
                     alignItems: 'center', 
-                    gap: 1, 
-                    p: 1.5, 
+                    gap: 2, 
+                    p: 2, 
                     border: '1px solid', 
                     borderColor: 'divider', 
-                    borderRadius: 1 
+                    borderRadius: 2,
+                    bgcolor: 'background.paper',
+                    '&:hover': { bgcolor: 'action.hover' }
                   }}>
-                    <Box sx={{ color: `${type.color}.main` }}>
+                    <MDBox sx={{ 
+                      color: `${type.color === 'default' ? 'dark' : type.color}.main`,
+                      display: 'flex',
+                      p: 1,
+                      borderRadius: 1,
+                      bgcolor: `${type.color === 'default' ? 'dark' : type.color}.light`,
+                      opacity: 0.8
+                    }}>
                       {type.icon}
-                    </Box>
-                    <Typography variant="body2" fontWeight="medium">
+                    </MDBox>
+                    <MDTypography variant="body2" fontWeight="medium">
                       {type.label}
-                    </Typography>
-                  </Box>
+                    </MDTypography>
+                  </MDBox>
                 </Grid>
               ))}
             </Grid>
@@ -228,77 +250,110 @@ const DocumentsSection: React.FC<DocumentsSectionProps> = ({
 
       {/* Document List */}
       <Grid item xs={12}>
-        <Card elevation={0}>
-          <CardContent>
-            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, mb: 3 }}>
-              <Box sx={{ 
-                color: 'secondary.main', 
-                display: 'flex', 
-                p: 0.5, 
-                borderRadius: 1, 
-                bgcolor: 'secondary.light', 
-                opacity: 0.1 
-              }}>
-                <Folder />
-              </Box>
-              <Typography variant="h6" fontWeight="bold">
-                Uploaded Documents
-              </Typography>
-              <Chip 
-                label={`${formData.documents?.length || 0} files`} 
-                size="small" 
-                color="primary" 
-              />
-            </Box>
-
+        <Card sx={{ overflow: 'visible', mt: 4 }}>
+          <MDBox
+            variant="gradient"
+            bgColor="secondary"
+            borderRadius="lg"
+            coloredShadow="secondary"
+            mx={2}
+            mt={-3}
+            p={2}
+            mb={1}
+            textAlign="center"
+            display="flex"
+            justifyContent="space-between"
+            alignItems="center"
+          >
+            <MDTypography variant="h6" fontWeight="medium" color="white">
+              Uploaded Documents
+            </MDTypography>
+            <Chip 
+              label={`${formData.documents?.length || 0} files`} 
+              size="small" 
+              sx={{ 
+                bgcolor: 'rgba(255, 255, 255, 0.2)', 
+                color: 'white',
+                fontWeight: 'bold',
+                borderRadius: 1
+              }}
+            />
+          </MDBox>
+          <CardContent sx={{ pt: 4 }}>
             {!formData.documents || formData.documents.length === 0 ? (
-              <Alert severity="info">
-                <Typography variant="body2">
-                  No documents uploaded yet. Upload documents using the area above.
-                </Typography>
-              </Alert>
+              <MDBox sx={{ 
+                textAlign: 'center', 
+                py: 6, 
+                bgcolor: 'action.hover', 
+                borderRadius: 3,
+                border: '1px dashed',
+                borderColor: 'divider'
+              }}>
+                <Description sx={{ fontSize: 48, color: 'text.disabled', mb: 2, opacity: 0.5 }} />
+                <MDTypography variant="body1" color="text" fontWeight="medium">
+                  No documents uploaded yet
+                </MDTypography>
+                <MDTypography variant="caption" color="text">
+                  Uploaded files will appear here
+                </MDTypography>
+              </MDBox>
             ) : (
-              <List>
+              <List sx={{ p: 0 }}>
                 {formData.documents.map((doc: any, index: number) => (
-                  <React.Fragment key={index}>
-                    <ListItem sx={{ border: '1px solid', borderColor: 'divider', borderRadius: 1, mb: 1 }}>
-                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, width: '100%' }}>
-                        <Box sx={{ color: `${getDocumentColor(doc.document_type)}.main` }}>
+                  <Paper 
+                    key={index}
+                    variant="outlined"
+                    sx={{ 
+                      mb: 2, 
+                      borderRadius: 2,
+                      overflow: 'hidden',
+                      '&:hover': {
+                        borderColor: 'primary.main',
+                        boxShadow: '0 4px 12px rgba(0,0,0,0.05)'
+                      }
+                    }}
+                  >
+                    <ListItem sx={{ p: 2 }}>
+                      <MDBox sx={{ display: 'flex', alignItems: 'center', gap: 2, width: '100%' }}>
+                        <MDBox sx={{ 
+                          color: `${getDocumentColor(doc.document_type) === 'default' ? 'dark' : getDocumentColor(doc.document_type)}.main`,
+                          display: 'flex',
+                          p: 1.5,
+                          borderRadius: 1.5,
+                          bgcolor: `${getDocumentColor(doc.document_type) === 'default' ? 'dark' : getDocumentColor(doc.document_type)}.light`,
+                          opacity: 0.8
+                        }}>
                           {getDocumentIcon(doc.document_type)}
-                        </Box>
+                        </MDBox>
                         <ListItemText
                           primary={
-                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                              <Typography variant="subtitle2" fontWeight="bold">
+                            <MDBox sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
+                              <MDTypography variant="subtitle2" fontWeight="bold">
                                 {doc.document_name}
-                              </Typography>
+                              </MDTypography>
                               <Chip 
                                 label={documentTypes.find(dt => dt.value === doc.document_type)?.label || 'Other'}
                                 size="small"
-                                color={getDocumentColor(doc.document_type) as any}
+                                color={getDocumentColor(doc.document_type) === 'default' ? 'default' : getDocumentColor(doc.document_type) as any}
+                                sx={{ borderRadius: 1, fontWeight: 'medium' }}
                               />
-                            </Box>
+                            </MDBox>
                           }
                           secondary={
-                            <Box>
-                              <Typography variant="body2" color="text.secondary">
-                                {formatFileSize(doc.file_size || 0)} • {doc.mime_type}
-                              </Typography>
-                              {doc.issue_date && (
-                                <Typography variant="caption" color="text.secondary">
-                                  Issued: {new Date(doc.issue_date).toLocaleDateString()}
-                                </Typography>
-                              )}
-                            </Box>
+                            <MDBox sx={{ mt: 0.5 }}>
+                              <MDTypography variant="caption" color="text">
+                                {formatFileSize(doc.file_size || 0)} • {doc.mime_type} • Uploaded {new Date(doc.issue_date).toLocaleDateString()}
+                              </MDTypography>
+                            </MDBox>
                           }
                         />
                         <ListItemSecondaryAction>
-                          <Box sx={{ display: 'flex', gap: 1 }}>
+                          <MDBox sx={{ display: 'flex', gap: 1 }}>
                             {doc.file_path && (
                               <IconButton
                                 size="small"
                                 onClick={() => window.open(doc.file_path, '_blank')}
-                                color="primary"
+                                sx={{ bgcolor: 'info.lighter', color: 'info.main', '&:hover': { bgcolor: 'info.light' } }}
                               >
                                 <Visibility fontSize="small" />
                               </IconButton>
@@ -306,16 +361,15 @@ const DocumentsSection: React.FC<DocumentsSectionProps> = ({
                             <IconButton
                               size="small"
                               onClick={() => removeDocument(index)}
-                              color="error"
+                              sx={{ bgcolor: 'error.lighter', color: 'error.main', '&:hover': { bgcolor: 'error.light' } }}
                             >
                               <Delete fontSize="small" />
                             </IconButton>
-                          </Box>
+                          </MDBox>
                         </ListItemSecondaryAction>
-                      </Box>
+                      </MDBox>
                     </ListItem>
-                    {index < formData.documents.length - 1 && <Divider />}
-                  </React.Fragment>
+                  </Paper>
                 ))}
               </List>
             )}
@@ -323,64 +377,25 @@ const DocumentsSection: React.FC<DocumentsSectionProps> = ({
         </Card>
       </Grid>
 
-      {/* Document Requirements */}
+      {/* Requirements Alert */}
       <Grid item xs={12}>
-        <Card elevation={0}>
-          <CardContent>
-            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, mb: 3 }}>
-              <Box sx={{ 
-                color: 'warning.main', 
-                display: 'flex', 
-                p: 0.5, 
-                borderRadius: 1, 
-                bgcolor: 'warning.light', 
-                opacity: 0.1 
-              }}>
-                <Warning />
-              </Box>
-              <Typography variant="h6" fontWeight="bold">
-                Document Requirements
-              </Typography>
-            </Box>
-
-            <Grid container spacing={3}>
-              <Grid item xs={12} md={6}>
-                <Alert severity="warning" icon={<CheckCircle />}>
-                  <Typography variant="subtitle2" fontWeight="bold" gutterBottom>
-                    Required Documents
-                  </Typography>
-                  <Typography variant="body2">
-                    • Profile Picture (JPG/PNG, max 2MB)<br />
-                    • National ID or Passport copy<br />
-                    • Resume/CV (PDF or DOC)<br />
-                    • Employment Contract
-                  </Typography>
-                </Alert>
-              </Grid>
-
-              <Grid item xs={12} md={6}>
-                <Alert severity="info" icon={<Description />}>
-                  <Typography variant="subtitle2" fontWeight="bold" gutterBottom>
-                    Optional Documents
-                  </Typography>
-                  <Typography variant="body2">
-                    • Educational Certificates<br />
-                    • Work Experience Letters<br />
-                    • Medical Certificates<br />
-                    • Training Certificates
-                  </Typography>
-                </Alert>
-              </Grid>
-            </Grid>
-
-            <Alert severity="error" sx={{ mt: 2 }}>
-              <Typography variant="body2">
-                <strong>Note:</strong> All uploaded documents will be securely stored and encrypted. 
-                Only authorized personnel will have access to view these documents.
-              </Typography>
-            </Alert>
-          </CardContent>
-        </Card>
+        <Alert 
+          severity="warning" 
+          icon={<CheckCircle />}
+          sx={{ 
+            borderRadius: 3,
+            p: 2,
+            '& .MuiAlert-icon': { fontSize: 28, alignItems: 'center' }
+          }}
+        >
+          <MDTypography variant="subtitle2" fontWeight="bold" gutterBottom>
+            Important Notice
+          </MDTypography>
+          <MDTypography variant="body2" color="text">
+            Required documents: Profile Picture, National ID/Passport, Resume, and Contract.
+            All files are securely stored and encrypted.
+          </MDTypography>
+        </Alert>
       </Grid>
 
       {/* Upload Dialog */}
@@ -388,17 +403,17 @@ const DocumentsSection: React.FC<DocumentsSectionProps> = ({
         <DialogTitle>Upload Document</DialogTitle>
         <DialogContent>
           {selectedFile && (
-            <Box sx={{ mb: 3 }}>
-              <Typography variant="subtitle2" gutterBottom>
+            <MDBox sx={{ mb: 3 }}>
+              <MDTypography variant="subtitle2" gutterBottom display="block">
                 File: {selectedFile.name}
-              </Typography>
-              <Typography variant="body2" color="text.secondary" gutterBottom>
+              </MDTypography>
+              <MDTypography variant="body2" color="text" gutterBottom display="block">
                 Size: {formatFileSize(selectedFile.size)}
-              </Typography>
-              <Typography variant="body2" color="text.secondary" gutterBottom>
+              </MDTypography>
+              <MDTypography variant="body2" color="text" gutterBottom display="block">
                 Type: {selectedFile.type}
-              </Typography>
-            </Box>
+              </MDTypography>
+            </MDBox>
           )}
 
           <FormControl fullWidth sx={{ mb: 2 }}>
@@ -413,10 +428,10 @@ const DocumentsSection: React.FC<DocumentsSectionProps> = ({
                   value={type.value}
                   control={<Radio />}
                   label={
-                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                    <MDBox sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                       {type.icon}
-                      {type.label}
-                    </Box>
+                      <MDTypography variant="body2">{type.label}</MDTypography>
+                    </MDBox>
                   }
                 />
               ))}
@@ -443,12 +458,12 @@ const DocumentsSection: React.FC<DocumentsSectionProps> = ({
           />
 
           {uploadProgress > 0 && uploadProgress < 100 && (
-            <Box sx={{ mb: 2 }}>
-              <Typography variant="body2" gutterBottom>
+            <MDBox sx={{ mb: 2 }}>
+              <MDTypography variant="body2" gutterBottom display="block">
                 Uploading... {uploadProgress}%
-              </Typography>
+              </MDTypography>
               <LinearProgress variant="determinate" value={uploadProgress} />
-            </Box>
+            </MDBox>
           )}
         </DialogContent>
         <DialogActions>

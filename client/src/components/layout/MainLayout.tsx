@@ -1,7 +1,6 @@
 import React, { useState } from 'react';
-import { Outlet, useLocation } from 'react-router-dom';
-import { Box, CssBaseline, useMediaQuery, useTheme } from '@mui/material';
-import { AnimatePresence } from 'framer-motion'; // 👈 مكتبة الحركة
+import { Outlet } from 'react-router-dom';
+import { Box, CssBaseline, useTheme } from '@mui/material';
 import { useTranslation } from 'react-i18next';
 
 import Header from '../common/Header';
@@ -12,9 +11,7 @@ const drawerWidth = 280;
 const MainLayout: React.FC = () => {
   const theme = useTheme();
   const { i18n } = useTranslation();
-  const isMobile = useMediaQuery(theme.breakpoints.down('md'));
   const [mobileOpen, setMobileOpen] = useState(false);
-  const location = useLocation(); // 👈 لتحديد مفتاح الحركة
   const isRTL = i18n.language === 'ar';
 
   const handleDrawerToggle = () => {
@@ -22,7 +19,7 @@ const MainLayout: React.FC = () => {
   };
 
   return (
-    <Box dir={isRTL ? 'rtl' : 'ltr'} sx={{ display: 'flex', minHeight: '100vh', bgcolor: 'background.default', overflowX: 'hidden', maxWidth: '100vw', boxSizing: 'border-box' }}>
+    <Box dir={isRTL ? 'rtl' : 'ltr'} sx={{ display: 'flex', minHeight: '100vh', bgcolor: 'background.default', overflowX: 'hidden' }}>
       <CssBaseline />
 
       {/* القائمة الجانبية */}
@@ -36,16 +33,13 @@ const MainLayout: React.FC = () => {
       <Box
         component="main"
         sx={{
+          flexGrow: 1,
           width: { xs: '100%', md: `calc(100% - ${drawerWidth}px)` },
-          // استبدال المارجن اليدوي بـ marginInlineStart ليدعم RTL تلقائياً
           marginInlineStart: { md: `${drawerWidth}px` },
           display: 'flex',
           flexDirection: 'column',
           minHeight: '100vh',
           bgcolor: 'background.default',
-          boxSizing: 'border-box',
-          overflowX: 'hidden',
-          maxWidth: '100%',
           transition: theme.transitions.create(['margin', 'width'], {
             easing: theme.transitions.easing.sharp,
             duration: theme.transitions.duration.leavingScreen,
@@ -57,17 +51,14 @@ const MainLayout: React.FC = () => {
         <Box
           sx={{
             flexGrow: 1,
-            overflow: 'auto',
-            position: 'relative',
+            p: { xs: 2, sm: 3, md: 4 }, // 👈 إضافة بادينج متناسق
+            width: '100%',
+            maxWidth: '1600px', // 👈 تحديد العرض الأقصى للمحتوى
+            mx: 'auto',
             boxSizing: 'border-box',
-            overflowX: 'hidden'
           }}
         >
-          {/* ✅ تمكين حركات الخروج والدخول عند تغيير المسار */}
-          <AnimatePresence mode='wait'>
-            {/* نمرر location.pathname كمفتاح ليعرف React أن الصفحة تغيرت */}
-            <Outlet key={location.pathname} />
-          </AnimatePresence>
+          <Outlet />
         </Box>
       </Box>
     </Box>

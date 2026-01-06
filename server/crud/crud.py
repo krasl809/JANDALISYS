@@ -284,11 +284,21 @@ def delete_contract(db: Session, contract_id: uuid.UUID) -> Optional[dict]:
         if not db_contract:
             return None
             
-        # Delete related contract views first to avoid constraint violations
-        from server.models.core_models import ContractView
+        # 1. Delete related contract views
+        from models.core_models import ContractView, FinancialTransaction, DeliveryNote, ContractDocument
         db.query(ContractView).filter(ContractView.contract_id == contract_id).delete()
         
-        # Delete the contract
+        # 2. Delete related financial transactions
+        db.query(FinancialTransaction).filter(FinancialTransaction.contract_id == contract_id).delete()
+
+        # 3. Handle related delivery notes
+        # Option A: Delete them (if business logic allows)
+        db.query(DeliveryNote).filter(DeliveryNote.contract_id == contract_id).delete()
+        
+        # 4. Delete related documents
+        db.query(ContractDocument).filter(ContractDocument.contract_id == contract_id).delete()
+
+        # 5. Delete the contract (this will also delete items due to cascade="all, delete-orphan")
         db.delete(db_contract)
         db.commit()
         return {"message": "Contract deleted successfully"}

@@ -16,6 +16,7 @@ import {
   DialogActions,
   TextField,
   CircularProgress,
+  Skeleton,
   List,
   ListItemIcon,
   ListItemText,
@@ -26,7 +27,8 @@ import {
   Select,
   ListItemButton,
   Tabs,
-  Tab
+  Tab,
+  Chip
 } from '@mui/material';
 import {
   Folder,
@@ -60,7 +62,8 @@ import {
 import { useNavigate } from 'react-router-dom';
 import api from '../../services/api';
 import { useTranslation } from 'react-i18next';
-import { motion } from 'framer-motion';
+import { useConfirm } from '../../context/ConfirmContext';
+import { motion, AnimatePresence } from 'framer-motion';
 import { useAuth } from '../../context/AuthContext';
 import { PERMISSIONS } from '../../config/permissions';
 import { 
@@ -98,9 +101,34 @@ const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB
 
 const ArchiveBrowser: React.FC = () => {
   const { t } = useTranslation();
+  const { confirm, alert } = useConfirm();
   const theme = useTheme();
   const navigate = useNavigate();
   const { hasPermission } = useAuth();
+
+  const containerVariants: any = {
+    hidden: { opacity: 0 },
+    visible: {
+      opacity: 1,
+      transition: {
+        staggerChildren: 0.05
+      }
+    }
+  };
+
+  const itemVariants: any = {
+    hidden: { opacity: 0, y: 20 },
+    visible: {
+      opacity: 1,
+      y: 0,
+      transition: {
+        duration: 0.3,
+        ease: "easeOut"
+      }
+    }
+  };
+
+  // ... rest of state and effects
   const [folders, setFolders] = useState<ArchiveFolder[]>([]);
   const [files, setFiles] = useState<ArchiveFile[]>([]);
   const [currentFolder, setCurrentFolder] = useState<ArchiveFolder | null>(null);
@@ -126,10 +154,10 @@ const ArchiveBrowser: React.FC = () => {
   const [bulkUploading, setBulkUploading] = useState(false);
   const [bulkProgress, setBulkProgress] = useState(0);
 
-  const canUpload = hasPermission(PERMISSIONS.UPLOAD_ARCHIVE) || hasPermission(PERMISSIONS.MANAGE_ARCHIVE);
-  const canDelete = hasPermission(PERMISSIONS.DELETE_ARCHIVE) || hasPermission(PERMISSIONS.MANAGE_ARCHIVE);
-  const canDownload = hasPermission(PERMISSIONS.DOWNLOAD_ARCHIVE) || hasPermission(PERMISSIONS.MANAGE_ARCHIVE);
-  const canManage = hasPermission(PERMISSIONS.MANAGE_ARCHIVE);
+  const canUpload = React.useMemo(() => hasPermission(PERMISSIONS.UPLOAD_ARCHIVE) || hasPermission(PERMISSIONS.MANAGE_ARCHIVE), [hasPermission]);
+  const canDelete = React.useMemo(() => hasPermission(PERMISSIONS.DELETE_ARCHIVE) || hasPermission(PERMISSIONS.MANAGE_ARCHIVE), [hasPermission]);
+  const canDownload = React.useMemo(() => hasPermission(PERMISSIONS.DOWNLOAD_ARCHIVE) || hasPermission(PERMISSIONS.MANAGE_ARCHIVE), [hasPermission]);
+  const canManage = React.useMemo(() => hasPermission(PERMISSIONS.MANAGE_ARCHIVE), [hasPermission]);
   const [previewOpen, setPreviewOpen] = useState(false);
   const [previewFile, setPreviewFile] = useState<ArchiveFile | null>(null);
   const [previewTab, setPreviewTab] = useState(0);
@@ -208,7 +236,7 @@ const ArchiveBrowser: React.FC = () => {
 
   const fetchTargetFolders = async () => {
     try {
-      const res = await api.get('/archive/folders');
+      const res = await api.get('archive/folders');
       setTargetFolders(res.data);
     } catch (error) {
       console.error("Failed to fetch target folders", error);
@@ -217,14 +245,14 @@ const ArchiveBrowser: React.FC = () => {
 
   const handleBulkDelete = async () => {
     if (!canDelete) {
-      alert(t('You do not have permission to delete items'));
+      alert(t('You do not have permission to delete items'), t('Warning'), 'warning');
       return;
     }
-    if (!window.confirm(t('Are you sure you want to delete selected items?'))) return;
+    if (!await confirm({ message: t('Are you sure you want to delete selected items?') })) return;
     
     setLoading(true);
     try {
-      await api.post('/archive/bulk-delete', {
+      await api.post('archive/bulk-delete', {
         file_ids: selectedFiles,
         folder_ids: selectedFolders
       });
@@ -232,7 +260,7 @@ const ArchiveBrowser: React.FC = () => {
       fetchContent(currentFolder?.id || null);
     } catch (error) {
       console.error("Bulk delete failed", error);
-      alert(t('Failed to delete some items'));
+      alert(t('Failed to delete some items'), t('Error'), 'error');
     } finally {
       setLoading(false);
     }
@@ -243,7 +271,7 @@ const ArchiveBrowser: React.FC = () => {
     
     setLoading(true);
     try {
-      const endpoint = targetAction === 'move' ? '/archive/bulk-move' : '/archive/bulk-copy';
+      const endpoint = targetAction === 'move' ? 'archive/bulk-move' : 'archive/bulk-copy';
       await api.post(endpoint, {
         file_ids: selectedFiles,
         folder_ids: selectedFolders,
@@ -254,7 +282,7 @@ const ArchiveBrowser: React.FC = () => {
       fetchContent(currentFolder?.id || null);
     } catch (error) {
       console.error(`${targetAction} failed`, error);
-      alert(t(`Failed to ${targetAction} items`));
+      alert(t(`Failed to ${targetAction} items`), t('Error'), 'error');
     } finally {
       setLoading(false);
     }
@@ -264,29 +292,41 @@ const ArchiveBrowser: React.FC = () => {
     const id = folderId || currentFolder?.id;
     if (!id) return;
     try {
-      await api.post(`/archive/folders/${id}/explore`);
+      await api.post(`archive/folders/${id}/explore`);
     } catch (error) {
       console.error("Explore folder failed", error);
-      alert(t('Failed to open local storage'));
+      alert(t('Failed to open local storage'), t('Error'), 'error');
     }
   };
 
-  const filteredFolders = folders.filter(f => f.name.toLowerCase().includes(searchQuery.toLowerCase()));
-  const filteredFiles = files.filter(f => f.name.toLowerCase().includes(searchQuery.toLowerCase()));
+  const filteredFolders = React.useMemo(() => 
+    folders.filter(f => f.name.toLowerCase().includes(searchQuery.toLowerCase())),
+    [folders, searchQuery]
+  );
+  
+  const filteredFiles = React.useMemo(() => 
+    files.filter(f => f.name.toLowerCase().includes(searchQuery.toLowerCase())),
+    [files, searchQuery]
+  );
 
   const fetchContent = async (folderId: number | null) => {
     setLoading(true);
     try {
       // Initialize archive if needed (ensures system folders exist)
       if (folderId === null) {
-        await api.get('/archive/init');
+        try {
+          await api.get('archive/init');
+        } catch (initError) {
+          console.warn("Archive initialization skipped or failed (likely permission issue):", initError);
+          // Continue even if init fails - user might only have read access
+        }
       }
       
-      const folderRes = await api.get(`/archive/folders${folderId ? `?parent_id=${folderId}` : ''}`);
+      const folderRes = await api.get(`archive/folders${folderId ? `?parent_id=${folderId}` : ''}`);
       setFolders(folderRes.data);
 
       if (folderId) {
-        const fileRes = await api.get(`/archive/files?folder_id=${folderId}`);
+        const fileRes = await api.get(`archive/files?folder_id=${folderId}`);
         setFiles(fileRes.data);
       } else {
         setFiles([]);
@@ -300,7 +340,7 @@ const ArchiveBrowser: React.FC = () => {
 
   const handleDownload = (file: ArchiveFile) => {
     if (!canDownload) {
-      alert(t('You do not have permission to download files'));
+      alert(t('You do not have permission to download files'), t('Warning'), 'warning');
       return;
     }
     const token = localStorage.getItem('access_token');
@@ -316,12 +356,12 @@ const ArchiveBrowser: React.FC = () => {
 
   const handleDeleteFile = async (fileId: number) => {
     if (!canDelete) {
-      alert(t('You do not have permission to delete files'));
+      alert(t('You do not have permission to delete files'), t('Warning'), 'warning');
       return;
     }
-    if (!window.confirm(t('Are you sure?'))) return;
+    if (!await confirm({ message: t('Are you sure?') })) return;
     try {
-      await api.delete(`/archive/files/${fileId}`);
+      await api.delete(`archive/files/${fileId}`);
       fetchContent(currentFolder?.id || null);
     } catch (error) {
       console.error("Delete failed", error);
@@ -333,12 +373,12 @@ const ArchiveBrowser: React.FC = () => {
     // if ((folder as any).is_system) return;
     
     if (!canDelete) {
-      alert(t('You do not have permission to delete folders'));
+      alert(t('You do not have permission to delete folders'), t('Warning'), 'warning');
       return;
     }
-    if (!window.confirm(t('Are you sure?'))) return;
+    if (!await confirm({ message: t('Are you sure?') })) return;
     try {
-      await api.delete(`/archive/folders/${folder.id}`);
+      await api.delete(`archive/folders/${folder.id}`);
       fetchContent(currentFolder?.id || null);
     } catch (error) {
       console.error("Delete failed", error);
@@ -431,12 +471,18 @@ const ArchiveBrowser: React.FC = () => {
     // Use relative path for robustness
     let url = `/api/archive/files/${fileId}/view`;
     
+    // Add token as query parameter first
+    if (token) {
+      url += `?token=${token}`;
+    }
+
     if (forIframe) {
       // Add toolbar=0 and navpanes=0 for cleaner PDF view in iframe
+      // Fragment identifiers must be at the end of the URL
       url += '#toolbar=0&navpanes=0';
     }
 
-    return token ? `${url}${forIframe ? '&' : '?'}token=${token}` : url;
+    return url;
   };
 
   const handleGoUp = () => {
@@ -455,11 +501,11 @@ const ArchiveBrowser: React.FC = () => {
 
   const handleCreateFolder = async () => {
     if (!canUpload) {
-      alert(t('You do not have permission to create folders'));
+      alert(t('You do not have permission to create folders'), t('Warning'), 'warning');
       return;
     }
     try {
-      await api.post('/archive/folders', {
+      await api.post('archive/folders', {
         name: newFolderName,
         parent_id: currentFolder?.id || null
       });
@@ -482,7 +528,7 @@ const ArchiveBrowser: React.FC = () => {
 
     const fetchScanners = async () => {
         try {
-            const res = await api.get('/archive/scanners');
+            const res = await api.get('archive/scanners');
             setScanners(res.data);
             if (res.data.length > 0) {
                 setScanData(prev => ({ ...prev, scanner_id: res.data[0].id }));
@@ -494,11 +540,11 @@ const ArchiveBrowser: React.FC = () => {
 
     const handleScan = async () => {
         if (!canUpload) {
-            alert(t('You do not have permission to scan files'));
+            alert(t('You do not have permission to scan files'), t('Warning'), 'warning');
             return;
         }
         if (!scanData.scanner_id || !scanData.filename) {
-            alert(t('Please select a scanner and enter a filename'));
+            alert(t('Please select a scanner and enter a filename'), t('Warning'), 'warning');
             return;
         }
 
@@ -510,20 +556,20 @@ const ArchiveBrowser: React.FC = () => {
             formData.append('filename', scanData.filename);
             formData.append('description', scanData.description);
 
-            await api.post('/archive/scan', formData);
+            await api.post('archive/scan', formData);
             setOpenScanDialog(false);
             setScanData({ scanner_id: scanners[0]?.id || '', filename: '', description: '' });
             fetchContent(currentFolder?.id || null);
         } catch (error) {
             console.error('Scan failed', error);
-            alert(t('Scan failed'));
+            alert(t('Scan failed'), t('Error'), 'error');
         } finally {
             setUploading(false);
         }
     };
     const handleUpload = async () => {
         if (!canUpload) {
-            alert(t('You do not have permission to upload files'));
+            alert(t('You do not have permission to upload files'), t('Warning'), 'warning');
             return;
         }
         if (!uploadFile || !currentFolder) return;
@@ -540,7 +586,7 @@ const ArchiveBrowser: React.FC = () => {
                 formData.append('description', uploadDescription);
             }
 
-            await api.post('/archive/upload', formData, {
+            await api.post('archive/upload', formData, {
                 headers: {
                     'Content-Type': 'multipart/form-data',
                 },
@@ -554,7 +600,7 @@ const ArchiveBrowser: React.FC = () => {
         } catch (error: any) {
             console.error('Upload failed', error);
             const errorMessage = error.response?.data?.detail || error.message || "Upload failed";
-            alert(`${t('Error')}: ${errorMessage}`);
+            alert(`${t('Error')}: ${errorMessage}`, t('Error'), 'error');
         } finally {
             setUploading(false);
         }
@@ -592,7 +638,7 @@ const ArchiveBrowser: React.FC = () => {
         }
         
         if (relativePaths.length === 0) {
-            alert(t('No valid files found to upload (check types and sizes)'));
+            alert(t('No valid files found to upload (check types and sizes)'), t('Warning'), 'warning');
             setBulkUploading(false);
             return;
         }
@@ -600,7 +646,7 @@ const ArchiveBrowser: React.FC = () => {
         formData.append('relative_paths', JSON.stringify(relativePaths));
 
         try {
-            await api.post('/archive/bulk-upload', formData, {
+            await api.post('archive/bulk-upload', formData, {
                 headers: {
                     'Content-Type': 'multipart/form-data',
                 },
@@ -611,18 +657,44 @@ const ArchiveBrowser: React.FC = () => {
             });
             
             fetchContent(currentFolder.id);
-            alert(t('Folder structure uploaded successfully'));
-        } catch (error: any) {
-            console.error('Bulk upload failed', error);
-            alert(t('Failed to upload folder structure'));
-        } finally {
-            setBulkUploading(false);
-            setBulkProgress(0);
-            if (folderInputRef.current) {
-                folderInputRef.current.value = '';
-            }
-        }
-    };
+      alert(t('Folder structure uploaded successfully'), t('Success'), 'success');
+    } catch (error: any) {
+      console.error('Bulk upload failed', error);
+      alert(t('Failed to upload folder structure'), t('Error'), 'error');
+    } finally {
+      setBulkUploading(false);
+      setBulkProgress(0);
+      if (folderInputRef.current) {
+        folderInputRef.current.value = '';
+      }
+    }
+  };
+
+  const handleDownloadFolder = async (folder: any) => {
+    if (!canDownload) {
+      alert(t('You do not have permission to download'), t('Warning'), 'warning');
+      return;
+    }
+    
+    try {
+      const response = await api.get(`archive/folders/${folder.id}/download`, {
+        responseType: 'blob'
+      });
+      
+      const url = window.URL.createObjectURL(new Blob([response.data]));
+      const link = document.createElement('a');
+      link.href = url;
+      link.setAttribute('download', `${folder.name}.zip`);
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      
+      alert(t('Download started'), t('Success'), 'success');
+    } catch (error) {
+      console.error('Download failed', error);
+      alert(t('Download failed'), t('Error'), 'error');
+    }
+  };
 
   const [isDragging, setIsDragging] = useState(false);
 
@@ -707,7 +779,7 @@ const ArchiveBrowser: React.FC = () => {
         filesToUpload.forEach(file => formData.append('files', file));
         formData.append('relative_paths', JSON.stringify(pathsToUpload));
 
-        await api.post('/archive/bulk-upload', formData, {
+        await api.post('archive/bulk-upload', formData, {
           headers: { 'Content-Type': 'multipart/form-data' },
           onUploadProgress: (progressEvent) => {
             const percentCompleted = Math.round((progressEvent.loaded * 100) / (progressEvent.total || 1));
@@ -716,14 +788,14 @@ const ArchiveBrowser: React.FC = () => {
         });
 
         fetchContent(currentFolder.id);
-        alert(t('Files and folders uploaded successfully'));
+        alert(t('Files and folders uploaded successfully'), t('Success'), 'success');
       } else {
-        alert(t('No valid files or folders found to upload'));
+        alert(t('No valid files or folders found to upload'), t('Warning'), 'warning');
       }
     } catch (error: any) {
       console.error('Drop upload failed', error);
       const msg = error.response?.data?.detail || error.message || t('Failed to upload dropped items');
-      alert(`${t('Error')}: ${msg}`);
+      alert(`${t('Error')}: ${msg}`, t('Error'), 'error');
     } finally {
       setBulkUploading(false);
       setBulkProgress(0);
@@ -846,21 +918,23 @@ const ArchiveBrowser: React.FC = () => {
           {/* Back Button and Breadcrumbs */}
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, flexGrow: 1 }}>
             <Tooltip title={t('Go up to parent folder')}>
-              <IconButton 
-                onClick={handleGoUp} 
-                disabled={breadcrumbs.length <= 1}
-                size="large"
-                color="primary"
-                sx={{ 
-                  bgcolor: alpha(theme.palette.primary.main, 0.1),
-                  '&:hover': { bgcolor: alpha(theme.palette.primary.main, 0.2) },
-                  '&.Mui-disabled': { bgcolor: 'transparent' },
-                  boxShadow: breadcrumbs.length > 1 ? 2 : 0,
-                  transition: 'all 0.2s'
-                }}
-              >
-                <ArrowBack fontSize="large" />
-              </IconButton>
+              <span>
+                <IconButton 
+                  onClick={handleGoUp} 
+                  disabled={breadcrumbs.length <= 1}
+                  size="large"
+                  color="primary"
+                  sx={{ 
+                    bgcolor: alpha(theme.palette.primary.main, 0.1),
+                    '&:hover': { bgcolor: alpha(theme.palette.primary.main, 0.2) },
+                    '&.Mui-disabled': { bgcolor: 'transparent' },
+                    boxShadow: breadcrumbs.length > 1 ? 2 : 0,
+                    transition: 'all 0.2s'
+                  }}
+                >
+                  <ArrowBack fontSize="large" />
+                </IconButton>
+              </span>
             </Tooltip>
             
             <Breadcrumbs separator="/" sx={{ px: 1 }}>
@@ -1013,135 +1087,184 @@ const ArchiveBrowser: React.FC = () => {
       )}
 
       {loading ? (
-        <Box sx={{ display: 'flex', justifyContent: 'center', py: 10 }}>
-          <CircularProgress />
-        </Box>
-      ) : viewMode === 'grid' ? (
         <Grid container spacing={3}>
-          {/* Folders */}
-          {filteredFolders.map((folder) => (
-            <Grid item xs={12} sm={6} md={3} lg={2} key={`folder-${folder.id}`}>
-              <Paper
-                elevation={1}
-                sx={{
-                  p: 2,
-                  display: 'flex',
-                  flexDirection: 'column',
-                  alignItems: 'center',
-                  cursor: 'pointer',
-                  position: 'relative',
-                  transition: '0.2s',
-                  border: selectedFolders.includes(folder.id) ? `2px solid ${theme.palette.primary.main}` : 'none',
-                  '&:hover': {
-                    bgcolor: alpha(theme.palette.primary.main, 0.05),
-                    transform: 'translateY(-4px)',
-                    boxShadow: 3
-                  }
-                }}
-                onClick={() => handleFolderClick(folder)}
-              >
-                <Box sx={{ position: 'absolute', top: 5, right: 5, zIndex: 1, display: 'flex', alignItems: 'center' }}>
-                  <Checkbox 
-                    size="small" 
-                    checked={selectedFolders.includes(folder.id)}
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      toggleFolderSelection(folder.id);
-                    }}
-                  />
-                  <IconButton size="small" onClick={(e) => handleMenuOpen(e, 'folder', folder)}>
-                    <MoreVert fontSize="small" />
-                  </IconButton>
-                </Box>
-                <Folder sx={{ fontSize: 70, color: '#ffd700', mb: 1 }} />
-                <Typography variant="body2" fontWeight="bold" noWrap sx={{ maxWidth: '100%' }}>
-                  {t(folder.name)}
-                </Typography>
-              </Paper>
-            </Grid>
-          ))}
-
-          {/* Files */}
-          {filteredFiles.map((file) => (
-            <Grid item xs={12} sm={6} md={3} lg={2} key={`file-${file.id}`}>
-              <Paper
-                elevation={1}
-                sx={{
-                  p: 2,
-                  display: 'flex',
-                  flexDirection: 'column',
-                  alignItems: 'center',
-                  cursor: 'pointer',
-                  position: 'relative',
-                  transition: '0.2s',
-                  border: selectedFiles.includes(file.id) ? `2px solid ${theme.palette.primary.main}` : 'none',
-                  '&:hover': {
-                    bgcolor: alpha(theme.palette.secondary.main, 0.05),
-                    transform: 'translateY(-4px)',
-                    boxShadow: 3
-                  }
-                }}
-                onClick={() => handleFileClick(file)}
-              >
-                <Box sx={{ position: 'absolute', top: 5, right: 5, zIndex: 1, display: 'flex', alignItems: 'center' }}>
-                  <Checkbox 
-                    size="small" 
-                    checked={selectedFiles.includes(file.id)}
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      toggleFileSelection(file.id);
-                    }}
-                  />
-                  <IconButton 
-                      size="small" 
-                      onClick={(e) => handleMenuOpen(e, 'file', file)}
-                      sx={{ bgcolor: alpha(theme.palette.background.paper, 0.7) }}
-                    >
-                      <MoreVert fontSize="small" />
-                    </IconButton>
-                    <IconButton 
-                      size="small" 
-                      onClick={(e) => { e.stopPropagation(); handlePrint(file.id); }}
-                      sx={{ bgcolor: alpha(theme.palette.background.paper, 0.7), ml: 0.5 }}
-                    >
-                      <Print fontSize="small" />
-                    </IconButton>
-                  </Box>
-                {isImage(file.file_type) ? (
-                  <Box
-                    component="img"
-                    src={getFilePreviewUrl(file.id)}
-                    sx={{
-                      width: '100%',
-                      height: 120,
-                      objectFit: 'cover',
-                      borderRadius: 1,
-                      mb: 1,
-                      boxShadow: '0 2px 8px rgba(0,0,0,0.1)'
-                    }}
-                    alt={file.name}
-                  />
-                ) : file.file_type === 'pdf' ? (
-                  <Description sx={{ fontSize: 70, color: '#f44336', mb: 1 }} />
-                ) : (
-                  <InsertDriveFile sx={{ fontSize: 70, color: '#2196f3', mb: 1 }} />
-                )}
-                <Typography variant="body2" fontWeight="medium" noWrap sx={{ maxWidth: '100%' }}>
-                  {file.name}
-                </Typography>
-                <Typography variant="caption" color="text.secondary">
-                  {(file.file_size / 1024).toFixed(1)} KB
-                </Typography>
+          {[...Array(12)].map((_, index) => (
+            <Grid item xs={12} sm={6} md={3} lg={2} key={`skeleton-${index}`}>
+              <Paper sx={{ p: 2, display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+                <Skeleton variant="rectangular" width="100%" height={80} sx={{ borderRadius: 1, mb: 1 }} />
+                <Skeleton variant="text" width="80%" />
+                <Skeleton variant="text" width="40%" />
               </Paper>
             </Grid>
           ))}
         </Grid>
+      ) : viewMode === 'grid' ? (
+        <motion.div
+          variants={containerVariants}
+          initial="hidden"
+          animate="visible"
+        >
+          <Grid container spacing={3}>
+            {/* Folders */}
+            <AnimatePresence>
+              {filteredFolders.map((folder) => (
+                <Grid item xs={12} sm={6} md={3} lg={2} key={`folder-${folder.id}`}>
+                  <motion.div variants={itemVariants} layout>
+                    <Paper
+                      elevation={0}
+                      sx={{
+                        p: 2,
+                        display: 'flex',
+                        flexDirection: 'column',
+                        alignItems: 'center',
+                        cursor: 'pointer',
+                        position: 'relative',
+                        transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+                        border: `1px solid ${selectedFolders.includes(folder.id) ? theme.palette.primary.main : alpha(theme.palette.divider, 0.1)}`,
+                        bgcolor: selectedFolders.includes(folder.id) ? alpha(theme.palette.primary.main, 0.05) : 'background.paper',
+                        borderRadius: 3,
+                        overflow: 'hidden',
+                        '&:hover': {
+                          bgcolor: alpha(theme.palette.primary.main, 0.08),
+                          transform: 'translateY(-8px)',
+                          boxShadow: `0 12px 24px ${alpha(theme.palette.common.black, 0.1)}`,
+                          '& .folder-icon': {
+                            transform: 'scale(1.1) rotate(5deg)',
+                          }
+                        }
+                      }}
+                      onClick={() => handleFolderClick(folder)}
+                    >
+                      <Box sx={{ position: 'absolute', top: 8, right: 8, zIndex: 1, display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                        <Checkbox 
+                          size="small" 
+                          checked={selectedFolders.includes(folder.id)}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            toggleFolderSelection(folder.id);
+                          }}
+                          sx={{ color: alpha(theme.palette.primary.main, 0.5) }}
+                        />
+                        <IconButton 
+                          size="small" 
+                          onClick={(e) => handleMenuOpen(e, 'folder', folder)}
+                          sx={{ bgcolor: theme.palette.mode === 'dark' ? alpha(theme.palette.background.paper, 0.95) : theme.palette.background.paper }}
+                        >
+                          <MoreVert fontSize="small" />
+                        </IconButton>
+                      </Box>
+                      <Folder className="folder-icon" sx={{ fontSize: 64, color: '#FFD700', mb: 1.5, transition: 'transform 0.3s ease' }} />
+                      <Typography variant="body2" fontWeight="600" noWrap sx={{ maxWidth: '100%', textAlign: 'center' }}>
+                        {t(folder.name)}
+                      </Typography>
+                    </Paper>
+                  </motion.div>
+                </Grid>
+              ))}
+            </AnimatePresence>
+
+            {/* Files */}
+            <AnimatePresence>
+              {filteredFiles.map((file) => (
+                <Grid item xs={12} sm={6} md={3} lg={2} key={`file-${file.id}`}>
+                  <motion.div variants={itemVariants} layout>
+                    <Paper
+                      elevation={0}
+                      sx={{
+                        p: 2,
+                        display: 'flex',
+                        flexDirection: 'column',
+                        alignItems: 'center',
+                        cursor: 'pointer',
+                        position: 'relative',
+                        transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+                        border: `1px solid ${selectedFiles.includes(file.id) ? theme.palette.primary.main : alpha(theme.palette.divider, 0.1)}`,
+                        bgcolor: selectedFiles.includes(file.id) ? alpha(theme.palette.primary.main, 0.05) : 'background.paper',
+                        borderRadius: 3,
+                        overflow: 'hidden',
+                        '&:hover': {
+                          bgcolor: alpha(theme.palette.primary.main, 0.04),
+                          transform: 'translateY(-8px)',
+                          boxShadow: `0 12px 24px ${alpha(theme.palette.common.black, 0.1)}`,
+                        }
+                      }}
+                      onClick={() => handleFileClick(file)}
+                    >
+                      <Box sx={{ position: 'absolute', top: 8, right: 8, zIndex: 1, display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                        <Checkbox 
+                          size="small" 
+                          checked={selectedFiles.includes(file.id)}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            toggleFileSelection(file.id);
+                          }}
+                          sx={{ color: alpha(theme.palette.primary.main, 0.5) }}
+                        />
+                        <IconButton 
+                          size="small" 
+                          onClick={(e) => handleMenuOpen(e, 'file', file)}
+                          sx={{ bgcolor: theme.palette.mode === 'dark' ? alpha(theme.palette.background.paper, 0.95) : theme.palette.background.paper }}
+                        >
+                          <MoreVert fontSize="small" />
+                        </IconButton>
+                        <IconButton 
+                          size="small" 
+                          onClick={(e) => { e.stopPropagation(); handlePrint(file.id); }}
+                          sx={{ bgcolor: theme.palette.mode === 'dark' ? alpha(theme.palette.background.paper, 0.95) : theme.palette.background.paper }}
+                        >
+                          <Print fontSize="small" />
+                        </IconButton>
+                      </Box>
+                      {isImage(file.file_type) ? (
+                        <Box
+                          component="img"
+                          src={getFilePreviewUrl(file.id)}
+                          sx={{
+                            width: '100%',
+                            height: 100,
+                            objectFit: 'cover',
+                            borderRadius: 2,
+                            mb: 1.5,
+                            boxShadow: '0 4px 12px rgba(0,0,0,0.08)'
+                          }}
+                          alt={file.name}
+                        />
+                      ) : file.file_type === 'pdf' ? (
+                        <Description sx={{ fontSize: 64, color: '#F44336', mb: 1.5 }} />
+                      ) : (
+                        <InsertDriveFile sx={{ fontSize: 64, color: '#2196F3', mb: 1.5 }} />
+                      )}
+                      <Typography variant="body2" fontWeight="600" noWrap sx={{ maxWidth: '100%', mb: 0.5 }}>
+                        {file.name}
+                      </Typography>
+                      <Typography variant="caption" color="text.secondary" sx={{ opacity: 0.8 }}>
+                        {(file.file_size / 1024).toFixed(1)} KB
+                      </Typography>
+                    </Paper>
+                  </motion.div>
+                </Grid>
+              ))}
+            </AnimatePresence>
+          </Grid>
+        </motion.div>
       ) : (
         /* List View */
-        <TableContainer component={Paper}>
+        <TableContainer 
+          component={motion.div as any} 
+          variants={containerVariants}
+          initial="hidden"
+          animate="visible"
+          sx={{ 
+            borderRadius: 3, 
+            overflow: 'hidden', 
+            border: `1px solid ${alpha(theme.palette.divider, 0.1)}`,
+            bgcolor: 'background.paper',
+            boxShadow: `0 4px 20px ${alpha(theme.palette.common.black, 0.05)}`
+          }}
+        >
           <Table size="small">
             <TableHead>
-              <TableRow>
+              <TableRow sx={{ bgcolor: alpha(theme.palette.primary.main, 0.02) }}>
                 <TableCell padding="checkbox">
                   <Checkbox 
                     size="small"
@@ -1153,21 +1276,28 @@ const ArchiveBrowser: React.FC = () => {
                     onChange={(e) => handleSelectAll(e.target.checked)}
                   />
                 </TableCell>
-                <TableCell>{t('Name')}</TableCell>
-                <TableCell>{t('Type')}</TableCell>
-                <TableCell>{t('Size')}</TableCell>
-                <TableCell>{t('Date')}</TableCell>
-                <TableCell align="right">{t('Actions')}</TableCell>
+                <TableCell sx={{ fontWeight: 600 }}>{t('Name')}</TableCell>
+                <TableCell sx={{ fontWeight: 600 }}>{t('Type')}</TableCell>
+                <TableCell sx={{ fontWeight: 600 }}>{t('Size')}</TableCell>
+                <TableCell sx={{ fontWeight: 600 }}>{t('Date')}</TableCell>
+                <TableCell align="right" sx={{ fontWeight: 600 }}>{t('Actions')}</TableCell>
               </TableRow>
             </TableHead>
-            <TableBody>
+            <TableBody component={AnimatePresence as any}>
               {filteredFolders.map((folder) => (
                 <TableRow 
                   key={`folder-${folder.id}`}
+                  component={motion.tr as any}
+                  variants={itemVariants}
+                  layout
                   hover
                   selected={selectedFolders.includes(folder.id)}
                   onClick={() => handleFolderClick(folder)}
-                  sx={{ cursor: 'pointer' }}
+                  sx={{ 
+                    cursor: 'pointer',
+                    '&.Mui-selected': { bgcolor: alpha(theme.palette.primary.main, 0.08) },
+                    '&:hover': { bgcolor: alpha(theme.palette.primary.main, 0.04) }
+                  }}
                 >
                   <TableCell padding="checkbox">
                   <Checkbox 
@@ -1180,12 +1310,16 @@ const ArchiveBrowser: React.FC = () => {
                   />
                 </TableCell>
                   <TableCell>
-                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                      <Folder sx={{ color: '#ffd700' }} fontSize="small" />
-                      <Typography variant="body2">{t(folder.name)}</Typography>
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
+                      <Folder sx={{ color: '#FFD700' }} fontSize="small" />
+                      <Typography variant="body2" fontWeight="500">{t(folder.name)}</Typography>
                     </Box>
                   </TableCell>
-                  <TableCell>{t('Folder')}</TableCell>
+                  <TableCell>
+                    <Typography variant="caption" sx={{ bgcolor: alpha(theme.palette.warning.main, 0.1), color: 'warning.main', px: 1, py: 0.5, borderRadius: 1 }}>
+                      {t('Folder')}
+                    </Typography>
+                  </TableCell>
                   <TableCell>-</TableCell>
                   <TableCell>-</TableCell>
                   <TableCell align="right">
@@ -1198,10 +1332,17 @@ const ArchiveBrowser: React.FC = () => {
               {filteredFiles.map((file) => (
                 <TableRow 
                   key={`file-${file.id}`}
+                  component={motion.tr as any}
+                  variants={itemVariants}
+                  layout
                   hover
                   selected={selectedFiles.includes(file.id)}
                   onClick={() => handleFileClick(file)}
-                  sx={{ cursor: 'pointer' }}
+                  sx={{ 
+                    cursor: 'pointer',
+                    '&.Mui-selected': { bgcolor: alpha(theme.palette.primary.main, 0.08) },
+                    '&:hover': { bgcolor: alpha(theme.palette.primary.main, 0.04) }
+                  }}
                 >
                   <TableCell padding="checkbox">
                     <Checkbox 
@@ -1214,24 +1355,36 @@ const ArchiveBrowser: React.FC = () => {
                     />
                   </TableCell>
                   <TableCell>
-                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                      {isImage(file.file_type) ? <ImageIcon color="primary" fontSize="small" /> : <InsertDriveFile color="primary" fontSize="small" />}
-                      <Typography variant="body2">{file.name}</Typography>
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
+                      {isImage(file.file_type) ? (
+                        <ImageIcon color="primary" fontSize="small" />
+                      ) : file.file_type === 'pdf' ? (
+                        <Description sx={{ color: '#F44336' }} fontSize="small" />
+                      ) : (
+                        <InsertDriveFile color="primary" fontSize="small" />
+                      )}
+                      <Typography variant="body2" fontWeight="500">{file.name}</Typography>
                     </Box>
                   </TableCell>
-                  <TableCell>{file.file_type.toUpperCase()}</TableCell>
+                  <TableCell>
+                    <Typography variant="caption" sx={{ bgcolor: alpha(theme.palette.primary.main, 0.1), color: 'primary.main', px: 1, py: 0.5, borderRadius: 1 }}>
+                      {file.file_type.toUpperCase()}
+                    </Typography>
+                  </TableCell>
                   <TableCell>{(file.file_size / 1024).toFixed(1)} KB</TableCell>
                   <TableCell>{new Date(file.created_at).toLocaleDateString()}</TableCell>
                   <TableCell align="right">
-                    <IconButton size="small" onClick={(e) => handleMenuOpen(e, 'file', file)}>
-                      <MoreVert fontSize="small" />
-                    </IconButton>
-                    <IconButton size="small" color="primary" onClick={(e) => {
-                      e.stopPropagation();
-                      handlePrint(file.id);
-                    }}>
-                      <Print fontSize="small" />
-                    </IconButton>
+                    <Box sx={{ display: 'flex', justifyContent: 'flex-end', gap: 0.5 }}>
+                      <IconButton size="small" onClick={(e) => handleMenuOpen(e, 'file', file)}>
+                        <MoreVert fontSize="small" />
+                      </IconButton>
+                      <IconButton size="small" color="primary" onClick={(e) => {
+                        e.stopPropagation();
+                        handlePrint(file.id);
+                      }}>
+                        <Print fontSize="small" />
+                      </IconButton>
+                    </Box>
                   </TableCell>
                 </TableRow>
               ))}
@@ -1289,13 +1442,24 @@ const ArchiveBrowser: React.FC = () => {
         onClose={handleMenuClose}
       >
         {selectedItem?.type === 'folder' && (
-          <MenuItem onClick={() => {
-            handleExploreFolder(selectedItem.id);
-            handleMenuClose();
-          }}>
-            <ListItemIcon><Explore fontSize="small" /></ListItemIcon>
-            <ListItemText>{t('Explore Local')}</ListItemText>
-          </MenuItem>
+          <Box>
+            <MenuItem onClick={() => {
+              handleExploreFolder(selectedItem.id);
+              handleMenuClose();
+            }}>
+              <ListItemIcon><Explore fontSize="small" /></ListItemIcon>
+              <ListItemText>{t('Explore Local')}</ListItemText>
+            </MenuItem>
+            {canDownload && (
+              <MenuItem onClick={() => {
+                handleDownloadFolder(selectedItem.data);
+                handleMenuClose();
+              }}>
+                <ListItemIcon><Download fontSize="small" /></ListItemIcon>
+                <ListItemText>{t('Download Folder (ZIP)')}</ListItemText>
+              </MenuItem>
+            )}
+          </Box>
         )}
         {selectedItem?.type === 'file' && (
           <Box>
@@ -1515,48 +1679,87 @@ const ArchiveBrowser: React.FC = () => {
                 </Box>
               </Box>
             ) : (
-              <Box sx={{ p: 3, bgcolor: 'white', height: '100%', overflow: 'auto' }}>
+              <Box sx={{ p: 3, bgcolor: 'background.paper', height: '100%', overflow: 'auto' }}>
                 <Grid container spacing={3}>
                   <Grid item xs={12} md={4}>
-                    <Typography variant="subtitle2" color="text.secondary" gutterBottom>{t('File Details')}</Typography>
-                    <Paper variant="outlined" sx={{ p: 2, bgcolor: '#fafafa' }}>
-                      <Box sx={{ mb: 2 }}>
-                        <Typography variant="caption" color="text.secondary">{t('File Name')}</Typography>
-                        <Typography variant="body2" fontWeight="bold">{previewFile.name}</Typography>
-                      </Box>
-                      <Box sx={{ mb: 2 }}>
-                        <Typography variant="caption" color="text.secondary">{t('File Type')}</Typography>
-                        <Typography variant="body2">{previewFile.file_type.toUpperCase()}</Typography>
-                      </Box>
-                      <Box sx={{ mb: 2 }}>
-                        <Typography variant="caption" color="text.secondary">{t('File Size')}</Typography>
-                        <Typography variant="body2">{(previewFile.file_size / 1024).toFixed(2)} KB</Typography>
-                      </Box>
-                      <Box>
-                        <Typography variant="caption" color="text.secondary">{t('Created At')}</Typography>
-                        <Typography variant="body2">{new Date(previewFile.created_at).toLocaleString()}</Typography>
-                      </Box>
-                    </Paper>
-                  </Grid>
-                  <Grid item xs={12} md={8}>
-                    <Typography variant="subtitle2" color="text.secondary" gutterBottom>{t('Extracted Text (OCR)')}</Typography>
+                    <Typography variant="subtitle2" color="primary" gutterBottom sx={{ fontWeight: 700 }}>{t('File Details')}</Typography>
                     <Paper 
                       variant="outlined" 
                       sx={{ 
                         p: 2, 
-                        height: '300px', 
-                        overflow: 'auto', 
-                        bgcolor: '#fdfdfd',
-                        fontFamily: 'monospace',
-                        whiteSpace: 'pre-wrap'
+                        bgcolor: theme.palette.mode === 'dark' ? alpha(theme.palette.common.white, 0.03) : alpha(theme.palette.primary.main, 0.02),
+                        borderColor: alpha(theme.palette.divider, 0.1),
+                        borderRadius: 2
                       }}
                     >
-                      {previewFile.ocr_text || t('No text extracted from this file')}
+                      <Box sx={{ mb: 2 }}>
+                        <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 0.5, fontWeight: 600, textTransform: 'uppercase', letterSpacing: 0.5 }}>{t('File Name')}</Typography>
+                        <Typography variant="body2" fontWeight="bold" sx={{ wordBreak: 'break-all' }}>{previewFile.name}</Typography>
+                      </Box>
+                      <Box sx={{ mb: 2 }}>
+                        <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 0.5, fontWeight: 600, textTransform: 'uppercase', letterSpacing: 0.5 }}>{t('File Type')}</Typography>
+                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                          <Chip 
+                            label={previewFile.file_type.toUpperCase()} 
+                            size="small" 
+                            color="primary" 
+                            variant="outlined" 
+                            sx={{ fontWeight: 700, borderRadius: 1 }}
+                          />
+                        </Box>
+                      </Box>
+                      <Box sx={{ mb: 2 }}>
+                        <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 0.5, fontWeight: 600, textTransform: 'uppercase', letterSpacing: 0.5 }}>{t('File Size')}</Typography>
+                        <Typography variant="body2" fontWeight="500">{(previewFile.file_size / 1024).toFixed(2)} KB</Typography>
+                      </Box>
+                      <Box>
+                        <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 0.5, fontWeight: 600, textTransform: 'uppercase', letterSpacing: 0.5 }}>{t('Created At')}</Typography>
+                        <Typography variant="body2" fontWeight="500">{new Date(previewFile.created_at).toLocaleString()}</Typography>
+                      </Box>
+                    </Paper>
+                  </Grid>
+                  <Grid item xs={12} md={8}>
+                    <Typography variant="subtitle2" color="primary" gutterBottom sx={{ fontWeight: 700 }}>{t('Extracted Text (OCR)')}</Typography>
+                    <Paper 
+                      variant="outlined" 
+                      sx={{ 
+                        p: 2.5, 
+                        height: '400px', 
+                        overflow: 'auto', 
+                        bgcolor: theme.palette.mode === 'dark' ? alpha(theme.palette.common.white, 0.02) : '#fafafa',
+                        borderColor: alpha(theme.palette.divider, 0.1),
+                        borderRadius: 2,
+                        fontFamily: '"Roboto Mono", "Courier New", monospace',
+                        whiteSpace: 'pre-wrap',
+                        fontSize: '0.9rem',
+                        lineHeight: 1.6,
+                        color: 'text.primary',
+                        '&::-webkit-scrollbar': {
+                          width: '8px',
+                        },
+                        '&::-webkit-scrollbar-thumb': {
+                          bgcolor: alpha(theme.palette.divider, 0.2),
+                          borderRadius: '4px',
+                        }
+                      }}
+                    >
+                      {previewFile.ocr_text ? (
+                        <Typography variant="body2" sx={{ fontFamily: 'inherit', whiteSpace: 'inherit' }}>
+                          {previewFile.ocr_text}
+                        </Typography>
+                      ) : (
+                        <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100%', opacity: 0.5 }}>
+                          <Info sx={{ fontSize: 40, mb: 1 }} />
+                          <Typography variant="body2">{t('No text extracted from this file')}</Typography>
+                        </Box>
+                      )}
                     </Paper>
                     {previewFile.description && (
                       <Box sx={{ mt: 3 }}>
-                        <Typography variant="subtitle2" color="text.secondary" gutterBottom>{t('Description')}</Typography>
-                        <Typography variant="body2">{previewFile.description}</Typography>
+                        <Typography variant="subtitle2" color="primary" gutterBottom sx={{ fontWeight: 700 }}>{t('Description')}</Typography>
+                        <Paper variant="outlined" sx={{ p: 2, bgcolor: alpha(theme.palette.info.main, 0.05), borderRadius: 2 }}>
+                          <Typography variant="body2" sx={{ fontStyle: 'italic' }}>{previewFile.description}</Typography>
+                        </Paper>
                       </Box>
                     )}
                   </Grid>
@@ -1610,12 +1813,12 @@ const ArchiveBrowser: React.FC = () => {
                     const ext = '.' + file.name.split('.').pop()?.toLowerCase();
                     
                     if (!ALLOWED_EXTENSIONS.includes(ext)) {
-                      alert(`${t('File type not allowed')}: ${ext}`);
+                      alert(`${t('File type not allowed')}: ${ext}`, t('Warning'), 'warning');
                       return;
                     }
                     
                     if (file.size > MAX_FILE_SIZE) {
-                      alert(`${t('File too large')}: ${(file.size / (1024 * 1024)).toFixed(2)}MB. ${t('Max')}: 10MB`);
+                      alert(`${t('File too large')}: ${(file.size / (1024 * 1024)).toFixed(2)}MB. ${t('Max')}: 10MB`, t('Warning'), 'warning');
                       return;
                     }
 

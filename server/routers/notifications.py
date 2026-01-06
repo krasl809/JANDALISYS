@@ -32,6 +32,8 @@ def get_user_notifications(
     """Get notifications for the current user"""
     if limit > 100:
         limit = 100
+    if limit <= 0:
+        limit = 50
     if skip < 0:
         skip = 0
 

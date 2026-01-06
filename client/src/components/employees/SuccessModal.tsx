@@ -1,11 +1,12 @@
 import React from 'react';
 import {
   Dialog, DialogTitle, DialogContent, DialogActions, Button,
-  Typography, Box, CircularProgress, Chip
+  CircularProgress, Chip
 } from '@mui/material';
 import {
   CheckCircle, Person, Email, Business, Security
 } from '@mui/icons-material';
+import { MDBox, MDTypography } from '../common/MDComponents';
 
 interface SuccessModalProps {
   open: boolean;
@@ -33,38 +34,40 @@ const SuccessModal: React.FC<SuccessModalProps> = ({
       }}
     >
       <DialogTitle sx={{ textAlign: 'center', pb: 1 }}>
-        <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2 }}>
-          <Box
+        <MDBox sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2 }}>
+          <MDBox
+            variant="gradient"
+            bgColor="success"
+            coloredShadow="success"
             sx={{
               width: 80,
               height: 80,
               borderRadius: '50%',
-              bgcolor: 'success.light',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
               animation: 'pulse 2s infinite'
             }}
           >
-            <CheckCircle sx={{ fontSize: 48, color: 'success.main' }} />
-          </Box>
-          <Typography variant="h4" fontWeight="bold" color="success.main">
+            <CheckCircle sx={{ fontSize: 48, color: 'white' }} />
+          </MDBox>
+          <MDTypography variant="h4" fontWeight="bold" color="success">
             Employee Created Successfully!
-          </Typography>
-        </Box>
+          </MDTypography>
+        </MDBox>
       </DialogTitle>
 
       <DialogContent sx={{ textAlign: 'center' }}>
-        <Box sx={{ mb: 3 }}>
-          <Typography variant="h6" gutterBottom>
+        <MDBox sx={{ mb: 3 }}>
+          <MDTypography variant="h6" gutterBottom>
             Welcome to the team, {employeeName}!
-          </Typography>
-          <Typography variant="body1" color="text.secondary">
+          </MDTypography>
+          <MDTypography variant="body1" color="text">
             The employee account has been created and system access has been configured.
-          </Typography>
-        </Box>
+          </MDTypography>
+        </MDBox>
 
-        <Box sx={{ display: 'flex', justifyContent: 'center', gap: 1, mb: 3 }}>
+        <MDBox sx={{ display: 'flex', justifyContent: 'center', gap: 1, mb: 3 }}>
           <Chip 
             icon={<Person />} 
             label="Account Created" 
@@ -89,33 +92,35 @@ const SuccessModal: React.FC<SuccessModalProps> = ({
             color="success" 
             variant="outlined"
           />
-        </Box>
+        </MDBox>
 
-        <Box sx={{ 
-          p: 3, 
-          bgcolor: 'success.light', 
-          opacity: 0.1, 
-          borderRadius: 2,
-          border: '1px solid',
-          borderColor: 'success.light'
-        }}>
-          <Typography variant="subtitle2" fontWeight="bold" gutterBottom>
+        <MDBox 
+          variant="gradient"
+          bgColor="light"
+          sx={{ 
+            p: 3, 
+            borderRadius: 2,
+            border: '1px solid',
+            borderColor: 'grey.300'
+          }}
+        >
+          <MDTypography variant="subtitle2" fontWeight="bold" gutterBottom display="block">
             Next Steps:
-          </Typography>
-          <Typography variant="body2" color="text.secondary">
+          </MDTypography>
+          <MDTypography variant="body2" color="text">
             • An email notification has been sent to the employee's email address<br />
             • The employee can now login to the system using their credentials<br />
             • System access has been configured according to their role<br />
             • HR team can now manage their attendance and payroll
-          </Typography>
-        </Box>
+          </MDTypography>
+        </MDBox>
 
-        <Box sx={{ mt: 3 }}>
+        <MDBox sx={{ mt: 3, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
           <CircularProgress size={24} sx={{ mr: 2 }} />
-          <Typography variant="body2" color="text.secondary" component="span">
+          <MDTypography variant="body2" color="text">
             Redirecting to employee details page...
-          </Typography>
-        </Box>
+          </MDTypography>
+        </MDBox>
       </DialogContent>
 
       <DialogActions sx={{ justifyContent: 'center', pb: 3 }}>

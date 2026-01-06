@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import api from '../../services/api';
+import { useConfirm } from '../../context/ConfirmContext';
 import {
   Container,
   Paper,
@@ -36,7 +37,7 @@ interface Shipper {
 
 const ShippersList: React.FC = () => {
   const { t } = useTranslation();
-
+  const { confirm } = useConfirm();
   const [shippers, setShippers] = useState<Shipper[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
@@ -56,8 +57,9 @@ const ShippersList: React.FC = () => {
   }, []);
 
   const fetchShippers = async () => {
+    setLoading(true);
     try {
-      const response = await api.get('/shippers/');
+      const response = await api.get('shippers/');
       setShippers(response.data);
     } catch (err: any) {
       console.error('Error fetching shippers:', err);
@@ -74,7 +76,7 @@ const ShippersList: React.FC = () => {
     }
 
     try {
-      const response = await api.post('/shippers/', newShipper);
+      const response = await api.post('shippers/', newShipper);
       setShippers([...shippers, response.data]);
       setNewShipper({ contact_name: '', address: '', post_box: '', tel: '', fax: '', email: '' });
       setError(null);
@@ -93,7 +95,7 @@ const ShippersList: React.FC = () => {
     if (!currentShipper) return;
 
     try {
-      const response = await api.put(`/shippers/${currentShipper.id}`, currentShipper);
+      const response = await api.put(`shippers/${currentShipper.id}`, currentShipper);
       setShippers(shippers.map(shipper => 
         shipper.id === currentShipper.id ? response.data : shipper
       ));
@@ -106,10 +108,10 @@ const ShippersList: React.FC = () => {
   };
 
   const handleDeleteShipper = async (id: string) => {
-    if (!window.confirm(t('confirmDelete'))) return;
+    if (!await confirm({ message: t('confirmDelete') })) return;
 
     try {
-      await api.delete(`/shippers/${id}`);
+      await api.delete(`shippers/${id}`);
       setShippers(shippers.filter(s => s.id !== id));
     } catch (err: any) {
       console.error('Error deleting shipper:', err);

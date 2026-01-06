@@ -7,9 +7,15 @@ import {
   TextField,
   Button,
   Grid,
-  Alert
+  Alert,
+  useTheme,
+  alpha,
+  Box,
+  Typography,
+  IconButton,
+  CircularProgress
 } from '@mui/material';
-import { Add } from '@mui/icons-material';
+import { Add, Close } from '@mui/icons-material';
 import { useTranslation } from 'react-i18next';
 import api from '../../services/api';
 import { EntityType } from '../../types/contracts';
@@ -27,6 +33,8 @@ const AddEntityDialog: React.FC<AddEntityDialogProps> = ({
   entityType,
   onEntityAdded
 }) => {
+  const theme = useTheme();
+  const { palette, boxShadows } = theme as any;
   const { t } = useTranslation();
   const [formData, setFormData] = useState<any>({});
   const [error, setError] = useState<string | null>(null);
@@ -189,18 +197,70 @@ const AddEntityDialog: React.FC<AddEntityDialogProps> = ({
   };
 
   return (
-    <Dialog open={open} onClose={handleClose} maxWidth="sm" fullWidth>
-      <DialogTitle sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-        <Add color="primary" />
-        {config.title}
+    <Dialog 
+      open={open} 
+      onClose={handleClose} 
+      maxWidth="sm" 
+      fullWidth
+      PaperProps={{
+        sx: {
+          borderRadius: '16px',
+          boxShadow: boxShadows.xxl,
+          backgroundImage: 'none'
+        }
+      }}
+    >
+      <DialogTitle sx={{ 
+        m: 0, 
+        p: 3, 
+        display: 'flex', 
+        alignItems: 'center', 
+        justifyContent: 'space-between',
+        borderBottom: `1px solid ${palette.divider}`
+      }}>
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
+          <Box sx={{ 
+            width: 32, 
+            height: 32, 
+            borderRadius: '8px', 
+            display: 'flex', 
+            alignItems: 'center', 
+            justifyContent: 'center',
+            bgcolor: alpha(palette.primary.main, 0.1),
+            color: palette.primary.main
+          }}>
+            <Add fontSize="small" />
+          </Box>
+          <Typography variant="h6" fontWeight="700">
+            {config.title}
+          </Typography>
+        </Box>
+        <IconButton
+          aria-label="close"
+          onClick={handleClose}
+          sx={{
+            color: palette.text.secondary,
+            '&:hover': { bgcolor: alpha(palette.primary.main, 0.05), color: palette.primary.main }
+          }}
+        >
+          <Close fontSize="small" />
+        </IconButton>
       </DialogTitle>
-      <DialogContent>
+      
+      <DialogContent sx={{ p: 3, mt: 1 }}>
         {error && (
-          <Alert severity="error" sx={{ mb: 2 }}>
+          <Alert 
+            severity="error" 
+            sx={{ 
+              mb: 3, 
+              borderRadius: '8px',
+              fontWeight: 500
+            }}
+          >
             {error}
           </Alert>
         )}
-        <Grid container spacing={2} sx={{ mt: 1 }}>
+        <Grid container spacing={2.5}>
           {config.fields.map((field) => (
             <Grid item xs={12} sm={field.name === 'seller_code' || field.name === 'item_code' || field.name === 'code' ? 6 : 12} key={field.name}>
               <TextField
@@ -208,7 +268,6 @@ const AddEntityDialog: React.FC<AddEntityDialogProps> = ({
                 value={formData[field.name] || ''}
                 onChange={(e) => {
                   let value = e.target.value;
-                  // Auto-uppercase for codes
                   if (field.name === 'seller_code' || field.name === 'item_code' || field.name === 'code') {
                     value = value.toUpperCase();
                   }
@@ -216,7 +275,16 @@ const AddEntityDialog: React.FC<AddEntityDialogProps> = ({
                 }}
                 fullWidth
                 required={field.required}
-                size="small"
+                variant="outlined"
+                sx={{
+                  '& .MuiOutlinedInput-root': {
+                    borderRadius: '8px',
+                    bgcolor: alpha(palette.background.default, 0.4),
+                    '&:hover': {
+                      bgcolor: alpha(palette.background.default, 0.8),
+                    }
+                  }
+                }}
                 inputProps={{ maxLength: field.maxLength || 255 }}
                 helperText={field.required ? t('entities.required') : t('entities.optional')}
               />
@@ -224,17 +292,39 @@ const AddEntityDialog: React.FC<AddEntityDialogProps> = ({
           ))}
         </Grid>
       </DialogContent>
-      <DialogActions>
-        <Button onClick={handleClose} disabled={loading}>
+      
+      <DialogActions sx={{ p: 3, borderTop: `1px solid ${palette.divider}`, gap: 1 }}>
+        <Button 
+          onClick={handleClose} 
+          disabled={loading}
+          sx={{ 
+            textTransform: 'none', 
+            fontWeight: 600,
+            borderRadius: '8px',
+            px: 3,
+            color: palette.text.secondary
+          }}
+        >
           {t('entities.cancel')}
         </Button>
         <Button 
           onClick={handleSubmit} 
           variant="contained" 
           disabled={loading}
-          startIcon={<Add />}
+          startIcon={!loading && <Add />}
+          sx={{ 
+            textTransform: 'none', 
+            fontWeight: 700,
+            borderRadius: '8px',
+            px: 3,
+            boxShadow: boxShadows.primary,
+            background: palette.gradients.primary.main,
+            '&:hover': {
+              boxShadow: boxShadows.primary_hover,
+            }
+          }}
         >
-          {loading ? t('entities.adding') : t('entities.add')}
+          {loading ? <CircularProgress size={20} color="inherit" /> : t('entities.add')}
         </Button>
       </DialogActions>
     </Dialog>

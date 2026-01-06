@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import api from '../../services/api';
+import { useConfirm } from '../../context/ConfirmContext';
 import {
   Box, Paper, Table, TableBody, TableCell, TableContainer, TableHead, TableRow,
   Typography, Button, TextField, Alert, CircularProgress, Dialog,
@@ -17,6 +18,7 @@ interface PaymentTerm {
 
 const PaymentTermsList: React.FC = () => {
   const { t } = useTranslation();
+  const { confirm } = useConfirm();
   const [terms, setTerms] = useState<PaymentTerm[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -34,7 +36,7 @@ const PaymentTermsList: React.FC = () => {
   const fetchTerms = async () => {
     try {
       setLoading(true);
-      const response = await api.get('/payment-terms/');
+      const response = await api.get('payment-terms/');
       setTerms(response.data);
       setError(null);
     } catch (err: any) {
@@ -57,7 +59,7 @@ const PaymentTermsList: React.FC = () => {
 
     try {
       setError(null);
-      const response = await api.post('/payment-terms/', {
+      const response = await api.post('payment-terms/', {
         code: newTerm.code.trim(),
         name: newTerm.name.trim(),
         description: newTerm.description.trim()
@@ -84,7 +86,7 @@ const PaymentTermsList: React.FC = () => {
 
     try {
       setError(null);
-      const response = await api.put(`/payment-terms/${currentTerm.id}`, {
+      const response = await api.put(`payment-terms/${currentTerm.id}`, {
         code: currentTerm.code.trim(),
         name: currentTerm.name.trim(),
         description: currentTerm.description.trim()
@@ -105,10 +107,10 @@ const PaymentTermsList: React.FC = () => {
   };
 
   const handleDeleteTerm = async (id: string) => {
-    if (!window.confirm(t('confirmDelete'))) return;
+    if (!await confirm({ message: t('confirmDelete') })) return;
 
     try {
-      await api.delete(`/payment-terms/${id}`);
+      await api.delete(`payment-terms/${id}`);
       setTerms(terms.filter(t => t.id !== id));
       setSuccessMessage(t('paymentTermDeletedSuccessfully'));
     } catch (err: any) {

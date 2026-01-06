@@ -7,11 +7,9 @@ import {
     List,
     ListItem,
     ListItemText,
-    ListItemIcon,
     Divider,
     CircularProgress,
     alpha,
-    Theme,
     useTheme
 } from '@mui/material';
 import { Business, WorkOutline } from '@mui/icons-material';
@@ -26,11 +24,11 @@ const DepartmentsManager: React.FC = () => {
     useEffect(() => {
         const fetchData = async () => {
             try {
-                const [deptRes, posRes] = await Promise.all([
-                    api.get('/departments'),
-                    api.get('/positions')
-                ]);
-                setDepartments(deptRes.data);
+                    const [deptsRes, posRes] = await Promise.all([
+                        api.get('departments'),
+                        api.get('positions')
+                    ]);
+                setDepartments(deptsRes.data);
                 setPositions(posRes.data);
             } catch (error) {
                 console.error("Failed to load departments data", error);

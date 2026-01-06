@@ -6,9 +6,11 @@ import {
 import { Add, Sync, Dns, Delete, Edit, CheckBox, CheckBoxOutlineBlank } from '@mui/icons-material';
 import api from '../../services/api';
 import { useTranslation } from 'react-i18next';
+import { useConfirm } from '../../context/ConfirmContext';
 
 const DevicesPage: React.FC = () => {
     const { t, i18n } = useTranslation();
+    const { confirm } = useConfirm();
     const isRtl = i18n.language === 'ar';
     const [devices, setDevices] = useState<any[]>([]);
     const [selectedDevices, setSelectedDevices] = useState<Set<number>>(new Set());
@@ -24,7 +26,7 @@ const DevicesPage: React.FC = () => {
 
     const fetchDevices = async () => {
         try {
-            const res = await api.get('/hr/devices');
+            const res = await api.get('hr/devices');
             setDevices(res.data);
             // Ping all devices
             res.data.forEach((device: any) => pingDevice(device.id));
@@ -48,14 +50,14 @@ const DevicesPage: React.FC = () => {
             }
         }, 50);
         try {
-            await api.post(`/hr/devices/${id}/ping`);
+            await api.post(`hr/devices/${id}/ping`);
             // Wait for animation to complete if not yet
             const elapsed = Date.now() - startTime;
             if (elapsed < duration) {
                 await new Promise(resolve => setTimeout(resolve, duration - elapsed));
             }
             // Refresh devices to get updated status
-            const res = await api.get('/hr/devices');
+            const res = await api.get('hr/devices');
             setDevices(res.data);
         } catch (error) {
             console.error(error);
@@ -74,7 +76,7 @@ const DevicesPage: React.FC = () => {
 
     const handleAdd = async () => {
         try {
-            await api.post('/hr/devices', newDevice);
+            await api.post('hr/devices', newDevice);
             setOpenAdd(false);
             setNewDevice({ name: '', ip_address: '192.168.1.201', port: 4370, location: '' });
             fetchDevices();
@@ -91,7 +93,7 @@ const DevicesPage: React.FC = () => {
 
     const handleUpdate = async () => {
         try {
-            await api.put(`/hr/devices/${editingDevice.id}`, editingDevice);
+            await api.put(`hr/devices/${editingDevice.id}`, editingDevice);
             setOpenEdit(false);
             setEditingDevice(null);
             fetchDevices();
@@ -102,9 +104,9 @@ const DevicesPage: React.FC = () => {
     };
 
     const handleDelete = async (deviceId: number) => {
-        if (window.confirm(t('Are you sure you want to delete this device?'))) {
+        if (await confirm({ message: t('Are you sure you want to delete this device?') })) {
             try {
-                await api.delete(`/hr/devices/${deviceId}`);
+                await api.delete(`hr/devices/${deviceId}`);
                 fetchDevices();
                 setFeedback({ type: 'success', msg: t('Device deleted successfully') });
             } catch (error) {
@@ -117,7 +119,7 @@ const DevicesPage: React.FC = () => {
         setSyncing(id);
         setFeedback(null);
         try {
-            const res = await api.post(`/hr/devices/${id}/sync`);
+            const res = await api.post(`hr/devices/${id}/sync`);
             if (res.data.status === 'success' || res.data.status === 'warning') {
                 setFeedback({ type: 'success', msg: t(res.data.message) || res.data.message });
             } else {
@@ -143,7 +145,7 @@ const DevicesPage: React.FC = () => {
         setFeedback({ type: 'info', msg: t('Syncing multiple devices...') });
         
         try {
-            const res = await api.post('/hr/devices/sync-multiple', { device_ids: deviceIds });
+            const res = await api.post('hr/devices/sync-multiple', { device_ids: deviceIds });
             if (res.data.status === 'success') {
                 const total = res.data.total_new_logs;
                 const details = res.data.details || [];

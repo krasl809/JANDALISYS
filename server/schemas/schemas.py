@@ -45,6 +45,27 @@ class Broker(BrokerBase):
     class Config:
         from_attributes = True
 
+# --- Exchange Quote Units ---
+class ExchangeQuoteUnitBase(BaseModel):
+    name: str
+    symbol: Optional[str] = None
+    factor: float
+    description: Optional[str] = None
+
+class ExchangeQuoteUnitCreate(ExchangeQuoteUnitBase):
+    pass
+
+class ExchangeQuoteUnitUpdate(BaseModel):
+    name: Optional[str] = None
+    factor: Optional[float] = None
+    description: Optional[str] = None
+
+class ExchangeQuoteUnit(ExchangeQuoteUnitBase):
+    id: uuid.UUID
+    created_at: Optional[datetime] = None
+    class Config:
+        from_attributes = True
+
 # --- Conveyors (الناقلين) ---
 class ConveyorBase(BaseModel):
     contact_name: str
@@ -284,17 +305,32 @@ class Contract(ContractBase):
     id: uuid.UUID
     contract_no: Optional[str]
     status: str
-    created_by: uuid.UUID
+    created_by: Optional[uuid.UUID] = None
     posted_date: Optional[datetime] = None
     modified_date: Optional[datetime] = None
     
     # القيم المالية
     financial_value: Optional[float] = 0
     
+    # View information
+    view_count: Optional[int] = 0
+    last_viewed_by: Optional[str] = None
+    last_viewed_at: Optional[datetime] = None
+    
     items: List[ContractItem] = []
 
     class Config:
         from_attributes = True
+
+class PaginationInfo(BaseModel):
+    total: int
+    page: int
+    per_page: int
+    pages: int
+
+class ContractListResponse(BaseModel):
+    contracts: List[Contract]
+    pagination: PaginationInfo
 
 # --- Archive ---
 class ArchiveFolderBase(BaseModel):
@@ -503,7 +539,7 @@ class ContractPricingRequest(BaseModel):
 
 class ContractPartialPricingRequest(BaseModel):
     """Schema for partial pricing requests"""
-    item_id: str = Field(..., description="Contract item ID")
+    item_id: uuid.UUID = Field(..., description="Contract item ID")
     qty_priced: float = Field(..., ge=0, description="Quantity being priced")
     market_price: float = Field(..., ge=0, description="Market price per unit")
     pricing_date: Optional[str] = Field(None, description="Pricing date (YYYY-MM-DD)")
@@ -525,6 +561,8 @@ class ContractViewCreate(ContractViewBase):
 class ContractView(ContractViewBase):
     id: uuid.UUID
     user_name: Optional[str] = None  # For display purposes
+    contract_no: Optional[str] = None # For display in user history
+    direction: Optional[ContractDirection] = None # For display in user history
 
     class Config:
         from_attributes = True

@@ -16,24 +16,36 @@ import api from '../../services/api';
 import { Contract, FinancialTransaction } from '../../types/contracts';
 import SectionHeader from '../common/SectionHeader';
 
-// Custom Styles for Pipeline
-const ColorlibConnector = styled(StepConnector)(({ theme }) => ({
-  [`&.${stepConnectorClasses.alternativeLabel}`]: { top: 22 },
-  [`&.${stepConnectorClasses.active}`]: {
-    [`& .${stepConnectorClasses.line}`]: { backgroundImage: 'linear-gradient( 95deg,rgb(56, 189, 248) 0%,rgb(74, 222, 128) 50%,rgb(34, 197, 94) 100%)' },
-  },
-  [`&.${stepConnectorClasses.completed}`]: {
-    [`& .${stepConnectorClasses.line}`]: { backgroundImage: 'linear-gradient( 95deg,rgb(56, 189, 248) 0%,rgb(74, 222, 128) 50%,rgb(34, 197, 94) 100%)' },
-  },
-  [`& .${stepConnectorClasses.line}`]: { height: 3, border: 0, backgroundColor: theme.palette.mode === 'dark' ? theme.palette.grey[800] : '#eaeaf0', borderRadius: 1 },
-}));
+const ColorlibConnector = styled(StepConnector)(({ theme }) => {
+  const { palette } = theme as any;
+  return {
+    [`&.${stepConnectorClasses.alternativeLabel}`]: { top: 22 },
+    [`&.${stepConnectorClasses.active}`]: {
+      [`& .${stepConnectorClasses.line}`]: { backgroundImage: palette.gradients?.primary?.main || 'linear-gradient( 95deg,rgb(56, 189, 248) 0%,rgb(74, 222, 128) 50%,rgb(34, 197, 94) 100%)' },
+    },
+    [`&.${stepConnectorClasses.completed}`]: {
+      [`& .${stepConnectorClasses.line}`]: { backgroundImage: palette.gradients?.success?.main || 'linear-gradient( 95deg,rgb(56, 189, 248) 0%,rgb(74, 222, 128) 50%,rgb(34, 197, 94) 100%)' },
+    },
+    [`& .${stepConnectorClasses.line}`]: { height: 3, border: 0, backgroundColor: theme.palette.mode === 'dark' ? theme.palette.grey[800] : '#eaeaf0', borderRadius: 1 },
+  };
+});
 
-const ColorlibStepIconRoot = styled('div')<{ ownerState: { completed?: boolean; active?: boolean } }>(({ theme, ownerState }) => ({
-  backgroundColor: theme.palette.mode === 'dark' ? theme.palette.grey[700] : '#ccc',
-  zIndex: 1, color: '#fff', width: 50, height: 50, display: 'flex', borderRadius: '50%', justifyContent: 'center', alignItems: 'center',
-  ...(ownerState.active && { backgroundImage: 'linear-gradient( 136deg, rgb(56, 189, 248) 0%, rgb(37, 99, 235) 100%)', boxShadow: '0 4px 10px 0 rgba(0,0,0,.25)' }),
-  ...(ownerState.completed && { backgroundImage: 'linear-gradient( 136deg, rgb(74, 222, 128) 0%, rgb(34, 197, 94) 100%)' }),
-}));
+const ColorlibStepIconRoot = styled('div')<{ ownerState: { completed?: boolean; active?: boolean } }>(({ theme, ownerState }) => {
+  const { palette, boxShadows } = theme as any;
+  return {
+    backgroundColor: theme.palette.mode === 'dark' ? theme.palette.grey[700] : '#ccc',
+    zIndex: 1, color: '#fff', width: 48, height: 48, display: 'flex', borderRadius: '12px', justifyContent: 'center', alignItems: 'center',
+    boxShadow: boxShadows.sm,
+    ...(ownerState.active && { 
+      backgroundImage: palette.gradients?.primary?.main || 'linear-gradient( 136deg, rgb(56, 189, 248) 0%, rgb(37, 99, 235) 100%)', 
+      boxShadow: boxShadows.primary 
+    }),
+    ...(ownerState.completed && { 
+      backgroundImage: palette.gradients?.success?.main || 'linear-gradient( 136deg, rgb(74, 222, 128) 0%, rgb(34, 197, 94) 100%)',
+      boxShadow: boxShadows.success
+    }),
+  };
+});
 
 interface ColorlibStepIconProps {
   active?: boolean;
@@ -57,6 +69,7 @@ function ColorlibStepIcon(props: ColorlibStepIconProps) {
 
 const ContractLifecycle = () => {
   const theme = useTheme();
+  const { palette, boxShadows } = theme as any;
   const navigate = useNavigate();
   const { t } = useTranslation();
   const { id } = useParams();
@@ -71,124 +84,16 @@ const ContractLifecycle = () => {
     t('contracts.steps.clearance')
   ];
 
-  useEffect(() => {
-    const fetchContract = async () => {
-      try {
-        setLoading(true);
-        
-        // Fetch Contract Data
-        const contractResponse = await api.get(`/contracts/${id}`);
-        const contractData = contractResponse.data;
-        
-        // Fetch Ledger Data
-        try {
-          const ledgerResponse = await api.get(`/contracts/${id}/ledger`);
-          setLedger(ledgerResponse.data);
-        } catch (ledgerErr) {
-          console.warn('Failed to fetch ledger, continuing without it:', ledgerErr);
-          setLedger([]);
-        }
-        
-        setContract(contractData);
-        setError(null);
-      } catch (err: any) {
-        console.error('Error fetching contract:', err);
-        
-        let errorMessage = t('contracts.errors.fetch_failed');
-        
-        if (err.response?.status === 404) {
-          errorMessage = t('contracts.errors.not_found');
-        } else if (err.response?.status === 401) {
-          errorMessage = t('common.errors.login_required');
-        } else if (err.code === 'NETWORK_ERROR' || err.message.includes('Network Error')) {
-          errorMessage = t('common.errors.network_error');
-        } else if (err.response?.data?.detail) {
-          errorMessage = err.response.data.detail;
-        }
-        setError(errorMessage);
-      } finally {
-        setLoading(false);
-      }
-    };
-    if (id) {
-        fetchContract();
-    }
-  }, [id, t]);
-
-  if (loading) {
-    return (
-      <Container sx={{ mt: 10, textAlign: 'center' }}>
-        <CircularProgress />
-        <Typography variant="h6" sx={{ mt: 2 }}>{t('common.loading')}</Typography>
-      </Container>
-    );
-  }
-
-  if (error) {
-    return (
-      <Container sx={{ mt: 10 }}>
-        <Alert severity="error" sx={{ mb: 2 }}>{error}</Alert>
-        <Box sx={{ display: 'flex', gap: 2 }}>
-          <Button 
-            variant="contained" 
-            onClick={() => window.location.reload()}
-          >
-            {t('common.retry')}
-          </Button>
-          <Button 
-            variant="outlined" 
-            onClick={() => navigate('/contracts')}
-          >
-            {t('contracts.back_to_list')}
-          </Button>
-        </Box>
-      </Container>
-    );
-  }
-
-  if (!contract) {
-    return (
-      <Container sx={{ mt: 10, textAlign: 'center' }}>
-        <Typography variant="h5">{t('contracts.errors.not_found')}</Typography>
-        <Button onClick={() => navigate('/contracts')}>{t('common.back')}</Button>
-      </Container>
-    );
-  }
-
-  // Calculate financial values
-  const totalValue = contract.items?.reduce((sum: number, item: any) => sum + (Number(item.total) || 0), 0) || 0;
-  const avgPrice = contract.items?.length > 0 
-    ? contract.items.reduce((sum, item) => sum + (parseFloat(item.price) || 0), 0) / contract.items.length 
-    : 0;
-
-  const getStep = (status: string) => {
-    const s = (status || '').toLowerCase();
-    switch (s) {
-      case 'draft':
-      case 'pending':
-        return 0;
-      case 'active':
-      case 'posted':
-        return 1;
-      case 'completed':
-        return 2;
-      case 'cancelled':
-        return -1; // Special case for cancelled
-      default:
-        return 0;
-    }
-  };
-
   const getStatusColor = (status: string) => {
     const s = (status || '').toLowerCase();
     switch (s) {
-      case 'completed': return 'success';
-      case 'cancelled': return 'error';
+      case 'completed': return { main: palette.success.main, bg: alpha(palette.success.main, 0.1) };
+      case 'cancelled': return { main: palette.error.main, bg: alpha(palette.error.main, 0.1) };
       case 'active':
-      case 'posted': return 'info';
+      case 'posted': return { main: palette.info.main, bg: alpha(palette.info.main, 0.1) };
       case 'draft':
-      case 'pending': return 'warning';
-      default: return 'primary';
+      case 'pending': return { main: palette.warning.main, bg: alpha(palette.warning.main, 0.1) };
+      default: return { main: palette.primary.main, bg: alpha(palette.primary.main, 0.1) };
     }
   };
 

@@ -2,7 +2,9 @@ import axios from 'axios';
 
 // Use VITE_API_URL if available, otherwise fallback to /api for Vite proxy
 const VITE_API_URL = import.meta.env.VITE_API_URL;
-const API_BASE_URL = VITE_API_URL && VITE_API_URL !== '/api' ? VITE_API_URL : '/api';
+const API_BASE_URL = VITE_API_URL && VITE_API_URL !== '/api' 
+  ? (VITE_API_URL.endsWith('/') ? VITE_API_URL : `${VITE_API_URL}/`)
+  : '/api/';
 
 if (import.meta.env.DEV) {
   console.log(`🌐 API Base URL configured as: ${API_BASE_URL}`);
@@ -20,9 +22,13 @@ const api = axios.create({
 api.interceptors.request.use(
   (config) => {
     if (import.meta.env.DEV) {
-      console.log(`🚀 API Request: ${config.method?.toUpperCase()} ${config.baseURL}${config.url}`);
+      const fullUrl = `${config.baseURL || ''}${config.url || ''}`;
+      console.log(`🚀 API Request: ${config.method?.toUpperCase()} ${fullUrl}`);
     }
     const token = localStorage.getItem('access_token');
+    if (import.meta.env.DEV) {
+      console.log(`🔑 Token check: ${token ? 'Present' : 'Missing'}`);
+    }
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
     }
@@ -66,7 +72,7 @@ api.interceptors.response.use(
 // Utility function to validate contract access before navigation
 export const validateContractAccess = async (contractId: string): Promise<boolean> => {
   try {
-    const response = await api.get(`/contracts/${contractId}`);
+    const response = await api.get(`contracts/${contractId}`);
     return response.status === 200;
   } catch (error: any) {
     console.warn(`Contract ${contractId} access validation failed:`, error.response?.status);

@@ -1,10 +1,11 @@
 import React from 'react';
 import {
-  Card, CardContent, Grid, TextField, MenuItem, Typography, Box,
-  FormControl, FormLabel, RadioGroup, FormControlLabel, Radio,
+  Card, CardContent, Grid, TextField, MenuItem,
+  FormControl, RadioGroup, FormControlLabel, Radio,
   InputAdornment, Autocomplete
 } from '@mui/material';
-import { Person, LocationOn, Phone, Email, Event, Badge } from '@mui/icons-material';
+import { LocationOn, Phone, Email } from '@mui/icons-material';
+import { MDBox, MDTypography } from '../common/MDComponents';
 
 interface PersonalInfoSectionProps {
   formData: any;
@@ -59,29 +60,28 @@ const PersonalInfoSection: React.FC<PersonalInfoSectionProps> = ({
     <Grid container spacing={3}>
       {/* Basic Information */}
       <Grid item xs={12}>
-        <Card elevation={0}>
-          <CardContent>
-            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, mb: 3 }}>
-              <Box sx={{ 
-                color: 'primary.main', 
-                display: 'flex', 
-                p: 0.5, 
-                borderRadius: 1, 
-                bgcolor: 'primary.light', 
-                opacity: 0.1 
-              }}>
-                <Person />
-              </Box>
-              <Typography variant="h6" fontWeight="bold">
-                Basic Information
-              </Typography>
-            </Box>
-
+        <Card sx={{ overflow: 'visible' }}>
+          <MDBox
+            variant="gradient"
+            bgColor="info"
+            borderRadius="lg"
+            coloredShadow="info"
+            mx={2}
+            mt={-3}
+            p={2}
+            mb={1}
+            textAlign="center"
+          >
+            <MDTypography variant="h6" fontWeight="medium" color="white">
+              Basic Information
+            </MDTypography>
+          </MDBox>
+          <CardContent sx={{ pt: 4 }}>
             <Grid container spacing={3}>
               <Grid item xs={12} md={6}>
-                <Typography variant="caption" sx={{ fontWeight: 'bold', color: 'text.secondary', mb: 1, display: 'block' }}>
+                <MDTypography variant="caption" fontWeight="bold" color="text" sx={{ mb: 1, display: 'block' }}>
                   Employee Name (Required) *
-                </Typography>
+                </MDTypography>
                 <TextField
                   fullWidth
                   value={formData.name || ''}
@@ -93,9 +93,9 @@ const PersonalInfoSection: React.FC<PersonalInfoSectionProps> = ({
               </Grid>
 
               <Grid item xs={12} md={6}>
-                <Typography variant="caption" sx={{ fontWeight: 'bold', color: 'text.secondary', mb: 1, display: 'block' }}>
+                <MDTypography variant="caption" fontWeight="bold" color="text" sx={{ mb: 1, display: 'block' }}>
                   Email Address (Required) *
-                </Typography>
+                </MDTypography>
                 <TextField
                   fullWidth
                   type="email"
@@ -111,9 +111,9 @@ const PersonalInfoSection: React.FC<PersonalInfoSectionProps> = ({
               </Grid>
 
               <Grid item xs={12} md={6}>
-                <Typography variant="caption" sx={{ fontWeight: 'bold', color: 'text.secondary', mb: 1, display: 'block' }}>
+                <MDTypography variant="caption" fontWeight="bold" color="text" sx={{ mb: 1, display: 'block' }}>
                   Phone Number
-                </Typography>
+                </MDTypography>
                 <TextField
                   fullWidth
                   value={formData.phone || ''}
@@ -127,9 +127,9 @@ const PersonalInfoSection: React.FC<PersonalInfoSectionProps> = ({
               </Grid>
 
               <Grid item xs={12} md={6}>
-                <Typography variant="caption" sx={{ fontWeight: 'bold', color: 'text.secondary', mb: 1, display: 'block' }}>
+                <MDTypography variant="caption" fontWeight="bold" color="text" sx={{ mb: 1, display: 'block' }}>
                   Address
-                </Typography>
+                </MDTypography>
                 <TextField
                   fullWidth
                   value={formData.address || ''}
@@ -150,29 +150,28 @@ const PersonalInfoSection: React.FC<PersonalInfoSectionProps> = ({
 
       {/* Arabic Names */}
       <Grid item xs={12}>
-        <Card elevation={0}>
-          <CardContent>
-            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, mb: 3 }}>
-              <Box sx={{ 
-                color: 'primary.main', 
-                display: 'flex', 
-                p: 0.5, 
-                borderRadius: 1, 
-                bgcolor: 'primary.light', 
-                opacity: 0.1 
-              }}>
-                <Badge />
-              </Box>
-              <Typography variant="h6" fontWeight="bold">
-                Arabic Names
-              </Typography>
-            </Box>
-
+        <Card sx={{ overflow: 'visible', mt: 4 }}>
+          <MDBox
+            variant="gradient"
+            bgColor="secondary"
+            borderRadius="lg"
+            coloredShadow="secondary"
+            mx={2}
+            mt={-3}
+            p={2}
+            mb={1}
+            textAlign="center"
+          >
+            <MDTypography variant="h6" fontWeight="medium" color="white">
+              Arabic Names
+            </MDTypography>
+          </MDBox>
+          <CardContent sx={{ pt: 4 }}>
             <Grid container spacing={3}>
               <Grid item xs={12} md={3}>
-                <Typography variant="caption" sx={{ fontWeight: 'bold', color: 'text.secondary', mb: 1, display: 'block' }}>
+                <MDTypography variant="caption" fontWeight="bold" color="text" sx={{ mb: 1, display: 'block' }}>
                   First Name (Arabic)
-                </Typography>
+                </MDTypography>
                 <TextField
                   fullWidth
                   value={formData.personal_info?.first_name_arabic || ''}
@@ -184,9 +183,9 @@ const PersonalInfoSection: React.FC<PersonalInfoSectionProps> = ({
               </Grid>
 
               <Grid item xs={12} md={3}>
-                <Typography variant="caption" sx={{ fontWeight: 'bold', color: 'text.secondary', mb: 1, display: 'block' }}>
+                <MDTypography variant="caption" fontWeight="bold" color="text" sx={{ mb: 1, display: 'block' }}>
                   Middle Name (Arabic)
-                </Typography>
+                </MDTypography>
                 <TextField
                   fullWidth
                   value={formData.personal_info?.middle_name_arabic || ''}
@@ -198,9 +197,9 @@ const PersonalInfoSection: React.FC<PersonalInfoSectionProps> = ({
               </Grid>
 
               <Grid item xs={12} md={3}>
-                <Typography variant="caption" sx={{ fontWeight: 'bold', color: 'text.secondary', mb: 1, display: 'block' }}>
+                <MDTypography variant="caption" fontWeight="bold" color="text" sx={{ mb: 1, display: 'block' }}>
                   Last Name (Arabic)
-                </Typography>
+                </MDTypography>
                 <TextField
                   fullWidth
                   value={formData.personal_info?.last_name_arabic || ''}
@@ -212,9 +211,9 @@ const PersonalInfoSection: React.FC<PersonalInfoSectionProps> = ({
               </Grid>
 
               <Grid item xs={12} md={3}>
-                <Typography variant="caption" sx={{ fontWeight: 'bold', color: 'text.secondary', mb: 1, display: 'block' }}>
+                <MDTypography variant="caption" fontWeight="bold" color="text" sx={{ mb: 1, display: 'block' }}>
                   Full Name (Arabic)
-                </Typography>
+                </MDTypography>
                 <TextField
                   fullWidth
                   value={formData.personal_info?.full_name_arabic || ''}
@@ -232,29 +231,28 @@ const PersonalInfoSection: React.FC<PersonalInfoSectionProps> = ({
 
       {/* English Names */}
       <Grid item xs={12}>
-        <Card elevation={0}>
-          <CardContent>
-            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, mb: 3 }}>
-              <Box sx={{ 
-                color: 'primary.main', 
-                display: 'flex', 
-                p: 0.5, 
-                borderRadius: 1, 
-                bgcolor: 'primary.light', 
-                opacity: 0.1 
-              }}>
-                <Person />
-              </Box>
-              <Typography variant="h6" fontWeight="bold">
-                English Names
-              </Typography>
-            </Box>
-
+        <Card sx={{ overflow: 'visible', mt: 4 }}>
+          <MDBox
+            variant="gradient"
+            bgColor="info"
+            borderRadius="lg"
+            coloredShadow="info"
+            mx={2}
+            mt={-3}
+            p={2}
+            mb={1}
+            textAlign="center"
+          >
+            <MDTypography variant="h6" fontWeight="medium" color="white">
+              English Names
+            </MDTypography>
+          </MDBox>
+          <CardContent sx={{ pt: 4 }}>
             <Grid container spacing={3}>
               <Grid item xs={12} md={3}>
-                <Typography variant="caption" sx={{ fontWeight: 'bold', color: 'text.secondary', mb: 1, display: 'block' }}>
+                <MDTypography variant="caption" fontWeight="bold" color="text" sx={{ mb: 1, display: 'block' }}>
                   First Name (English)
-                </Typography>
+                </MDTypography>
                 <TextField
                   fullWidth
                   value={formData.personal_info?.first_name_english || ''}
@@ -265,9 +263,9 @@ const PersonalInfoSection: React.FC<PersonalInfoSectionProps> = ({
               </Grid>
 
               <Grid item xs={12} md={3}>
-                <Typography variant="caption" sx={{ fontWeight: 'bold', color: 'text.secondary', mb: 1, display: 'block' }}>
+                <MDTypography variant="caption" fontWeight="bold" color="text" sx={{ mb: 1, display: 'block' }}>
                   Middle Name (English)
-                </Typography>
+                </MDTypography>
                 <TextField
                   fullWidth
                   value={formData.personal_info?.middle_name_english || ''}
@@ -278,9 +276,9 @@ const PersonalInfoSection: React.FC<PersonalInfoSectionProps> = ({
               </Grid>
 
               <Grid item xs={12} md={3}>
-                <Typography variant="caption" sx={{ fontWeight: 'bold', color: 'text.secondary', mb: 1, display: 'block' }}>
+                <MDTypography variant="caption" fontWeight="bold" color="text" sx={{ mb: 1, display: 'block' }}>
                   Last Name (English)
-                </Typography>
+                </MDTypography>
                 <TextField
                   fullWidth
                   value={formData.personal_info?.last_name_english || ''}
@@ -291,9 +289,9 @@ const PersonalInfoSection: React.FC<PersonalInfoSectionProps> = ({
               </Grid>
 
               <Grid item xs={12} md={3}>
-                <Typography variant="caption" sx={{ fontWeight: 'bold', color: 'text.secondary', mb: 1, display: 'block' }}>
+                <MDTypography variant="caption" fontWeight="bold" color="text" sx={{ mb: 1, display: 'block' }}>
                   Full Name (English)
-                </Typography>
+                </MDTypography>
                 <TextField
                   fullWidth
                   value={formData.personal_info?.full_name_english || ''}
@@ -310,29 +308,28 @@ const PersonalInfoSection: React.FC<PersonalInfoSectionProps> = ({
 
       {/* Personal Details */}
       <Grid item xs={12}>
-        <Card elevation={0}>
-          <CardContent>
-            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, mb: 3 }}>
-              <Box sx={{ 
-                color: 'primary.main', 
-                display: 'flex', 
-                p: 0.5, 
-                borderRadius: 1, 
-                bgcolor: 'primary.light', 
-                opacity: 0.1 
-              }}>
-                <Event />
-              </Box>
-              <Typography variant="h6" fontWeight="bold">
-                Personal Details
-              </Typography>
-            </Box>
-
+        <Card sx={{ overflow: 'visible', mt: 4 }}>
+          <MDBox
+            variant="gradient"
+            bgColor="success"
+            borderRadius="lg"
+            coloredShadow="success"
+            mx={2}
+            mt={-3}
+            p={2}
+            mb={1}
+            textAlign="center"
+          >
+            <MDTypography variant="h6" fontWeight="medium" color="white">
+              Personal Details
+            </MDTypography>
+          </MDBox>
+          <CardContent sx={{ pt: 4 }}>
             <Grid container spacing={3}>
               <Grid item xs={12} md={4}>
-                <Typography variant="caption" sx={{ fontWeight: 'bold', color: 'text.secondary', mb: 1, display: 'block' }}>
+                <MDTypography variant="caption" fontWeight="bold" color="text" sx={{ mb: 1, display: 'block' }}>
                   Date of Birth
-                </Typography>
+                </MDTypography>
                 <TextField
                   fullWidth
                   type="date"
@@ -344,37 +341,10 @@ const PersonalInfoSection: React.FC<PersonalInfoSectionProps> = ({
               </Grid>
 
               <Grid item xs={12} md={4}>
-                <Typography variant="caption" sx={{ fontWeight: 'bold', color: 'text.secondary', mb: 1, display: 'block' }}>
-                  Place of Birth
-                </Typography>
-                <TextField
-                  fullWidth
-                  value={formData.personal_info?.place_of_birth || ''}
-                  onChange={(e) => handlePersonalInfoChange('place_of_birth', e.target.value)}
-                  placeholder="City, Country"
-                  size="small"
-                />
-              </Grid>
-
-              <Grid item xs={12} md={4}>
-                <Typography variant="caption" sx={{ fontWeight: 'bold', color: 'text.secondary', mb: 1, display: 'block' }}>
-                  Nationality
-                </Typography>
-                <Autocomplete
-                  options={countries}
-                  value={formData.personal_info?.nationality || ''}
-                  onChange={(_, value) => handlePersonalInfoChange('nationality', value)}
-                  renderInput={(params) => (
-                    <TextField {...params} size="small" placeholder="Select nationality" />
-                  )}
-                />
-              </Grid>
-
-              <Grid item xs={12} md={6}>
-                <Typography variant="caption" sx={{ fontWeight: 'bold', color: 'text.secondary', mb: 1, display: 'block' }}>
+                <MDTypography variant="caption" fontWeight="bold" color="text" sx={{ mb: 1, display: 'block' }}>
                   Gender
-                </Typography>
-                <FormControl fullWidth size="small">
+                </MDTypography>
+                <FormControl component="fieldset">
                   <RadioGroup
                     row
                     value={formData.personal_info?.gender || ''}
@@ -386,22 +356,51 @@ const PersonalInfoSection: React.FC<PersonalInfoSectionProps> = ({
                 </FormControl>
               </Grid>
 
-              <Grid item xs={12} md={6}>
-                <Typography variant="caption" sx={{ fontWeight: 'bold', color: 'text.secondary', mb: 1, display: 'block' }}>
+              <Grid item xs={12} md={4}>
+                <MDTypography variant="caption" fontWeight="bold" color="text" sx={{ mb: 1, display: 'block' }}>
+                  Nationality
+                </MDTypography>
+                <Autocomplete
+                  options={countries}
+                  value={formData.personal_info?.nationality || null}
+                  onChange={(_, newValue) => handlePersonalInfoChange('nationality', newValue)}
+                  renderInput={(params) => (
+                    <TextField {...params} placeholder="Select country" size="small" />
+                  )}
+                />
+              </Grid>
+
+              <Grid item xs={12} md={4}>
+                <MDTypography variant="caption" fontWeight="bold" color="text" sx={{ mb: 1, display: 'block' }}>
+                  Marital Status
+                </MDTypography>
+                <TextField
+                  select
+                  fullWidth
+                  value={formData.personal_info?.marital_status || ''}
+                  onChange={(e) => handlePersonalInfoChange('marital_status', e.target.value)}
+                  size="small"
+                >
+                  <MenuItem value="single">Single</MenuItem>
+                  <MenuItem value="married">Married</MenuItem>
+                  <MenuItem value="divorced">Divorced</MenuItem>
+                  <MenuItem value="widowed">Widowed</MenuItem>
+                </TextField>
+              </Grid>
+
+              <Grid item xs={12} md={4}>
+                <MDTypography variant="caption" fontWeight="bold" color="text" sx={{ mb: 1, display: 'block' }}>
                   Blood Type
-                </Typography>
+                </MDTypography>
                 <TextField
                   select
                   fullWidth
                   value={formData.personal_info?.blood_type || ''}
                   onChange={(e) => handlePersonalInfoChange('blood_type', e.target.value)}
                   size="small"
-                  placeholder="Select blood type"
                 >
                   {bloodTypes.map((type) => (
-                    <MenuItem key={type} value={type}>
-                      {type}
-                    </MenuItem>
+                    <MenuItem key={type} value={type}>{type}</MenuItem>
                   ))}
                 </TextField>
               </Grid>
@@ -410,44 +409,93 @@ const PersonalInfoSection: React.FC<PersonalInfoSectionProps> = ({
         </Card>
       </Grid>
 
-      {/* Identification Documents */}
+      {/* Contact Information */}
       <Grid item xs={12}>
-        <Card elevation={0}>
-          <CardContent>
-            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, mb: 3 }}>
-              <Box sx={{ 
-                color: 'primary.main', 
-                display: 'flex', 
-                p: 0.5, 
-                borderRadius: 1, 
-                bgcolor: 'primary.light', 
-                opacity: 0.1 
-              }}>
-                <Badge />
-              </Box>
-              <Typography variant="h6" fontWeight="bold">
-                Identification Documents
-              </Typography>
-            </Box>
-
+        <Card sx={{ overflow: 'visible', mt: 4 }}>
+          <MDBox
+            variant="gradient"
+            bgColor="warning"
+            borderRadius="lg"
+            coloredShadow="warning"
+            mx={2}
+            mt={-3}
+            p={2}
+            mb={1}
+            textAlign="center"
+          >
+            <MDTypography variant="h6" fontWeight="medium" color="white">
+              Contact Information
+            </MDTypography>
+          </MDBox>
+          <CardContent sx={{ pt: 4 }}>
             <Grid container spacing={3}>
               <Grid item xs={12} md={6}>
-                <Typography variant="caption" sx={{ fontWeight: 'bold', color: 'text.secondary', mb: 1, display: 'block' }}>
-                  National ID Number
-                </Typography>
+                <MDTypography variant="caption" fontWeight="bold" color="text" sx={{ mb: 1, display: 'block' }}>
+                  Emergency Contact Name
+                </MDTypography>
                 <TextField
                   fullWidth
-                  value={formData.personal_info?.national_id || ''}
-                  onChange={(e) => handlePersonalInfoChange('national_id', e.target.value)}
-                  placeholder="Enter national ID number"
+                  value={formData.personal_info?.emergency_contact_name || ''}
+                  onChange={(e) => handlePersonalInfoChange('emergency_contact_name', e.target.value)}
+                  placeholder="Enter contact name"
                   size="small"
                 />
               </Grid>
 
               <Grid item xs={12} md={6}>
-                <Typography variant="caption" sx={{ fontWeight: 'bold', color: 'text.secondary', mb: 1, display: 'block' }}>
+                <MDTypography variant="caption" fontWeight="bold" color="text" sx={{ mb: 1, display: 'block' }}>
+                  Emergency Contact Phone
+                </MDTypography>
+                <TextField
+                  fullWidth
+                  value={formData.personal_info?.emergency_contact_phone || ''}
+                  onChange={(e) => handlePersonalInfoChange('emergency_contact_phone', e.target.value)}
+                  placeholder="Enter contact phone"
+                  size="small"
+                />
+              </Grid>
+            </Grid>
+          </CardContent>
+        </Card>
+      </Grid>
+
+      {/* Identity Information */}
+      <Grid item xs={12}>
+        <Card sx={{ overflow: 'visible', mt: 4 }}>
+          <MDBox
+            variant="gradient"
+            bgColor="error"
+            borderRadius="lg"
+            coloredShadow="error"
+            mx={2}
+            mt={-3}
+            p={2}
+            mb="1"
+            textAlign="center"
+          >
+            <MDTypography variant="h6" fontWeight="medium" color="white">
+              Identity Information
+            </MDTypography>
+          </MDBox>
+          <CardContent sx={{ pt: 4 }}>
+            <Grid container spacing={3}>
+              <Grid item xs={12} md={6}>
+                <MDTypography variant="caption" fontWeight="bold" color="text" sx={{ mb: 1, display: 'block' }}>
+                  ID Number
+                </MDTypography>
+                <TextField
+                  fullWidth
+                  value={formData.personal_info?.id_number || ''}
+                  onChange={(e) => handlePersonalInfoChange('id_number', e.target.value)}
+                  placeholder="Enter ID number"
+                  size="small"
+                />
+              </Grid>
+
+              <Grid item xs={12} md={6}>
+                <MDTypography variant="caption" fontWeight="bold" color="text" sx={{ mb: 1, display: 'block' }}>
                   Passport Number
-                </Typography>
+                </MDTypography>
                 <TextField
                   fullWidth
                   value={formData.personal_info?.passport_number || ''}
@@ -456,50 +504,35 @@ const PersonalInfoSection: React.FC<PersonalInfoSectionProps> = ({
                   size="small"
                 />
               </Grid>
-
-              <Grid item xs={12} md={6}>
-                <Typography variant="caption" sx={{ fontWeight: 'bold', color: 'text.secondary', mb: 1, display: 'block' }}>
-                  Passport Expiry Date
-                </Typography>
-                <TextField
-                  fullWidth
-                  type="date"
-                  value={formData.personal_info?.passport_expiry || ''}
-                  onChange={(e) => handlePersonalInfoChange('passport_expiry', e.target.value)}
-                  size="small"
-                  InputLabelProps={{ shrink: true }}
-                />
-              </Grid>
             </Grid>
           </CardContent>
         </Card>
       </Grid>
 
-      {/* Contact Information */}
+      {/* Communication Channels */}
       <Grid item xs={12}>
-        <Card elevation={0}>
-          <CardContent>
-            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, mb: 3 }}>
-              <Box sx={{ 
-                color: 'primary.main', 
-                display: 'flex', 
-                p: 0.5, 
-                borderRadius: 1, 
-                bgcolor: 'primary.light', 
-                opacity: 0.1 
-              }}>
-                <Phone />
-              </Box>
-              <Typography variant="h6" fontWeight="bold">
-                Contact Information
-              </Typography>
-            </Box>
-
+        <Card sx={{ overflow: 'visible', mt: 4 }}>
+          <MDBox
+            variant="gradient"
+            bgColor="success"
+            borderRadius="lg"
+            coloredShadow="success"
+            mx={2}
+            mt={-3}
+            p={2}
+            mb={1}
+            textAlign="center"
+          >
+            <MDTypography variant="h6" fontWeight="medium" color="white">
+              Communication Channels
+            </MDTypography>
+          </MDBox>
+          <CardContent sx={{ pt: 4 }}>
             <Grid container spacing={3}>
               <Grid item xs={12} md={6}>
-                <Typography variant="caption" sx={{ fontWeight: 'bold', color: 'text.secondary', mb: 1, display: 'block' }}>
+                <MDTypography variant="caption" fontWeight="bold" color="text" sx={{ mb: 1, display: 'block' }}>
                   Personal Email
-                </Typography>
+                </MDTypography>
                 <TextField
                   fullWidth
                   type="email"
@@ -508,15 +541,31 @@ const PersonalInfoSection: React.FC<PersonalInfoSectionProps> = ({
                   placeholder="personal@email.com"
                   size="small"
                   InputProps={{
-                    startAdornment: <InputAdornment position="start"><Email fontSize="small" /></InputAdornment>
+                    startAdornment: <InputAdornment position="start"><Email fontSize="small" sx={{ color: 'text.disabled' }} /></InputAdornment>
                   }}
                 />
               </Grid>
 
               <Grid item xs={12} md={6}>
-                <Typography variant="caption" sx={{ fontWeight: 'bold', color: 'text.secondary', mb: 1, display: 'block' }}>
+                <MDTypography variant="caption" fontWeight="bold" color="text" sx={{ mb: 1, display: 'block' }}>
+                  Alternative Phone
+                </MDTypography>
+                <TextField
+                  fullWidth
+                  value={formData.personal_info?.alternative_phone || ''}
+                  onChange={(e) => handlePersonalInfoChange('alternative_phone', e.target.value)}
+                  placeholder="Enter alternative phone"
+                  size="small"
+                  InputProps={{
+                    startAdornment: <InputAdornment position="start"><Phone fontSize="small" sx={{ color: 'text.disabled' }} /></InputAdornment>
+                  }}
+                />
+              </Grid>
+
+              <Grid item xs={12} md={4}>
+                <MDTypography variant="caption" fontWeight="bold" color="text" sx={{ mb: 1, display: 'block' }}>
                   Personal Phone
-                </Typography>
+                </MDTypography>
                 <TextField
                   fullWidth
                   value={formData.personal_info?.personal_phone || ''}
@@ -529,10 +578,10 @@ const PersonalInfoSection: React.FC<PersonalInfoSectionProps> = ({
                 />
               </Grid>
 
-              <Grid item xs={12} md={6}>
-                <Typography variant="caption" sx={{ fontWeight: 'bold', color: 'text.secondary', mb: 1, display: 'block' }}>
+              <Grid item xs={12} md={4}>
+                <MDTypography variant="caption" fontWeight="bold" color="text" sx={{ mb: 1, display: 'block' }}>
                   Mobile Primary
-                </Typography>
+                </MDTypography>
                 <TextField
                   fullWidth
                   value={formData.personal_info?.mobile_primary || ''}
@@ -545,10 +594,10 @@ const PersonalInfoSection: React.FC<PersonalInfoSectionProps> = ({
                 />
               </Grid>
 
-              <Grid item xs={12} md={6}>
-                <Typography variant="caption" sx={{ fontWeight: 'bold', color: 'text.secondary', mb: 1, display: 'block' }}>
+              <Grid item xs={12} md={4}>
+                <MDTypography variant="caption" fontWeight="bold" color="text" sx={{ mb: 1, display: 'block' }}>
                   Mobile Secondary
-                </Typography>
+                </MDTypography>
                 <TextField
                   fullWidth
                   value={formData.personal_info?.mobile_secondary || ''}
@@ -565,31 +614,30 @@ const PersonalInfoSection: React.FC<PersonalInfoSectionProps> = ({
         </Card>
       </Grid>
 
-      {/* Address Information */}
+      {/* Detailed Address Information */}
       <Grid item xs={12}>
-        <Card elevation={0}>
-          <CardContent>
-            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, mb: 3 }}>
-              <Box sx={{ 
-                color: 'primary.main', 
-                display: 'flex', 
-                p: 0.5, 
-                borderRadius: 1, 
-                bgcolor: 'primary.light', 
-                opacity: 0.1 
-              }}>
-                <LocationOn />
-              </Box>
-              <Typography variant="h6" fontWeight="bold">
-                Address Information
-              </Typography>
-            </Box>
-
+        <Card sx={{ overflow: 'visible', mt: 4 }}>
+          <MDBox
+            variant="gradient"
+            bgColor="primary"
+            borderRadius="lg"
+            coloredShadow="primary"
+            mx={2}
+            mt={-3}
+            p={2}
+            mb={1}
+            textAlign="center"
+          >
+            <MDTypography variant="h6" fontWeight="medium" color="white">
+              Detailed Address Information
+            </MDTypography>
+          </MDBox>
+          <CardContent sx={{ pt: 4 }}>
             <Grid container spacing={3}>
               <Grid item xs={12}>
-                <Typography variant="caption" sx={{ fontWeight: 'bold', color: 'text.secondary', mb: 1, display: 'block' }}>
+                <MDTypography variant="caption" fontWeight="bold" color="text" sx={{ mb: 1, display: 'block' }}>
                   Address Line 1
-                </Typography>
+                </MDTypography>
                 <TextField
                   fullWidth
                   value={formData.personal_info?.address_line1 || ''}
@@ -602,9 +650,9 @@ const PersonalInfoSection: React.FC<PersonalInfoSectionProps> = ({
               </Grid>
 
               <Grid item xs={12}>
-                <Typography variant="caption" sx={{ fontWeight: 'bold', color: 'text.secondary', mb: 1, display: 'block' }}>
+                <MDTypography variant="caption" fontWeight="bold" color="text" sx={{ mb: 1, display: 'block' }}>
                   Address Line 2
-                </Typography>
+                </MDTypography>
                 <TextField
                   fullWidth
                   value={formData.personal_info?.address_line2 || ''}
@@ -617,9 +665,9 @@ const PersonalInfoSection: React.FC<PersonalInfoSectionProps> = ({
               </Grid>
 
               <Grid item xs={12} md={4}>
-                <Typography variant="caption" sx={{ fontWeight: 'bold', color: 'text.secondary', mb: 1, display: 'block' }}>
+                <MDTypography variant="caption" fontWeight="bold" color="text" sx={{ mb: 1, display: 'block' }}>
                   City
-                </Typography>
+                </MDTypography>
                 <TextField
                   fullWidth
                   value={formData.personal_info?.city || ''}
@@ -630,9 +678,9 @@ const PersonalInfoSection: React.FC<PersonalInfoSectionProps> = ({
               </Grid>
 
               <Grid item xs={12} md={4}>
-                <Typography variant="caption" sx={{ fontWeight: 'bold', color: 'text.secondary', mb: 1, display: 'block' }}>
+                <MDTypography variant="caption" fontWeight="bold" color="text" sx={{ mb: 1, display: 'block' }}>
                   State/Province
-                </Typography>
+                </MDTypography>
                 <TextField
                   fullWidth
                   value={formData.personal_info?.state_province || ''}
@@ -643,9 +691,9 @@ const PersonalInfoSection: React.FC<PersonalInfoSectionProps> = ({
               </Grid>
 
               <Grid item xs={12} md={4}>
-                <Typography variant="caption" sx={{ fontWeight: 'bold', color: 'text.secondary', mb: 1, display: 'block' }}>
+                <MDTypography variant="caption" fontWeight="bold" color="text" sx={{ mb: 1, display: 'block' }}>
                   Postal Code
-                </Typography>
+                </MDTypography>
                 <TextField
                   fullWidth
                   value={formData.personal_info?.postal_code || ''}
@@ -656,9 +704,9 @@ const PersonalInfoSection: React.FC<PersonalInfoSectionProps> = ({
               </Grid>
 
               <Grid item xs={12} md={6}>
-                <Typography variant="caption" sx={{ fontWeight: 'bold', color: 'text.secondary', mb: 1, display: 'block' }}>
+                <MDTypography variant="caption" fontWeight="bold" color="text" sx={{ mb: 1, display: 'block' }}>
                   Country
-                </Typography>
+                </MDTypography>
                 <Autocomplete
                   options={countries}
                   value={formData.personal_info?.country || ''}
@@ -673,31 +721,30 @@ const PersonalInfoSection: React.FC<PersonalInfoSectionProps> = ({
         </Card>
       </Grid>
 
-      {/* Family Information */}
+      {/* Family & Medical Information */}
       <Grid item xs={12}>
-        <Card elevation={0}>
-          <CardContent>
-            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, mb: 3 }}>
-              <Box sx={{ 
-                color: 'primary.main', 
-                display: 'flex', 
-                p: 0.5, 
-                borderRadius: 1, 
-                bgcolor: 'primary.light', 
-                opacity: 0.1 
-              }}>
-                <Person />
-              </Box>
-              <Typography variant="h6" fontWeight="bold">
-                Family Information
-              </Typography>
-            </Box>
-
+        <Card sx={{ overflow: 'visible', mt: 4 }}>
+          <MDBox
+            variant="gradient"
+            bgColor="info"
+            borderRadius="lg"
+            coloredShadow="info"
+            mx={2}
+            mt={-3}
+            p={2}
+            mb={1}
+            textAlign="center"
+          >
+            <MDTypography variant="h6" fontWeight="medium" color="white">
+              Family & Medical Information
+            </MDTypography>
+          </MDBox>
+          <CardContent sx={{ pt: 4 }}>
             <Grid container spacing={3}>
               <Grid item xs={12} md={6}>
-                <Typography variant="caption" sx={{ fontWeight: 'bold', color: 'text.secondary', mb: 1, display: 'block' }}>
+                <MDTypography variant="caption" fontWeight="bold" color="text" sx={{ mb: 1, display: 'block' }}>
                   Marital Status
-                </Typography>
+                </MDTypography>
                 <TextField
                   select
                   fullWidth
@@ -714,9 +761,9 @@ const PersonalInfoSection: React.FC<PersonalInfoSectionProps> = ({
               </Grid>
 
               <Grid item xs={12} md={6}>
-                <Typography variant="caption" sx={{ fontWeight: 'bold', color: 'text.secondary', mb: 1, display: 'block' }}>
+                <MDTypography variant="caption" fontWeight="bold" color="text" sx={{ mb: 1, display: 'block' }}>
                   Number of Children
-                </Typography>
+                </MDTypography>
                 <TextField
                   fullWidth
                   type="number"
@@ -731,9 +778,9 @@ const PersonalInfoSection: React.FC<PersonalInfoSectionProps> = ({
               {formData.personal_info?.marital_status === 'married' && (
                 <>
                   <Grid item xs={12} md={6}>
-                    <Typography variant="caption" sx={{ fontWeight: 'bold', color: 'text.secondary', mb: 1, display: 'block' }}>
+                    <MDTypography variant="caption" fontWeight="bold" color="text" sx={{ mb: 1, display: 'block' }}>
                       Spouse Name
-                    </Typography>
+                    </MDTypography>
                     <TextField
                       fullWidth
                       value={formData.personal_info?.spouse_name || ''}
@@ -744,9 +791,9 @@ const PersonalInfoSection: React.FC<PersonalInfoSectionProps> = ({
                   </Grid>
 
                   <Grid item xs={12} md={6}>
-                    <Typography variant="caption" sx={{ fontWeight: 'bold', color: 'text.secondary', mb: 1, display: 'block' }}>
+                    <MDTypography variant="caption" fontWeight="bold" color="text" sx={{ mb: 1, display: 'block' }}>
                       Spouse Employment
-                    </Typography>
+                    </MDTypography>
                     <TextField
                       fullWidth
                       value={formData.personal_info?.spouse_employment || ''}
@@ -759,9 +806,9 @@ const PersonalInfoSection: React.FC<PersonalInfoSectionProps> = ({
               )}
 
               <Grid item xs={12} md={6}>
-                <Typography variant="caption" sx={{ fontWeight: 'bold', color: 'text.secondary', mb: 1, display: 'block' }}>
+                <MDTypography variant="caption" fontWeight="bold" color="text" sx={{ mb: 1, display: 'block' }}>
                   Medical Conditions
-                </Typography>
+                </MDTypography>
                 <TextField
                   fullWidth
                   value={formData.personal_info?.medical_conditions || ''}
@@ -774,9 +821,9 @@ const PersonalInfoSection: React.FC<PersonalInfoSectionProps> = ({
               </Grid>
 
               <Grid item xs={12} md={6}>
-                <Typography variant="caption" sx={{ fontWeight: 'bold', color: 'text.secondary', mb: 1, display: 'block' }}>
+                <MDTypography variant="caption" fontWeight="bold" color="text" sx={{ mb: 1, display: 'block' }}>
                   Allergies
-                </Typography>
+                </MDTypography>
                 <TextField
                   fullWidth
                   value={formData.personal_info?.allergies || ''}

@@ -33,17 +33,19 @@ async def create_contract(
         logger.error(f"Error creating contract: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
 
-@router.get("/")
+@router.get("/", response_model=schemas.ContractListResponse)
 def read_contracts(
     skip: int = 0, 
-    limit: int = 50, 
+    limit: int = 100, 
     db: Session = Depends(get_db),
-    current_user: schemas.User = Depends(require_permission("read_contracts"))
+    current_user: schemas.User = Depends(get_current_user)
 ):
     """Get paginated contracts with metadata"""
     # Validate pagination parameters
     if limit > 100:  # Prevent excessive loads
         limit = 100
+    if limit <= 0:
+        limit = 50
     if skip < 0:
         skip = 0
         
@@ -97,15 +99,24 @@ def get_contract_ledger(
     current_user: schemas.User = Depends(get_current_user)
 ):
     """Get financial ledger for a contract - requires authentication"""
-    uuid_obj = validate_uuid(contract_id)
+    import logging
+    logger = logging.getLogger(__name__)
+    
+    try:
+        uuid_obj = validate_uuid(contract_id)
 
-    # Validate pagination parameters
-    if limit > 100:  # Prevent excessive loads
-        limit = 100
-    if skip < 0:
-        skip = 0
+        # Validate pagination parameters
+        if limit > 100:  # Prevent excessive loads
+            limit = 100
+        if limit <= 0:
+            limit = 50
+        if skip < 0:
+            skip = 0
 
-    return ContractService.get_contract_ledger(db, uuid_obj, skip, limit)
+        return ContractService.get_contract_ledger(db, uuid_obj, skip, limit)
+    except Exception as e:
+        logger.error(f"Error fetching ledger for contract {contract_id}: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
 
 @router.post("/{contract_id}/price", response_model=schemas.PricingResponse)
 async def price_contract(

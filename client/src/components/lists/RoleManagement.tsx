@@ -2,7 +2,6 @@ import React, { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import api from '../../services/api';
 import {
-  Paper,
   Typography,
   Box,
   Button,
@@ -27,6 +26,7 @@ import {
   Card,
   CardContent
 } from '@mui/material';
+import { useConfirm } from '../../context/ConfirmContext';
 import { Add, Edit, Delete, Security, People } from '@mui/icons-material';
 
 interface Role {
@@ -34,11 +34,6 @@ interface Role {
   name: string;
   description: string;
   permissions: string[];
-}
-
-interface Permission {
-  id: string;
-  name: string;
 }
 
 interface User {
@@ -55,24 +50,15 @@ interface User {
 
 const RoleManagement: React.FC = () => {
   const { t } = useTranslation();
+  const { alert } = useConfirm();
   const [roles, setRoles] = useState<Role[]>([]);
-  const [permissions, setPermissions] = useState<Permission[]>([]);
   const [users, setUsers] = useState<User[]>([]);
   const [openDialog, setOpenDialog] = useState(false);
   const [openAddUserDialog, setOpenAddUserDialog] = useState(false); // New state for Add User dialog
-  const [editingRole, setEditingRole] = useState<Role | null>(null);
   const [newRole, setNewRole] = useState({ name: '', description: '' });
   const [newUserData, setNewUserData] = useState({ name: '', email: '', password: '', role: '' }); // New state for new user data
   const [selectedPermissions, setSelectedPermissions] = useState<string[]>([]);
   const [error, setError] = useState<string | null>(null);
-
-  const financialPermissions = [
-    'price_contracts',
-    'review_pricing', 
-    'approve_pricing',
-    'manage_draft_status',
-    'view_financial_reports'
-  ];
 
   const archivePermissions = [
     'archive_read',
@@ -99,13 +85,11 @@ const RoleManagement: React.FC = () => {
 
   const fetchData = async () => {
     try {
-      const [rolesRes, permsRes, usersRes] = await Promise.all([
-        api.get('/rbac/roles'),
-        api.get('/rbac/permissions'),
-        api.get('/hr/employees')
-      ]);
+        const [rolesRes, usersRes] = await Promise.all([
+          api.get('rbac/roles'),
+          api.get('hr/employees')
+        ]);
       setRoles(rolesRes.data);
-      setPermissions(permsRes.data);
       setUsers(usersRes.data);
     } catch (err: any) {
       setError(err.response?.data?.detail || t('errorLoadingData'));
@@ -114,8 +98,9 @@ const RoleManagement: React.FC = () => {
 
   const handleCreateRole = async () => {
     try {
-      const response = await api.post('/rbac/roles', {
-        ...newRole,
+      const response = await api.post('rbac/roles', {
+        name: newRole.name,
+        description: newRole.description,
         permissions: selectedPermissions
       });
       setRoles([...roles, response.data]);
@@ -129,8 +114,10 @@ const RoleManagement: React.FC = () => {
 
   const handleAssignRole = async (userId: string, roleName: string) => {
     try {
-      await api.post('/rbac/assign-role', { user_id: userId, role_name: roleName });
-      alert(t('roleAssignedSuccessfully'));
+      await api.post('rbac/assign-role', { user_id: userId, role_name: roleName });
+      setUsers(users.map(u => u.id === userId ? { ...u, role: roleName } : u));
+      alert(t('roleAssignedSuccessfully'), t('Success'), 'success');
+      setError(null);
     } catch (err: any) {
       setError(err.response?.data?.detail || t('errorAssigningRole'));
     }
@@ -143,7 +130,7 @@ const RoleManagement: React.FC = () => {
       return;
     }
     try {
-      const response = await api.post('/auth/register', newUserData);
+      const response = await api.post('auth/register', newUserData);
       setUsers([...users, { ...response.data, role: newUserData.role }]); // Assuming response.data contains user details, add role from newUserData
       setOpenAddUserDialog(false);
       setNewUserData({ name: '', email: '', password: '', role: '' });

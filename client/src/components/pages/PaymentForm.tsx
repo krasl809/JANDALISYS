@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
   Autocomplete, TextField, Button, Container, Typography, Box, MenuItem,
-  Card, CardContent, Divider, Stack, InputAdornment, Snackbar, Alert,
+  Card, CardContent, Divider, Stack, Snackbar, Alert,
   Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Chip,
   Dialog, DialogTitle, DialogContent, DialogActions, Tooltip, IconButton
 } from '@mui/material';
@@ -32,21 +32,10 @@ interface BankAccount {
     created_at: string;
 }
 
-// Contract Total Transaction interface
-interface ContractTotalTransaction {
-    id: string;
-    transaction_date: string;
-    type: string;
-    description: string;
-    reference: string;
-    amount: number;
-    is_credit: boolean;
-    is_contract_total: boolean;
-}
-
 const PaymentForm: React.FC<PaymentFormProps> = ({ contractId, onSaveSuccess }) => {
   const { t } = useTranslation();
   const theme = useTheme();
+  const { palette, boxShadows }: any = theme;
   const [contracts, setContracts] = useState<any[]>([]);
   const [contract, setContract] = useState<any>(null);
   const [history, setHistory] = useState<FinancialTransaction[]>([]); // ✅ حالة لتخزين سجل الدفعات
@@ -85,7 +74,7 @@ const PaymentForm: React.FC<PaymentFormProps> = ({ contractId, onSaveSuccess }) 
   // --- Fetch Data ---
   const fetchPayments = async (cId: string, contractData?: any) => {
       try {
-          const res = await api.get(`/contracts/${cId}/ledger`);
+          const res = await api.get(`contracts/${cId}/ledger`);
           const rawLedger: any[] = res.data;
           
           const currentContract = contractData || contract;
@@ -145,9 +134,9 @@ const PaymentForm: React.FC<PaymentFormProps> = ({ contractId, onSaveSuccess }) 
 
 
   // Fetch bank accounts
-  const fetchBankAccounts = async () => {
+  const loadBankAccounts = async () => {
     try {
-      const res = await api.get('/bank-accounts/');
+      const res = await api.get('bank-accounts/');
       setBankAccounts(res.data);
     } catch (error) {
       console.error("Failed to load bank accounts", error);
@@ -162,7 +151,7 @@ const PaymentForm: React.FC<PaymentFormProps> = ({ contractId, onSaveSuccess }) 
     }
 
     try {
-      const res = await api.post('/bank-accounts/', newBankAccount);
+      const res = await api.post('bank-accounts/', newBankAccount);
       setBankAccounts([...bankAccounts, res.data]);
       setFormData(prev => ({ ...prev, bank_account_id: res.data.id }));
       setAddBankDialogOpen(false);
@@ -187,18 +176,18 @@ const PaymentForm: React.FC<PaymentFormProps> = ({ contractId, onSaveSuccess }) 
     const fetchData = async () => {
         if (isEmbedded && contractId) {
             try {
-                const res = await api.get(`/contracts/${contractId}`);
-                const c = res.data;
-                setContract(c);
-                setFormData(prev => ({ ...prev, contract_id: c.id, contract_no: c.contract_no, contract_currency: c.contract_currency }));
+                const res = await api.get(`contracts/${contractId}`);
+                const data = res.data;
+                setContract(data);
+                setFormData(prev => ({ ...prev, contract_id: data.id, contract_no: data.contract_no, contract_currency: data.contract_currency }));
                 // ✅ جلب جميع الحركات المالية
-                await fetchPayments(contractId);
+                await fetchPayments(contractId, data);
             } catch(e) {}
         } else {
-            api.get('/contracts/').then(res => setContracts(res.data));
+            api.get('contracts/').then(res => setContracts(res.data));
         }
         // Fetch bank accounts
-        fetchBankAccounts();
+        loadBankAccounts();
     };
     fetchData();
   }, [contractId, isEmbedded]);
@@ -223,7 +212,7 @@ const PaymentForm: React.FC<PaymentFormProps> = ({ contractId, onSaveSuccess }) 
         const finalReference = formData.ref_id || `PAY-${formData.contract_no || 'TEMP'}-${new Date().getTime().toString().slice(-4)}`;
 
         // ✅ إرسال الدفعة للباك إند
-        await api.post('/payments', {
+        await api.post('payments', {
             contract_id: formData.contract_id,
             payment_date: formData.payment_date,
             amount: parseFloat(formData.amount),
@@ -259,9 +248,40 @@ const PaymentForm: React.FC<PaymentFormProps> = ({ contractId, onSaveSuccess }) 
       
       {/* Header for Standalone Mode */}
       {!isEmbedded && (
-        <Box sx={{ mb: 4, display: 'flex', alignItems: 'center', gap: 2 }}>
-            <Box p={1.5} bgcolor={alpha(theme.palette.success.main, 0.1)} borderRadius={2} color="success.main"><Payment fontSize="large" /></Box>
-            <Box><Typography variant="h4" fontWeight="800" color="text.primary">{t('Register Payment')}</Typography></Box>
+        <Box 
+          sx={{ 
+            mb: 4, 
+            p: 3, 
+            borderRadius: '16px', 
+            background: palette.gradients.success.main,
+            boxShadow: boxShadows.colored.success,
+            display: 'flex', 
+            alignItems: 'center', 
+            gap: 3,
+            color: '#fff'
+          }}
+        >
+            <Box 
+              sx={{ 
+                p: 2, 
+                bgcolor: 'rgba(255, 255, 255, 0.2)', 
+                borderRadius: '12px', 
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                backdropFilter: 'blur(4px)'
+              }}
+            >
+              <Payment fontSize="large" sx={{ fontSize: 40 }} />
+            </Box>
+            <Box>
+              <Typography variant="h3" fontWeight="700" color="inherit" sx={{ letterSpacing: '-1px', mb: 0.5 }}>
+                {t('Register Payment')}
+              </Typography>
+              <Typography variant="body1" sx={{ opacity: 0.9, fontWeight: 500 }}>
+                {t('Track and manage financial transactions for your contracts')}
+              </Typography>
+            </Box>
         </Box>
       )}
 
@@ -269,19 +289,125 @@ const PaymentForm: React.FC<PaymentFormProps> = ({ contractId, onSaveSuccess }) 
         
         {/* 1. Payment Entry Form */}
         <Grid size={{ xs: 12, lg: 8 }}>
-           <Card elevation={0} sx={{ border: `1px solid ${theme.palette.divider}`, borderRadius: 3 }}>
+           <Card 
+             sx={{ 
+               borderRadius: '16px', 
+               boxShadow: boxShadows.md,
+               border: 'none',
+               bgcolor: palette.mode === 'light' ? alpha(palette.background.paper, 0.8) : alpha(palette.background.paper, 0.6),
+               backdropFilter: 'blur(10px)',
+               overflow: 'visible'
+             }}
+           >
              <CardContent sx={{ p: 3 }}>
-                <SectionHeader title="New Payment Entry" icon={<Payment fontSize="small" />} />
-                <Grid container spacing={3} sx={{ mt: 1 }}>
-                  {!isEmbedded && (<Grid size={{ xs: 12 }}><Typography variant="caption" fontWeight="bold" color="text.secondary">SELECT CONTRACT</Typography><Autocomplete options={contracts} getOptionLabel={(opt) => opt.contract_no} onChange={(_, val) => handleContractChange(val)} renderInput={(params) => <TextField {...params} size="small" />} /></Grid>)}
-                  <Grid size={{ xs: 12, md: 6 }}><Typography variant="caption" fontWeight="bold" color="text.secondary">DATE</Typography><TextField type="date" fullWidth size="small" value={formData.payment_date} onChange={e => setFormData({...formData, payment_date: e.target.value})} /></Grid>
-                  <Grid size={{ xs: 12, md: 6 }}><Typography variant="caption" fontWeight="bold" color="text.secondary">METHOD</Typography><TextField select fullWidth size="small" value={formData.payment_method} onChange={e => setFormData({...formData, payment_method: e.target.value})}>{['Bank Transfer', 'Cheque', 'Cash'].map(m => <MenuItem key={m} value={m}>{m}</MenuItem>)}</TextField></Grid>
-                  <Divider sx={{ width: '100%' }} />
-                  <Grid size={{ xs: 12, md: 4 }}><Typography variant="caption" fontWeight="bold" color="text.secondary">AMOUNT</Typography><TextField type="number" fullWidth size="small" value={formData.amount} onChange={e => setFormData({...formData, amount: e.target.value})} InputProps={{ sx: { fontWeight: 'bold', color: 'primary.main' } }} /></Grid>
-                  <Grid size={{ xs: 12, md: 4 }}><Typography variant="caption" fontWeight="bold" color="text.secondary">CURRENCY</Typography><TextField select fullWidth size="small" value={formData.currency} onChange={e => setFormData({...formData, currency: e.target.value})}>{['USD', 'EUR', 'SAR', 'AED'].map(c => <MenuItem key={c} value={c}>{c}</MenuItem>)}</TextField></Grid>
-                  <Grid size={{ xs: 12, md: 4 }}><Typography variant="caption" fontWeight="bold" color="text.secondary">EXCHANGE RATE</Typography><TextField type="number" fullWidth size="small" value={formData.exchange_rate} onChange={e => setFormData({...formData, exchange_rate: e.target.value})} /></Grid>
+                <Box display="flex" alignItems="center" gap={1.5} mb={3}>
+                  <Box sx={{ p: 1, bgcolor: alpha(palette.primary.main, 0.1), borderRadius: '8px', color: palette.primary.main }}>
+                    <Payment fontSize="small" />
+                  </Box>
+                  <Typography variant="h6" fontWeight="700">
+                    {t('New Payment Entry')}
+                  </Typography>
+                </Box>
+
+                <Grid container spacing={2.5}>
+                  {!isEmbedded && (
+                    <Grid size={{ xs: 12 }}>
+                      <Typography variant="caption" fontWeight="700" color="text.secondary" sx={{ mb: 1, display: 'block', textTransform: 'uppercase' }}>
+                        {t('contracts.select_contract')}
+                      </Typography>
+                      <Autocomplete 
+                        options={contracts} 
+                        getOptionLabel={(opt) => opt.contract_no} 
+                        onChange={(_, val) => handleContractChange(val)} 
+                        renderInput={(params) => (
+                          <TextField 
+                            {...params} 
+                            size="small" 
+                            sx={{ '& .MuiOutlinedInput-root': { borderRadius: '8px' } }}
+                          />
+                        )} 
+                      />
+                    </Grid>
+                  )}
+                  
+                  <Grid size={{ xs: 12, md: 6 }}>
+                    <Typography variant="caption" fontWeight="700" color="text.secondary" sx={{ mb: 1, display: 'block', textTransform: 'uppercase' }}>
+                      {t('DATE')}
+                    </Typography>
+                    <TextField 
+                      type="date" 
+                      fullWidth 
+                      size="small" 
+                      value={formData.payment_date} 
+                      onChange={e => setFormData({...formData, payment_date: e.target.value})} 
+                      sx={{ '& .MuiOutlinedInput-root': { borderRadius: '8px' } }}
+                    />
+                  </Grid>
+
+                  <Grid size={{ xs: 12, md: 6 }}>
+                    <Typography variant="caption" fontWeight="700" color="text.secondary" sx={{ mb: 1, display: 'block', textTransform: 'uppercase' }}>
+                      {t('METHOD')}
+                    </Typography>
+                    <TextField 
+                      select 
+                      fullWidth 
+                      size="small" 
+                      value={formData.payment_method} 
+                      onChange={e => setFormData({...formData, payment_method: e.target.value})}
+                      sx={{ '& .MuiOutlinedInput-root': { borderRadius: '8px' } }}
+                    >
+                      {['Bank Transfer', 'Cheque', 'Cash'].map(m => <MenuItem key={m} value={m}>{t(m)}</MenuItem>)}
+                    </TextField>
+                  </Grid>
+
+                  <Grid size={{ xs: 12, md: 4 }}>
+                    <Typography variant="caption" fontWeight="700" color="text.secondary" sx={{ mb: 1, display: 'block', textTransform: 'uppercase' }}>
+                      {t('AMOUNT')}
+                    </Typography>
+                    <TextField 
+                      type="number" 
+                      fullWidth 
+                      size="small" 
+                      value={formData.amount} 
+                      onChange={e => setFormData({...formData, amount: e.target.value})} 
+                      InputProps={{ sx: { fontWeight: '700', color: palette.primary.main, borderRadius: '8px' } }} 
+                    />
+                  </Grid>
+
+                  <Grid size={{ xs: 12, md: 4 }}>
+                    <Typography variant="caption" fontWeight="700" color="text.secondary" sx={{ mb: 1, display: 'block', textTransform: 'uppercase' }}>
+                      {t('CURRENCY')}
+                    </Typography>
+                    <TextField 
+                      select 
+                      fullWidth 
+                      size="small" 
+                      value={formData.currency} 
+                      onChange={e => setFormData({...formData, currency: e.target.value})}
+                      sx={{ '& .MuiOutlinedInput-root': { borderRadius: '8px' } }}
+                    >
+                      {['USD', 'EUR', 'SAR', 'AED'].map(c => <MenuItem key={c} value={c}>{c}</MenuItem>)}
+                    </TextField>
+                  </Grid>
+
+                  <Grid size={{ xs: 12, md: 4 }}>
+                    <Typography variant="caption" fontWeight="700" color="text.secondary" sx={{ mb: 1, display: 'block', textTransform: 'uppercase' }}>
+                      {t('EXCHANGE RATE')}
+                    </Typography>
+                    <TextField 
+                      type="number" 
+                      fullWidth 
+                      size="small" 
+                      value={formData.exchange_rate} 
+                      onChange={e => setFormData({...formData, exchange_rate: e.target.value})} 
+                      sx={{ '& .MuiOutlinedInput-root': { borderRadius: '8px' } }}
+                    />
+                  </Grid>
+
                   <Grid size={{ xs: 12 }}>
-                    <Typography variant="caption" fontWeight="bold" color="text.secondary">BANK ACCOUNT</Typography>
+                    <Typography variant="caption" fontWeight="700" color="text.secondary" sx={{ mb: 1, display: 'block', textTransform: 'uppercase' }}>
+                      {t('BANK ACCOUNT')}
+                    </Typography>
                     <Box sx={{ display: 'flex', gap: 1 }}>
                       <Autocomplete
                         options={bankAccounts}
@@ -292,36 +418,44 @@ const PaymentForm: React.FC<PaymentFormProps> = ({ contractId, onSaveSuccess }) 
                           <TextField
                             {...params}
                             size="small"
-                            placeholder="Select bank account"
+                            placeholder={t("Select bank account")}
                             fullWidth
+                            sx={{ '& .MuiOutlinedInput-root': { borderRadius: '8px' } }}
                           />
                         )}
                         sx={{ flex: 1 }}
                       />
-                      <Tooltip title="Add new bank account">
+                      <Tooltip title={t("Add new bank account")}>
                         <IconButton
                           onClick={() => setAddBankDialogOpen(true)}
                           sx={{
-                            bgcolor: alpha(theme.palette.primary.main, 0.1),
-                            '&:hover': { bgcolor: alpha(theme.palette.primary.main, 0.2) }
+                            borderRadius: '8px',
+                            bgcolor: alpha(palette.primary.main, 0.1),
+                            color: palette.primary.main,
+                            height: 40,
+                            width: 40,
+                            '&:hover': { bgcolor: alpha(palette.primary.main, 0.2) }
                           }}
                         >
-                          <Add color="primary" />
+                          <Add />
                         </IconButton>
                       </Tooltip>
                     </Box>
                   </Grid>
+
                   <Grid size={{ xs: 12 }}>
-                    <Typography variant="caption" fontWeight="bold" color="text.secondary">LINK TO INVOICE (OPTIONAL)</Typography>
+                    <Typography variant="caption" fontWeight="700" color="text.secondary" sx={{ mb: 1, display: 'block', textTransform: 'uppercase' }}>
+                      {t('LINK TO INVOICE (OPTIONAL)')}
+                    </Typography>
                     <TextField
                       select
                       fullWidth
                       size="small"
                       value={formData.linked_transaction_id}
                       onChange={e => setFormData({...formData, linked_transaction_id: e.target.value})}
-                      placeholder="Select an invoice"
+                      sx={{ '& .MuiOutlinedInput-root': { borderRadius: '8px' } }}
                     >
-                      <MenuItem value=""><em>None</em></MenuItem>
+                      <MenuItem value=""><em>{t('None')}</em></MenuItem>
                       {history.filter(t => t.type === 'Invoice').map(inv => (
                         <MenuItem key={inv.id} value={inv.id}>
                           {inv.reference} ({inv.transaction_date}) - {inv.amount.toLocaleString()} {formData.contract_currency}
@@ -329,54 +463,95 @@ const PaymentForm: React.FC<PaymentFormProps> = ({ contractId, onSaveSuccess }) 
                       ))}
                     </TextField>
                   </Grid>
-                  <Grid size={{ xs: 12 }}><Typography variant="caption" fontWeight="bold" color="text.secondary">PAYMENT REFERENCE / NOTES</Typography><TextField fullWidth size="small" value={formData.ref_id} onChange={e => setFormData({...formData, ref_id: e.target.value})} placeholder="e.g. PAY-2025-001 or bank confirmation number" /></Grid>
+
+                  <Grid size={{ xs: 12 }}>
+                    <Typography variant="caption" fontWeight="700" color="text.secondary" sx={{ mb: 1, display: 'block', textTransform: 'uppercase' }}>
+                      {t('PAYMENT REFERENCE / NOTES')}
+                    </Typography>
+                    <TextField 
+                      fullWidth 
+                      size="small" 
+                      value={formData.ref_id} 
+                      onChange={e => setFormData({...formData, ref_id: e.target.value})} 
+                      placeholder={t("e.g. PAY-2025-001 or bank confirmation number")} 
+                      sx={{ '& .MuiOutlinedInput-root': { borderRadius: '8px' } }}
+                    />
+                  </Grid>
                 </Grid>
 
-                {/* Payment History Table - Integrated into the same card */}
-                <Divider sx={{ my: 3 }} />
-                <SectionHeader title="Transaction Ledger" icon={<History fontSize="small" />} />
-                <TableContainer sx={{ border: `1px solid ${theme.palette.divider}`, borderRadius: 2, mt: 2 }}>
+                {/* Transaction Ledger */}
+                <Divider sx={{ my: 4 }} />
+                
+                <Box display="flex" alignItems="center" gap={1.5} mb={3}>
+                  <Box sx={{ p: 1, bgcolor: alpha(palette.info.main, 0.1), borderRadius: '8px', color: palette.info.main }}>
+                    <History fontSize="small" />
+                  </Box>
+                  <Typography variant="h6" fontWeight="700">
+                    {t('Recent Transactions')}
+                  </Typography>
+                </Box>
+
+                <TableContainer 
+                  sx={{ 
+                    borderRadius: '12px', 
+                    border: `1px solid ${alpha(palette.divider, 0.1)}`,
+                    bgcolor: palette.mode === 'light' ? alpha('#fff', 0.5) : alpha(palette.background.paper, 0.2)
+                  }}
+                >
                   <Table size="small">
                     <TableHead>
-                      <TableRow sx={{ bgcolor: alpha(theme.palette.background.paper, 0.5) }}>
-                        <TableCell sx={{ fontWeight: 'bold', color: 'text.secondary' }}>Date</TableCell>
-                        <TableCell sx={{ fontWeight: 'bold', color: 'text.secondary' }}>Reference</TableCell>
-                        <TableCell sx={{ fontWeight: 'bold', color: 'text.secondary' }}>Type</TableCell>
-                        <TableCell sx={{ fontWeight: 'bold', color: 'text.secondary' }}>Description</TableCell>
-                        <TableCell align="right" sx={{ fontWeight: 'bold', color: 'text.secondary' }}>Amount</TableCell>
+                      <TableRow>
+                        <TableCell sx={{ fontWeight: '700', color: 'text.secondary', borderBottom: `1px solid ${palette.divider}` }}>{t('Date')}</TableCell>
+                        <TableCell sx={{ fontWeight: '700', color: 'text.secondary', borderBottom: `1px solid ${palette.divider}` }}>{t('Reference')}</TableCell>
+                        <TableCell sx={{ fontWeight: '700', color: 'text.secondary', borderBottom: `1px solid ${palette.divider}` }}>{t('Type')}</TableCell>
+                        <TableCell sx={{ fontWeight: '700', color: 'text.secondary', borderBottom: `1px solid ${palette.divider}` }}>{t('Description')}</TableCell>
+                        <TableCell align="right" sx={{ fontWeight: '700', color: 'text.secondary', borderBottom: `1px solid ${palette.divider}` }}>{t('Amount')}</TableCell>
                       </TableRow>
                     </TableHead>
                     <TableBody>
-                      {/* Financial Transactions */}
                       {history.length > 0 ? (
                         history.map((row: FinancialTransaction) => (
-                          <TableRow key={row.id} hover>
-                            <TableCell sx={{ fontFamily: 'monospace', color: 'text.primary' }}>{row.transaction_date}</TableCell>
-                            <TableCell sx={{ fontFamily: 'monospace', color: 'primary.main', fontWeight: 600 }}>{row.reference}</TableCell>
-                            <TableCell>
-                              <Typography variant="body2" sx={{ fontSize: '1.2rem' }}>
-                                {row.type === 'Invoice' ? '⚡' : '💸'}
-                              </Typography>
+                          <TableRow key={row.id} hover sx={{ '&:last-child td': { border: 0 } }}>
+                            <TableCell sx={{ py: 1.5, fontFamily: 'monospace', color: 'text.primary' }}>{row.transaction_date}</TableCell>
+                            <TableCell sx={{ py: 1.5, fontFamily: 'monospace', color: palette.primary.main, fontWeight: 700 }}>{row.reference}</TableCell>
+                            <TableCell sx={{ py: 1.5 }}>
+                              <Box 
+                                sx={{ 
+                                  width: 32, 
+                                  height: 32, 
+                                  borderRadius: '8px', 
+                                  display: 'flex', 
+                                  alignItems: 'center', 
+                                  justifyContent: 'center',
+                                  bgcolor: alpha(row.type === 'Invoice' ? palette.warning.main : palette.success.main, 0.1),
+                                  color: row.type === 'Invoice' ? palette.warning.main : palette.success.main
+                                }}
+                              >
+                                {row.type === 'Invoice' ? <Receipt fontSize="small" /> : <Payment fontSize="small" />}
+                              </Box>
                             </TableCell>
-                            <TableCell sx={{ color: 'text.secondary' }}>
-                              {row.type === 'Invoice' 
-                                ? `Invoice: ${row.reference?.includes('-') ? row.reference.split('-')[1] : (row.reference || 'N/A')}` 
-                                : 'Payment Registration'}
+                            <TableCell sx={{ py: 1.5, color: 'text.secondary' }}>
+                              <Typography variant="body2" fontWeight="600">
+                                {row.type === 'Invoice' 
+                                  ? `${t('Invoice')}: ${row.reference?.includes('-') ? row.reference.split('-')[1] : (row.reference || 'N/A')}` 
+                                  : t('Payment Registration')}
+                              </Typography>
                               {row.linked_transaction_id && (
-                                <Typography variant="caption" display="block" color="primary.main" sx={{ fontWeight: 'bold' }}>
-                                  Linked to: {history.find(h => h.id === row.linked_transaction_id)?.reference || 'Invoice'}
+                                <Typography variant="caption" display="block" color="primary.main" sx={{ fontWeight: '700' }}>
+                                  {t('Linked to')}: {history.find(h => h.id === row.linked_transaction_id)?.reference || t('Invoice')}
                                 </Typography>
                               )}
                             </TableCell>
-                            <TableCell align="right">
+                            <TableCell align="right" sx={{ py: 1.5 }}>
                               <Chip
                                 label={`${row.is_credit ? '-' : '+'}${row.amount.toLocaleString()} ${formData.contract_currency}`}
                                 size="small"
                                 sx={{
-                                  bgcolor: alpha(row.is_credit ? theme.palette.success.main : theme.palette.error.main, 0.1),
-                                  color: row.is_credit ? 'success.main' : 'error.main',
-                                  fontWeight: 'bold',
-                                  borderRadius: 1
+                                  bgcolor: alpha(row.is_credit ? palette.success.main : palette.error.main, 0.1),
+                                  color: row.is_credit ? palette.success.main : palette.error.main,
+                                  fontWeight: '700',
+                                  borderRadius: '6px',
+                                  height: '24px'
                                 }}
                               />
                             </TableCell>
@@ -385,7 +560,7 @@ const PaymentForm: React.FC<PaymentFormProps> = ({ contractId, onSaveSuccess }) 
                       ) : (
                         <TableRow>
                           <TableCell colSpan={5} align="center" sx={{ py: 5 }}>
-                            <Typography color="text.secondary">No transactions recorded yet.</Typography>
+                            <Typography color="text.secondary">{t('No transactions recorded yet.')}</Typography>
                           </TableCell>
                         </TableRow>
                       )}
@@ -398,133 +573,247 @@ const PaymentForm: React.FC<PaymentFormProps> = ({ contractId, onSaveSuccess }) 
 
         {/* 2. Summary Card */}
         <Grid size={{ xs: 12, lg: 4 }}>
-           <Card elevation={0} sx={{ border: `1px solid ${theme.palette.divider}`, bgcolor: alpha(theme.palette.background.paper, 0.6), borderRadius: 3, height: '100%' }}>
+           <Card 
+             sx={{ 
+               borderRadius: '16px', 
+               boxShadow: boxShadows.md,
+               bgcolor: palette.mode === 'light' ? alpha(palette.background.paper, 0.8) : alpha(palette.background.paper, 0.6),
+               backdropFilter: 'blur(10px)',
+               border: 'none',
+               position: 'sticky',
+               top: 24
+             }}
+           >
               <CardContent sx={{ p: 3 }}>
-                 <SectionHeader title="Payment Summary" icon={<Receipt fontSize="small" />} />
-                 <Stack spacing={2} sx={{ mb: 4, mt: 2 }}>
-                    <Box sx={{ bgcolor: alpha(theme.palette.grey[400], 0.1), p: 2, borderRadius: 2, border: `1px solid ${alpha(theme.palette.grey[300] || theme.palette.divider, 0.3)}` }}>
-                       <Box display="flex" justifyContent="space-between" alignItems="center">
-                          <Typography variant="body2" sx={{ color: 'text.secondary', fontWeight: 'bold' }}>CONTRACT</Typography>
-                          <Typography variant="body1" fontWeight="600" color="text.primary">{formData.contract_no || '-'}</Typography>
+                 <Box display="flex" alignItems="center" gap={1.5} mb={4}>
+                    <Box sx={{ p: 1, bgcolor: alpha(palette.primary.main, 0.1), borderRadius: '8px', color: palette.primary.main }}>
+                      <Receipt fontSize="small" />
+                    </Box>
+                    <Typography variant="h6" fontWeight="700">
+                      {t('Payment Summary')}
+                    </Typography>
+                 </Box>
+
+                 <Stack spacing={3}>
+                    <Box 
+                      sx={{ 
+                        p: 2.5, 
+                        borderRadius: '12px', 
+                        bgcolor: alpha(palette.primary.main, 0.03),
+                        border: `1px solid ${alpha(palette.primary.main, 0.1)}`
+                      }}
+                    >
+                       <Typography variant="caption" fontWeight="700" color="text.secondary" sx={{ textTransform: 'uppercase', mb: 1, display: 'block' }}>
+                          {t('Payment Amount')}
+                       </Typography>
+                       <Box display="flex" justifyContent="space-between" alignItems="baseline">
+                          <Typography variant="h3" fontWeight="800" color="primary.main">
+                            {(parseFloat(formData.amount) || 0).toLocaleString()}
+                          </Typography>
+                          <Typography variant="h6" fontWeight="700" color="text.secondary">
+                            {formData.currency}
+                          </Typography>
                        </Box>
                     </Box>
-                    <Box sx={{ bgcolor: alpha(theme.palette.grey[400], 0.1), p: 2, borderRadius: 2, border: `1px solid ${alpha(theme.palette.grey[300] || theme.palette.divider, 0.3)}` }}>
-                       <Box display="flex" justifyContent="space-between" alignItems="center">
-                          <Typography variant="body2" sx={{ color: 'text.secondary', fontWeight: 'bold' }}>CURRENCY</Typography>
-                          <Typography variant="body1" fontWeight="600" color="primary.main">{formData.contract_currency || 'USD'}</Typography>
-                       </Box>
+
+                    {parseFloat(formData.exchange_rate) !== 1 && (
+                      <Box 
+                        sx={{ 
+                          p: 2, 
+                          borderRadius: '12px', 
+                          bgcolor: alpha(palette.warning.main, 0.03),
+                          border: `1px dashed ${alpha(palette.warning.main, 0.2)}`
+                        }}
+                      >
+                         <Typography variant="caption" fontWeight="700" color="text.secondary" sx={{ textTransform: 'uppercase', mb: 1, display: 'block' }}>
+                            {t('Value in Contract Currency')}
+                         </Typography>
+                         <Box display="flex" justifyContent="space-between" alignItems="baseline">
+                            <Typography variant="h4" fontWeight="800" color="warning.main">
+                              {calculatedValue.toLocaleString()}
+                            </Typography>
+                            <Typography variant="h6" fontWeight="700" color="text.secondary">
+                              {formData.contract_currency}
+                            </Typography>
+                         </Box>
+                      </Box>
+                    )}
+
+                    <Divider />
+
+                    <Box>
+                      <Typography variant="caption" fontWeight="700" color="text.secondary" sx={{ textTransform: 'uppercase', mb: 2, display: 'block' }}>
+                        {t('Transaction Details')}
+                      </Typography>
+                      <Stack spacing={2}>
+                        <Box display="flex" justifyContent="space-between">
+                          <Typography variant="body2" color="text.secondary">{t('Method')}:</Typography>
+                          <Typography variant="body2" fontWeight="700">{t(formData.payment_method)}</Typography>
+                        </Box>
+                        <Box display="flex" justifyContent="space-between">
+                          <Typography variant="body2" color="text.secondary">{t('Date')}:</Typography>
+                          <Typography variant="body2" fontWeight="700">{formData.payment_date}</Typography>
+                        </Box>
+                        <Box display="flex" justifyContent="space-between">
+                          <Typography variant="body2" color="text.secondary">{t('Bank')}:</Typography>
+                          <Typography variant="body2" fontWeight="700">
+                            {bankAccounts.find(a => a.id === formData.bank_account_id)?.bank_name || '-'}
+                          </Typography>
+                        </Box>
+                      </Stack>
                     </Box>
-                    {/* Payment Amount */}
-                    <Box sx={{ bgcolor: alpha(theme.palette.info.main, 0.1), p: 2, borderRadius: 2, border: `1px dashed ${alpha(theme.palette.info.main, 0.3)}` }}>
-                       <Box display="flex" justifyContent="space-between" alignItems="center">
-                          <Typography variant="body2" sx={{ color: 'info.main', fontWeight: 'bold' }}>PAYMENT AMOUNT</Typography>
-                          <Box textAlign="right">
-                            <Typography variant="h4" fontWeight="800" color="info.main">{calculatedValue.toLocaleString()}</Typography>
-                            <Typography variant="caption" color="info.main">{formData.contract_currency}</Typography>
-                          </Box>
-                       </Box>
-                    </Box>
+
+                    <Button 
+                      fullWidth 
+                      variant="contained" 
+                      size="large" 
+                      startIcon={<CheckCircle />} 
+                      onClick={handleSave}
+                      disabled={!formData.contract_id || !formData.amount}
+                      sx={{ 
+                        mt: 2,
+                        py: 1.5,
+                        borderRadius: '12px',
+                        background: palette.gradients.primary.main,
+                        boxShadow: boxShadows.colored.primary,
+                        fontWeight: '700',
+                        fontSize: '1rem',
+                        '&:hover': {
+                          background: palette.gradients.primary.state,
+                          boxShadow: boxShadows.md
+                        },
+                        '&.Mui-disabled': {
+                          background: palette.grey[300],
+                          color: palette.grey[500]
+                        }
+                      }}
+                    >
+                      {t('Register Payment')}
+                    </Button>
                  </Stack>
-                 <Button fullWidth variant="contained" size="large" onClick={handleSave} startIcon={<CheckCircle />} sx={{ py: 1.5, fontWeight: 'bold' }}>Confirm Payment</Button>
               </CardContent>
            </Card>
         </Grid>
 
       </Grid>
-
-      {/* Bank Account Dialog */}
-      <Dialog open={addBankDialogOpen} onClose={() => setAddBankDialogOpen(false)} maxWidth="sm" fullWidth>
-        <DialogTitle>Add New Bank Account</DialogTitle>
-        <DialogContent>
-          <Grid container spacing={2} sx={{ mt: 1 }}>
-            <Grid size={{ xs: 12 }}>
-              <Typography variant="caption" fontWeight="bold" color="text.secondary">ACCOUNT NAME *</Typography>
-              <TextField
-                fullWidth
-                size="small"
-                value={newBankAccount.account_name}
-                onChange={e => setNewBankAccount({...newBankAccount, account_name: e.target.value})}
-                placeholder="Enter account name"
-                required
-              />
+      
+      {/* Add Bank Account Dialog */}
+      <Dialog 
+        open={addBankDialogOpen} 
+        onClose={() => setAddBankDialogOpen(false)}
+        PaperProps={{
+          sx: { borderRadius: '16px', boxShadow: boxShadows.lg, width: '100%', maxWidth: '500px' }
+        }}
+      >
+        <DialogTitle sx={{ fontWeight: '700', pb: 1 }}>{t('Add New Bank Account')}</DialogTitle>
+        <DialogContent sx={{ pt: 2 }}>
+          <Stack spacing={2.5} sx={{ mt: 1 }}>
+            <TextField 
+              label={t("Account Name")} 
+              fullWidth 
+              size="small" 
+              value={newBankAccount.account_name} 
+              onChange={e => setNewBankAccount({...newBankAccount, account_name: e.target.value})}
+              sx={{ '& .MuiOutlinedInput-root': { borderRadius: '8px' } }}
+            />
+            <TextField 
+              label={t("Account Number")} 
+              fullWidth 
+              size="small" 
+              value={newBankAccount.account_number} 
+              onChange={e => setNewBankAccount({...newBankAccount, account_number: e.target.value})}
+              sx={{ '& .MuiOutlinedInput-root': { borderRadius: '8px' } }}
+            />
+            <TextField 
+              label={t("Bank Name")} 
+              fullWidth 
+              size="small" 
+              value={newBankAccount.bank_name} 
+              onChange={e => setNewBankAccount({...newBankAccount, bank_name: e.target.value})}
+              sx={{ '& .MuiOutlinedInput-root': { borderRadius: '8px' } }}
+            />
+            <Grid container spacing={2}>
+              <Grid size={{ xs: 6 }}>
+                <TextField 
+                  select 
+                  label={t("Currency")} 
+                  fullWidth 
+                  size="small" 
+                  value={newBankAccount.currency} 
+                  onChange={e => setNewBankAccount({...newBankAccount, currency: e.target.value})}
+                  sx={{ '& .MuiOutlinedInput-root': { borderRadius: '8px' } }}
+                >
+                  {['USD', 'EUR', 'SAR', 'AED'].map(c => <MenuItem key={c} value={c}>{c}</MenuItem>)}
+                </TextField>
+              </Grid>
+              <Grid size={{ xs: 6 }}>
+                <TextField 
+                  label={t("Branch")} 
+                  fullWidth 
+                  size="small" 
+                  value={newBankAccount.branch} 
+                  onChange={e => setNewBankAccount({...newBankAccount, branch: e.target.value})}
+                  sx={{ '& .MuiOutlinedInput-root': { borderRadius: '8px' } }}
+                />
+              </Grid>
             </Grid>
-            <Grid size={{ xs: 12, md: 6 }}>
-              <Typography variant="caption" fontWeight="bold" color="text.secondary">ACCOUNT NUMBER *</Typography>
-              <TextField
-                fullWidth
-                size="small"
-                value={newBankAccount.account_number}
-                onChange={e => setNewBankAccount({...newBankAccount, account_number: e.target.value})}
-                placeholder="Enter account number"
-                required
-              />
-            </Grid>
-            <Grid size={{ xs: 12, md: 6 }}>
-              <Typography variant="caption" fontWeight="bold" color="text.secondary">BANK NAME *</Typography>
-              <TextField
-                fullWidth
-                size="small"
-                value={newBankAccount.bank_name}
-                onChange={e => setNewBankAccount({...newBankAccount, bank_name: e.target.value})}
-                placeholder="Enter bank name"
-                required
-              />
-            </Grid>
-            <Grid size={{ xs: 12, md: 6 }}>
-              <Typography variant="caption" fontWeight="bold" color="text.secondary">BRANCH</Typography>
-              <TextField
-                fullWidth
-                size="small"
-                value={newBankAccount.branch}
-                onChange={e => setNewBankAccount({...newBankAccount, branch: e.target.value})}
-                placeholder="Enter branch name"
-              />
-            </Grid>
-            <Grid size={{ xs: 12, md: 6 }}>
-              <Typography variant="caption" fontWeight="bold" color="text.secondary">CURRENCY</Typography>
-              <TextField
-                select
-                fullWidth
-                size="small"
-                value={newBankAccount.currency}
-                onChange={e => setNewBankAccount({...newBankAccount, currency: e.target.value})}
-              >
-                {['USD', 'EUR', 'SAR', 'AED', 'GBP'].map(c => (
-                  <MenuItem key={c} value={c}>{c}</MenuItem>
-                ))}
-              </TextField>
-            </Grid>
-            <Grid size={{ xs: 12, md: 6 }}>
-              <Typography variant="caption" fontWeight="bold" color="text.secondary">SWIFT CODE</Typography>
-              <TextField
-                fullWidth
-                size="small"
-                value={newBankAccount.swift_code}
-                onChange={e => setNewBankAccount({...newBankAccount, swift_code: e.target.value})}
-                placeholder="Enter SWIFT code"
-              />
-            </Grid>
-            <Grid size={{ xs: 12, md: 6 }}>
-              <Typography variant="caption" fontWeight="bold" color="text.secondary">IBAN</Typography>
-              <TextField
-                fullWidth
-                size="small"
-                value={newBankAccount.iban}
-                onChange={e => setNewBankAccount({...newBankAccount, iban: e.target.value})}
-                placeholder="Enter IBAN"
-              />
-            </Grid>
-          </Grid>
+            <TextField 
+              label={t("SWIFT/BIC Code")} 
+              fullWidth 
+              size="small" 
+              value={newBankAccount.swift_code} 
+              onChange={e => setNewBankAccount({...newBankAccount, swift_code: e.target.value})}
+              sx={{ '& .MuiOutlinedInput-root': { borderRadius: '8px' } }}
+            />
+            <TextField 
+              label={t("IBAN")} 
+              fullWidth 
+              size="small" 
+              value={newBankAccount.iban} 
+              onChange={e => setNewBankAccount({...newBankAccount, iban: e.target.value})}
+              sx={{ '& .MuiOutlinedInput-root': { borderRadius: '8px' } }}
+            />
+          </Stack>
         </DialogContent>
-        <DialogActions>
-          <Button onClick={() => setAddBankDialogOpen(false)}>Cancel</Button>
-          <Button onClick={handleAddBankAccount} variant="contained" color="primary">
-            Add Bank Account
+        <DialogActions sx={{ p: 3, pt: 1 }}>
+          <Button 
+            onClick={() => setAddBankDialogOpen(false)} 
+            sx={{ borderRadius: '8px', fontWeight: '700', textTransform: 'none', color: 'text.secondary' }}
+          >
+            {t('Cancel')}
+          </Button>
+          <Button 
+            onClick={handleAddBankAccount} 
+            variant="contained" 
+            sx={{ 
+              borderRadius: '8px', 
+              fontWeight: '700', 
+              textTransform: 'none',
+              background: palette.gradients.primary.main,
+              boxShadow: boxShadows.colored.primary,
+              '&:hover': { background: palette.gradients.primary.state }
+            }}
+          >
+            {t('Save Account')}
           </Button>
         </DialogActions>
       </Dialog>
 
-      <Snackbar open={notification.open} autoHideDuration={4000} onClose={() => setNotification({...notification, open: false})}><Alert severity={notification.severity} variant="filled" sx={{ width: '100%' }}>{notification.message}</Alert></Snackbar>
+      <Snackbar 
+        open={notification.open} 
+        autoHideDuration={4000} 
+        onClose={() => setNotification({...notification, open: false})}
+        anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
+      >
+        <Alert 
+          onClose={() => setNotification({...notification, open: false})} 
+          severity={notification.severity} 
+          sx={{ borderRadius: '8px', boxShadow: boxShadows.md, width: '100%' }}
+          variant="filled"
+        >
+          {notification.message}
+        </Alert>
+      </Snackbar>
     </Container>
   );
 };

@@ -56,7 +56,7 @@ from crud import rbac_crud
 from core.auth import authenticate_user, create_access_token, get_current_user, get_password_hash, require_permission
 
 # Import routers
-from routers import contracts, conveyors, agents, financial_transactions, departments, hr, notifications, dashboard, inventory, payments, bank_accounts, documents, archive
+from routers import contracts, conveyors, agents, financial_transactions, departments, hr, notifications, dashboard, inventory, payments, bank_accounts, documents, archive, exchange_units
 from rbac.rbac_main import router as rbac_router
 
 # استيراد مدير الويب سوكيت
@@ -88,6 +88,20 @@ app.add_middleware(
     expose_headers=["Content-Range", "X-Content-Range"],
     max_age=3600,
 )
+
+@app.middleware("http")
+async def log_requests(request: Request, call_next):
+    auth_header = request.headers.get("Authorization")
+    has_auth = "Yes" if auth_header else "No"
+    logger.info(f"🔍 Incoming request: {request.method} {request.url} (Auth: {has_auth})")
+    if auth_header:
+        # Log first 15 chars of token for debugging
+        token_preview = auth_header[:25] + "..." if len(auth_header) > 25 else auth_header
+        logger.info(f"🔑 Auth Header: {token_preview}")
+        
+    response = await call_next(request)
+    logger.info(f"✅ Response status: {response.status_code}")
+    return response
 
 # --- Security Headers & Rate Limiting Middleware ---
 @app.middleware("http")
@@ -165,6 +179,7 @@ app.include_router(documents.router, prefix="/api", tags=["documents"])
 app.include_router(payments.router, prefix="/api", tags=["payments"])
 app.include_router(bank_accounts.router, prefix="/api", tags=["bank_accounts"])
 app.include_router(archive.router, prefix="/api", tags=["archive"])
+app.include_router(exchange_units.router, prefix="/api/exchange-units", tags=["exchange_units"])
 
 # --- WebSocket Endpoint ---
 @app.websocket("/ws")
@@ -225,7 +240,7 @@ def startup_event():
                 "read_shippers", "write_shippers", "read_brokers", "write_brokers", 
                 "read_conveyors", "write_conveyors", "read_articles", "write_articles", "read_payment_terms", "write_payment_terms",
                 "read_incoterms", "write_incoterms", "read_document_types", "write_document_types",
-                "view_agents", "manage_agents", "view_inventory", 
+                "view_agents", "manage_agents", "view_inventory", "manage_inventory",
                 "archive_read", "archive_upload", "archive_download", "archive_delete", "archive_write"
             ],
             "hr_manager": [
@@ -266,6 +281,17 @@ def startup_event():
             ],
             "archive_viewer": [
                 "archive_read", "archive_download"
+            ],
+            "contracts_admin": [
+                "view_dashboard", "read_contracts", "write_contracts", "post_contracts", 
+                "delete_contracts", "approve_pricing", "manage_draft_status", 
+                "price_contracts", "read_pricing", "read_payments",
+                "read_sellers", "write_sellers", "read_buyers", "write_buyers", 
+                "read_shippers", "write_shippers", "read_brokers", "write_brokers", 
+                "read_conveyors", "write_conveyors", "read_articles", "write_articles", 
+                "read_payment_terms", "write_payment_terms", "read_incoterms", "write_incoterms",
+                "read_document_types", "write_document_types", "view_settings",
+                "view_agents", "manage_agents", "view_inventory", "manage_inventory"
             ]
         }
         
@@ -278,7 +304,34 @@ def startup_event():
                 # assign_permission_to_role also checks for existing assignments
                 rbac_crud.assign_permission_to_role(db, role.id, perm.id)
         
+        # Initialize default units
+        logger.info("Initializing default exchange quote units...")
+        default_units = [
+            {"name": "Metric Ton", "symbol": "MT", "factor": 1.0, "description": "Standard metric ton (1000kg)"},
+            {"name": "Bushel (Wheat/Soybeans)", "symbol": "BU", "factor": 0.0272155, "description": "Standard bushel for wheat and soybeans"},
+            {"name": "Bushel (Corn/Sorghum)", "symbol": "BU", "factor": 0.0254012, "description": "Standard bushel for corn and sorghum"},
+            {"name": "Pound", "symbol": "LB", "factor": 0.00045359237, "description": "Standard pound"},
+            {"name": "Hundredweight", "symbol": "CWT", "factor": 0.045359237, "description": "Standard hundredweight (100 lbs)"}
+        ]
+        
+        for unit_data in default_units:
+            existing = db.query(core_models.ExchangeQuoteUnit).filter(core_models.ExchangeQuoteUnit.name == unit_data["name"]).first()
+            if not existing:
+                new_unit = core_models.ExchangeQuoteUnit(**unit_data)
+                db.add(new_unit)
+        db.commit()
+
         logger.info("Default roles and permissions initialized successfully")
+
+        # Sync User.role field with RBAC user_roles table
+        logger.info("Syncing user roles...")
+        users = db.query(core_models.User).all()
+        for user in users:
+            if user.role:
+                role_obj = rbac_crud.get_role_by_name(db, user.role)
+                if role_obj:
+                    rbac_crud.assign_role_to_user(db, user.id, role_obj.id)
+        logger.info(f"Synced roles for {len(users)} users")
 
         # Create default admin user if no users exist
         admin_email = "admin@jandali.com"
@@ -380,6 +433,69 @@ def startup_event():
                         rbac_crud.assign_role_to_user(db, u_exists.id, u_role.id)
         
         logger.info("Archive users initialized successfully")
+
+        # Create 4 default contracts users
+        contracts_users = [
+            {"name": "ماهر عيسى", "email": "maher.issa@jandali.com", "role": "contracts_admin"},
+            {"name": "قتيبة المصري", "email": "qutaiba.masri@jandali.com", "role": "contracts_admin"},
+            {"name": "سامر عيسى", "email": "samer.issa@jandali.com", "role": "contracts_admin"},
+            {"name": "نازك الجندلي", "email": "nazik.jandali@jandali.com", "role": "contracts_admin"}
+        ]
+        
+        contracts_password = os.getenv("DEFAULT_CONTRACTS_PASSWORD", "Contracts@123")
+        default_contracts_password_hash = get_password_hash(contracts_password)
+        
+        for u_data in contracts_users:
+            u_exists = db.query(core_models.User).filter(core_models.User.email == u_data["email"]).first()
+            if not u_exists:
+                logger.info(f"Creating contracts user: {u_data['email']}")
+                new_u = core_models.User(
+                    name=u_data["name"],
+                    email=u_data["email"],
+                    password=default_contracts_password_hash,
+                    role=u_data["role"],
+                    is_active=True
+                )
+                db.add(new_u)
+                db.commit()
+                db.refresh(new_u)
+                
+                # Assign role
+                u_role = rbac_crud.get_role_by_name(db, u_data["role"])
+                if u_role:
+                    rbac_crud.assign_role_to_user(db, new_u.id, u_role.id)
+            else:
+                # Ensure role assignment
+                u_role = rbac_crud.get_role_by_name(db, u_data["role"])
+                if u_role:
+                    user_roles_list = rbac_crud.get_user_roles(db, u_exists.id)
+                    if u_data["role"] not in user_roles_list:
+                        rbac_crud.assign_role_to_user(db, u_exists.id, u_role.id)
+        
+        logger.info("Contracts users initialized successfully")
+
+        # Initialize default exchange quote units
+        logger.info("Initializing default exchange quote units...")
+        exchange_units = [
+            {"name": "cents/lb", "factor": 22.0462, "description": "Convert cents per pound to USD per Metric Ton (Quote * 22.0462)"},
+            {"name": "$/short ton", "factor": 1.10231, "description": "Convert USD per short ton to USD per Metric Ton (Quote * 1.10231)"},
+            {"name": "$/MT", "factor": 1.0, "description": "No conversion needed (USD per Metric Ton)"},
+            {"name": "EUR/MT", "factor": 1.08, "description": "Convert EUR to USD per Metric Ton (Estimated factor, should be updated with real exchange rate)"}
+        ]
+        
+        for unit_data in exchange_units:
+            unit_exists = db.query(core_models.ExchangeQuoteUnit).filter(core_models.ExchangeQuoteUnit.name == unit_data["name"]).first()
+            if not unit_exists:
+                logger.info(f"Creating exchange unit: {unit_data['name']}")
+                new_unit = core_models.ExchangeQuoteUnit(
+                    name=unit_data["name"],
+                    factor=unit_data["factor"],
+                    description=unit_data["description"]
+                )
+                db.add(new_unit)
+        
+        db.commit()
+        logger.info("Exchange quote units initialized successfully")
 
     except Exception as e:
         logger.error(f"Startup Config Error: {e}", exc_info=True)
@@ -558,6 +674,60 @@ def read_users(db: Session = Depends(get_db), current_user = Depends(get_current
         raise
     except Exception as e:
         raise HTTPException(status_code=500, detail="Failed to retrieve users")
+
+@app.put("/api/users/profile", response_model=schemas.User)
+def update_user_profile(
+    user_update: schemas.UserUpdate, 
+    db: Session = Depends(get_db), 
+    current_user = Depends(get_current_user)
+):
+    try:
+        db_user = db.query(core_models.User).filter(core_models.User.id == current_user.id).first()
+        if not db_user:
+            raise HTTPException(status_code=404, detail="User not found")
+            
+        update_data = user_update.model_dump(exclude_unset=True)
+        # Prevent non-admins from changing their own role or active status
+        if current_user.role != "admin":
+            update_data.pop("role", None)
+            update_data.pop("is_active", None)
+            
+        for key, value in update_data.items():
+            setattr(db_user, key, value)
+            
+        db.commit()
+        db.refresh(db_user)
+        return db_user
+    except HTTPException:
+        raise
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(status_code=500, detail=f"Failed to update profile: {str(e)}")
+
+@app.put("/api/users/change-password")
+def change_password(
+    password_data: dict, 
+    db: Session = Depends(get_db), 
+    current_user = Depends(get_current_user)
+):
+    try:
+        old_password = password_data.get("old_password")
+        new_password = password_data.get("new_password")
+        
+        if not old_password or not new_password:
+            raise HTTPException(status_code=400, detail="Old and new passwords required")
+            
+        if not authenticate_user(db, current_user.email, old_password):
+            raise HTTPException(status_code=401, detail="Invalid old password")
+            
+        current_user.password = get_password_hash(new_password)
+        db.commit()
+        return {"message": "Password updated successfully"}
+    except HTTPException:
+        raise
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(status_code=500, detail=f"Failed to change password: {str(e)}")
 
 # Sellers
 @app.get("/api/sellers/", response_model=list[schemas.Seller])

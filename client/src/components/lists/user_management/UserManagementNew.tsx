@@ -25,10 +25,12 @@ import RoleManager from './RoleManager';
 import UserProfileDrawer from './UserProfileDrawer';
 import DepartmentsManager from './DepartmentsManager';
 import api from '../../../services/api';
+import { useConfirm } from '../../../context/ConfirmContext';
 import { useTheme, alpha, Card, CardContent, Grid } from '@mui/material';
 
 const UserManagementNew: React.FC = () => {
     const { t } = useTranslation();
+    const { confirm } = useConfirm();
     const theme = useTheme();
 
     // State
@@ -49,11 +51,11 @@ const UserManagementNew: React.FC = () => {
 
     const fetchData = async () => {
         try {
-            const [usersRes, deptsRes, posRes] = await Promise.all([
-                api.get('/users/'),
-                api.get('/departments'),
-                api.get('/positions')
-            ]);
+                const [usersRes, deptsRes, posRes] = await Promise.all([
+                    api.get('users/'),
+                    api.get('departments'),
+                    api.get('positions')
+                ]);
             // Ensure we always have arrays
             const usersData = Array.isArray(usersRes.data) ? usersRes.data :
                 (usersRes.data?.users || usersRes.data?.data || []);
@@ -77,9 +79,9 @@ const UserManagementNew: React.FC = () => {
     };
 
     const handleDeleteUser = async (userId: string) => {
-        if (!confirm(t('confirmDeleteUser'))) return;
+        if (!await confirm({ message: t('confirmDeleteUser') })) return;
         try {
-            await api.delete('/hr/employees', { data: [userId] });
+            await api.delete('hr/employees', { data: [userId] });
             setUsers(prev => prev.filter((u: any) => u.id !== userId));
         } catch (err) {
             setError("Failed to delete user");
@@ -90,13 +92,13 @@ const UserManagementNew: React.FC = () => {
         try {
             if (userData.id) {
                 // Update
-                const res = await api.put(`/hr/employees/${userData.id}`, userData);
+                const res = await api.put(`hr/employees/${userData.id}`, userData);
                 setUsers(prev => prev.map((u: any) => u.id === userData.id ? res.data : u));
             } else {
                 // Create
                 // Need to ensure password is set for new users (logic handled inside Drawer mostly or API)
                 // For simplicity, we assume simple create here or Drawer handles validation
-                const res = await api.post('/auth/register', { ...userData, password: userData.password || '123456' });
+                const res = await api.post('auth/register', { ...userData, password: userData.password || '123456' });
                 setUsers(prev => [...prev, res.data]);
             }
             fetchData(); // Refresh to be sure

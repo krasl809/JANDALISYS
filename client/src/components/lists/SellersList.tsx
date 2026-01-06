@@ -24,6 +24,8 @@ import {
 } from '@mui/material';
 import { Edit, Delete, Add } from '@mui/icons-material';
 
+import { useConfirm } from '../../context/ConfirmContext';
+
 interface Seller {
   id: string;
   contact_name: string;
@@ -37,6 +39,7 @@ interface Seller {
 
 const SellersList: React.FC = () => {
   const { t } = useTranslation();
+  const { confirm } = useConfirm();
 
   const [sellers, setSellers] = useState<Seller[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
@@ -58,8 +61,9 @@ const SellersList: React.FC = () => {
   }, []);
 
   const fetchSellers = async () => {
+    setLoading(true);
     try {
-      const response = await api.get('/sellers/');
+      const response = await api.get('sellers/');
       setSellers(response.data);
     } catch (err: any) {
       console.error('Error fetching sellers:', err);
@@ -76,7 +80,7 @@ const SellersList: React.FC = () => {
     }
 
     try {
-      const response = await api.post('/sellers/', newSeller);
+      const response = await api.post('sellers/', newSeller);
       setSellers([...sellers, response.data]);
       setNewSeller({ contact_name: '', address: '', post_box: '', tel: '', fax: '', email: '', seller_code: '' });
       setError(null);
@@ -95,7 +99,7 @@ const SellersList: React.FC = () => {
     if (!currentSeller) return;
 
     try {
-      const response = await api.put(`/sellers/${currentSeller.id}`, currentSeller);
+      const response = await api.put(`sellers/${currentSeller.id}`, currentSeller);
       setSellers(sellers.map(seller => 
         seller.id === currentSeller.id ? response.data : seller
       ));
@@ -108,10 +112,10 @@ const SellersList: React.FC = () => {
   };
 
   const handleDeleteSeller = async (id: string) => {
-    if (!window.confirm(t('confirmDelete'))) return;
+    if (!await confirm({ message: t('confirmDelete') })) return;
 
     try {
-      await api.delete(`/sellers/${id}`);
+      await api.delete(`sellers/${id}`);
       setSellers(sellers.filter(s => s.id !== id));
     } catch (err: any) {
       console.error('Error deleting seller:', err);

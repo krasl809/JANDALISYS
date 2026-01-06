@@ -2,7 +2,6 @@ import React, { useState, Suspense, lazy } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
   Container,
-  Paper,
   Tabs,
   Tab,
   Box,
@@ -22,7 +21,6 @@ import {
   Description as DocumentIcon,
   Payment as PaymentIcon,
   Gavel as IncotermIcon,
-  Security as SecurityIcon,
   BusinessCenter as BrokerIcon,
   BusinessCenter
 } from '@mui/icons-material';
@@ -39,8 +37,8 @@ const AgentsList = lazy(() => import('./lists/AgentsList'));
 const DocumentsList = lazy(() => import('./lists/DocumentsList'));
 const PaymentTermsList = lazy(() => import('./lists/PaymentTermsList'));
 const IncotermsList = lazy(() => import('./lists/IncotermsList'));
-const RoleManagement = lazy(() => import('./lists/RoleManagement'));
 const UserManagementNew = lazy(() => import('./lists/user_management/UserManagementNew'));
+const ProfileSettings = lazy(() => import('./auth/ProfileSettings'));
 
 // Loading fallback component
 const LoadingFallback = () => (
@@ -56,13 +54,14 @@ const SettingsPage: React.FC = () => {
   const isMobile = useMediaQuery(theme.breakpoints.down('md'));
   const [currentTab, setCurrentTab] = useState(0);
 
-  const handleTabChange = (event: React.SyntheticEvent, newValue: number) => {
+  const handleTabChange = (_event: React.SyntheticEvent, newValue: number) => {
     setCurrentTab(newValue);
   };
 
   const isAdmin = user?.role === 'admin';
 
   const allTabs = [
+    { label: t('My Profile') || 'My Profile', icon: <PeopleIcon />, component: <ProfileSettings /> },
     { label: t('User & Access') || 'User & Access', icon: <PeopleIcon />, component: <UserManagementNew />, adminOnly: true },
     { label: t('Articles'), icon: <InventoryIcon />, component: <ArticlesList /> },
     { label: t('Buyers'), icon: <PeopleIcon />, component: <BuyersList /> },

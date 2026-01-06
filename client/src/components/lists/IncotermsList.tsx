@@ -6,8 +6,9 @@ import {
     TableHead, TableRow, Button, TextField, Alert,
     Dialog, DialogTitle, DialogContent, DialogActions,
     IconButton, Typography, Card, CardContent, Container,
-    InputAdornment, useTheme, alpha, Stack, Divider, CircularProgress
+    InputAdornment, useTheme, alpha, Stack, CircularProgress
 } from '@mui/material';
+import { useConfirm } from '../../context/ConfirmContext';
 import { 
     Edit, Delete, Add, Search, Description, 
     Code, Title, Save, Close, FilterListOff 
@@ -26,6 +27,7 @@ interface Incoterm {
 const IncotermsList: React.FC = () => {
     const { t } = useTranslation();
     const theme = useTheme();
+    const { confirm } = useConfirm();
     
     // --- States ---
     const [incoterms, setIncoterms] = useState<Incoterm[]>([]);
@@ -48,7 +50,7 @@ const IncotermsList: React.FC = () => {
     const fetchIncoterms = async () => {
         try {
             setLoading(true);
-            const response = await api.get('/incoterms/');
+            const response = await api.get('incoterms/');
             setIncoterms(response.data);
             setError(null);
         } catch (err: any) {
@@ -66,7 +68,7 @@ const IncotermsList: React.FC = () => {
         }
 
         try {
-            const response = await api.post('/incoterms/', newIncoterm);
+            const response = await api.post('incoterms/', newIncoterm);
             setIncoterms([response.data, ...incoterms]);
             setNewIncoterm({ code: '', name: '', description: '' });
             setError(null);
@@ -84,7 +86,7 @@ const IncotermsList: React.FC = () => {
     const handleUpdate = async () => {
         if (!currentIncoterm) return;
         try {
-            const response = await api.put(`/incoterms/${currentIncoterm.id}`, currentIncoterm);
+            const response = await api.put(`incoterms/${currentIncoterm.id}`, currentIncoterm);
             setIncoterms(incoterms.map(inc => inc.id === currentIncoterm.id ? response.data : inc));
             setEditDialogOpen(false);
             setCurrentIncoterm(null);
@@ -96,9 +98,9 @@ const IncotermsList: React.FC = () => {
     };
 
     const handleDelete = async (id: string) => {
-        if (!window.confirm(t('Are you sure you want to delete this item?'))) return;
+        if (!await confirm({ message: t('Are you sure you want to delete this item?') })) return;
         try {
-            await api.delete(`/incoterms/${id}`);
+            await api.delete(`incoterms/${id}`);
             setIncoterms(incoterms.filter(inc => inc.id !== id));
             setError(null);
         } catch (err: any) {

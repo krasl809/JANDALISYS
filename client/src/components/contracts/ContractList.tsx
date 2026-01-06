@@ -6,8 +6,7 @@ import {
   Box, Container, Typography, Tabs, Tab, Button, Card,
   Table, TableBody, TableCell, TableContainer, TableHead, TableRow,
   Chip, InputAdornment, TextField, IconButton, Stack, LinearProgress,
-  Menu, MenuItem, ListItemIcon, ListItemText, Badge, Divider,
-  Dialog, DialogTitle, DialogContent, DialogActions
+  Menu, MenuItem, ListItemIcon, ListItemText, Badge, Divider
 } from '@mui/material';
 import { 
   Add, Search, FilterList, MoreVert, ArrowUpward, ArrowDownward, 
@@ -16,6 +15,7 @@ import {
 } from '@mui/icons-material';
 import { alpha, useTheme } from '@mui/material/styles';
 import { useTranslation } from 'react-i18next';
+import { useConfirm } from '../../context/ConfirmContext';
 
 import { ContractSummary } from '../../types/contracts';
 import MetricStrip from '../common/MetricStrip';
@@ -23,7 +23,9 @@ import MetricStrip from '../common/MetricStrip';
 const ContractList = () => {
   const navigate = useNavigate();
   const theme = useTheme();
+  const { palette, boxShadows }: any = theme;
   const { t } = useTranslation();
+  const { confirm, alert } = useConfirm();
   const { hasPermission } = useAuth();
   
   // --- States ---
@@ -36,10 +38,6 @@ const ContractList = () => {
   // Row Actions Menu State (For the Three Dots)
   const [actionAnchorEl, setActionAnchorEl] = useState<null | HTMLElement>(null);
   const [selectedContractId, setSelectedContractId] = useState<string | null>(null);
-
-  // Delete Confirmation Dialog State
-  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
-  const [contractToDelete, setContractToDelete] = useState<ContractSummary | null>(null);
 
   // --- Real Data ---
   const [contracts, setContracts] = useState<ContractSummary[]>([]);
@@ -57,7 +55,7 @@ const ContractList = () => {
       setLoading(true);
       setError(null);
       const skip = (page - 1) * pagination.per_page;
-      const response = await api.get(`/contracts/?skip=${skip}&limit=${pagination.per_page}&search=${searchQuery}&tab=${currentTab}`);
+      const response = await api.get(`contracts/?skip=${skip}&limit=${pagination.per_page}&search=${searchQuery}&tab=${currentTab}`);
       
       const contractsData: ContractSummary[] = response.data.contracts.map((contract: any) => ({
         id: contract.id,
@@ -148,34 +146,7 @@ const ContractList = () => {
     setSelectedContractId(null);
   };
 
-  const handleDeleteConfirm = async () => {
-    if (!contractToDelete) return;
-    
-    try {
-      await api.delete(`/contracts/${contractToDelete.id}`);
-      // Remove from local state
-      setContracts(prev => prev.filter(c => c.id !== contractToDelete.id));
-      // Close dialog
-      setDeleteDialogOpen(false);
-      setContractToDelete(null);
-      // Contract deleted successfully
-    } catch (error: unknown) {
-      console.error('Failed to delete contract:', error);
-      const apiError = error as { response?: { data?: { detail?: string } }; message?: string };
-      // Close dialog on error
-      setDeleteDialogOpen(false);
-      setContractToDelete(null);
-      // Show error message to user
-      alert(`Failed to delete contract: ${apiError.response?.data?.detail || apiError.message || 'Unknown error'}`);
-    }
-  };
-
-  const handleDeleteCancel = () => {
-    setDeleteDialogOpen(false);
-    setContractToDelete(null);
-  };
-
-  const handleAction = (action: string) => {
+  const handleAction = async (action: string) => {
     if (!selectedContractId) return;
     
     // Logic based on action
@@ -184,9 +155,18 @@ const ContractList = () => {
     if (action === 'edit') navigate(`/contracts/${selectedContractId}/edit`); // Edit View
     if (action === 'delete') {
       const contract = contracts.find(c => c.id === selectedContractId);
-      if (contract) {
-        setContractToDelete(contract);
-        setDeleteDialogOpen(true);
+      if (contract && await confirm({ 
+        title: t('Delete Contract'),
+        message: t('confirmDeleteContract', { no: contract.no }) 
+      })) {
+        try {
+          await api.delete(`contracts/${contract.id}`);
+          setContracts(prev => prev.filter(c => c.id !== contract.id));
+        } catch (error: unknown) {
+          console.error('Failed to delete contract:', error);
+          const apiError = error as { response?: { data?: { detail?: string } }; message?: string };
+          alert(`Failed to delete contract: ${apiError.response?.data?.detail || apiError.message || 'Unknown error'}`, t('Error'), 'error');
+        }
       }
     }
     
@@ -212,10 +192,10 @@ const ContractList = () => {
     <Container maxWidth={false}>
       
       {/* 1. Header & Actions */}
-      <Box display="flex" justifyContent="space-between" alignItems="center" mb={3}>
+      <Box display="flex" justifyContent="space-between" alignItems="center" mb={4} mt={2}>
         <Box>
-           <Typography variant="h4" fontWeight="800" color="text.primary">{t('Contract Management')}</Typography>
-           <Typography variant="body2" color="text.secondary">{t('Track, manage and analyze your trade agreements')}</Typography>
+           <Typography variant="h4" fontWeight="600" color="text.primary" sx={{ letterSpacing: -0.5 }}>{t('Contract Management')}</Typography>
+           <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5, opacity: 0.8 }}>{t('Track, manage and analyze your trade agreements')}</Typography>
         </Box>
         
         <Box>
@@ -224,7 +204,17 @@ const ContractList = () => {
                 startIcon={<Add />} 
                 endIcon={<KeyboardArrowDown />}
                 onClick={handleCreateMenuOpen}
-                sx={{ borderRadius: 3, px: 3, py: 1, boxShadow: theme.shadows[3] }}
+                sx={{ 
+                  borderRadius: '10px', 
+                  px: 3, 
+                  py: 1.2, 
+                  boxShadow: boxShadows.md,
+                  bgcolor: palette.gradients.primary.main,
+                  '&:hover': {
+                    bgcolor: palette.gradients.primary.state,
+                    boxShadow: boxShadows.lg
+                  }
+                }}
             >
               {t('New Contract')}
             </Button>
@@ -232,25 +222,31 @@ const ContractList = () => {
                 anchorEl={createAnchorEl}
                 open={Boolean(createAnchorEl)}
                 onClose={handleCreateMenuClose}
-                PaperProps={{ sx: { minWidth: 200, borderRadius: 2, mt: 1 } }}
+                PaperProps={{ sx: { minWidth: 200, borderRadius: '12px', mt: 1, boxShadow: boxShadows.lg, border: 'none' } }}
             >
-                <MenuItem onClick={() => handleCreate('import')}>
+                <MenuItem onClick={() => handleCreate('import')} sx={{ py: 1.5, px: 2, borderRadius: '8px', mx: 1 }}>
                     <ListItemIcon><ArrowDownward fontSize="small" color="secondary" /></ListItemIcon>
-                    <ListItemText primary={t('Import Contract')} secondary={t('Buy from suppliers')} />
+                    <ListItemText primary={t('Import Contract')} secondary={t('Buy from suppliers')} primaryTypographyProps={{ fontWeight: 600, fontSize: '0.875rem' }} secondaryTypographyProps={{ fontSize: '0.75rem' }} />
                 </MenuItem>
-                <MenuItem onClick={() => handleCreate('export')}>
+                <MenuItem onClick={() => handleCreate('export')} sx={{ py: 1.5, px: 2, borderRadius: '8px', mx: 1 }}>
                     <ListItemIcon><ArrowUpward fontSize="small" color="primary" /></ListItemIcon>
-                    <ListItemText primary={t('Export Contract')} secondary={t('Sell to customers')} />
+                    <ListItemText primary={t('Export Contract')} secondary={t('Sell to customers')} primaryTypographyProps={{ fontWeight: 600, fontSize: '0.875rem' }} secondaryTypographyProps={{ fontSize: '0.75rem' }} />
                 </MenuItem>
             </Menu>
         </Box>
       </Box>
 
       {/* 2. Smart Tabs & Filters */}
-      <Card sx={{ mb: 3, borderRadius: 3, boxShadow: 'none', border: `1px solid ${theme.palette.divider}` }}>
-        <Box sx={{ borderBottom: 1, borderColor: 'divider', px: 2, pt: 2 }}>
-          <Tabs value={currentTab} onChange={(_, v) => setCurrentTab(v)} textColor="primary" indicatorColor="primary">
-            <Tab label={t('All Contracts')} sx={{ fontWeight: 600 }} />
+      <Card sx={{ 
+        mb: 4, 
+        borderRadius: '12px', 
+        boxShadow: boxShadows.md, 
+        border: 'none',
+        background: palette.background.paper
+      }}>
+        <Box sx={{ borderBottom: 1, borderColor: palette.divider, px: 2, pt: 1 }}>
+          <Tabs value={currentTab} onChange={(_, v) => setCurrentTab(v)} textColor="primary" indicatorColor="primary" sx={{ minHeight: 48 }}>
+            <Tab label={t('All Contracts')} sx={{ fontWeight: 600, fontSize: '0.875rem', textTransform: 'none' }} />
             <Tab 
                 label={
                     <Stack direction="row" alignItems="center" gap={1}>
@@ -258,27 +254,41 @@ const ContractList = () => {
                         <Badge badgeContent={contracts.filter(c => c.status === 'Pending' || c.status === 'Draft').length} color="error" sx={{ '& .MuiBadge-badge': { fontSize: 10, height: 16, minWidth: 16 } }} />
                     </Stack>
                 } 
-                sx={{ fontWeight: 600 }} 
+                sx={{ fontWeight: 600, fontSize: '0.875rem', textTransform: 'none' }} 
             />
-            <Tab label={t('Active / Shipping')} sx={{ fontWeight: 600 }} />
-            <Tab label={t('Completed')} sx={{ fontWeight: 600 }} />
+            <Tab label={t('Active / Shipping')} sx={{ fontWeight: 600, fontSize: '0.875rem', textTransform: 'none' }} />
+            <Tab label={t('Completed')} sx={{ fontWeight: 600, fontSize: '0.875rem', textTransform: 'none' }} />
           </Tabs>
         </Box>
         
         {/* Search Bar & Metrics */}
-        <Box p={2} display="flex" alignItems="center" gap={2} flexWrap="wrap">
+        <Box p={2.5} display="flex" alignItems="center" gap={2} flexWrap="wrap">
             <TextField 
                 size="small" 
                 placeholder={t('Search contract no, client, item...')} 
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 InputProps={{ 
-                    startAdornment: <InputAdornment position="start"><Search fontSize="small" /></InputAdornment>,
-                    sx: { borderRadius: 2, bgcolor: alpha(theme.palette.background.default, 0.5) }
+                    startAdornment: <InputAdornment position="start"><Search fontSize="small" color="disabled" /></InputAdornment>,
+                    sx: { 
+                      borderRadius: '8px', 
+                      bgcolor: palette.mode === 'light' ? '#f8f9fa' : alpha(palette.background.default, 0.5),
+                      '& fieldset': { border: `1px solid ${palette.divider} !important` }
+                    }
                 }}
                 sx={{ width: { xs: '100%', md: 350 } }}
             />
-            <Button variant="outlined" startIcon={<FilterList />} sx={{ borderRadius: 2, borderColor: theme.palette.divider, color: 'text.secondary' }}>
+            <Button 
+              variant="outlined" 
+              startIcon={<FilterList />} 
+              sx={{ 
+                borderRadius: '8px', 
+                borderColor: palette.divider, 
+                color: 'text.secondary',
+                textTransform: 'none',
+                px: 2
+              }}
+            >
                 {t('Filters')}
             </Button>
             
@@ -288,32 +298,38 @@ const ContractList = () => {
       </Card>
 
       {/* 3. Data Grid */}
-      <TableContainer component={Card} sx={{ borderRadius: 3, boxShadow: 'none', border: `1px solid ${theme.palette.divider}` }}>
+      <TableContainer component={Card} sx={{ 
+        borderRadius: '12px', 
+        boxShadow: boxShadows.md, 
+        border: 'none',
+        background: palette.background.paper,
+        overflow: 'hidden'
+      }}>
         <Table>
-            <TableHead sx={{ bgcolor: alpha(theme.palette.primary.main, 0.04) }}>
+            <TableHead sx={{ bgcolor: palette.mode === 'light' ? '#f8f9fa' : alpha(palette.background.default, 0.8) }}>
                 <TableRow>
-                    <TableCell sx={{ fontWeight: 700, color: 'text.secondary' }}>{t('Contract No')}</TableCell>
-                    <TableCell sx={{ fontWeight: 700, color: 'text.secondary' }}>{t('Type')}</TableCell>
-                    <TableCell sx={{ fontWeight: 700, color: 'text.secondary' }}>{t('Counterparty')}</TableCell>
-                    <TableCell sx={{ fontWeight: 700, color: 'text.secondary' }}>{t('Commodity')}</TableCell>
-                    <TableCell sx={{ fontWeight: 700, color: 'text.secondary' }}>{t('Value')}</TableCell>
-                    <TableCell sx={{ fontWeight: 700, color: 'text.secondary' }}>{t('Status')}</TableCell>
-                    <TableCell sx={{ fontWeight: 700, color: 'text.secondary' }}>{t('Progress')}</TableCell>
-                    <TableCell></TableCell>
+                    <TableCell sx={{ fontWeight: 600, color: 'text.secondary', fontSize: '0.75rem', textTransform: 'uppercase', borderBottom: `1px solid ${palette.divider}` }}>{t('Contract No')}</TableCell>
+                    <TableCell sx={{ fontWeight: 600, color: 'text.secondary', fontSize: '0.75rem', textTransform: 'uppercase', borderBottom: `1px solid ${palette.divider}` }}>{t('Type')}</TableCell>
+                    <TableCell sx={{ fontWeight: 600, color: 'text.secondary', fontSize: '0.75rem', textTransform: 'uppercase', borderBottom: `1px solid ${palette.divider}` }}>{t('Counterparty')}</TableCell>
+                    <TableCell sx={{ fontWeight: 600, color: 'text.secondary', fontSize: '0.75rem', textTransform: 'uppercase', borderBottom: `1px solid ${palette.divider}` }}>{t('Commodity')}</TableCell>
+                    <TableCell sx={{ fontWeight: 600, color: 'text.secondary', fontSize: '0.75rem', textTransform: 'uppercase', borderBottom: `1px solid ${palette.divider}` }}>{t('Value')}</TableCell>
+                    <TableCell sx={{ fontWeight: 600, color: 'text.secondary', fontSize: '0.75rem', textTransform: 'uppercase', borderBottom: `1px solid ${palette.divider}` }}>{t('Status')}</TableCell>
+                    <TableCell sx={{ fontWeight: 600, color: 'text.secondary', fontSize: '0.75rem', textTransform: 'uppercase', borderBottom: `1px solid ${palette.divider}` }}>{t('Progress')}</TableCell>
+                    <TableCell sx={{ borderBottom: `1px solid ${palette.divider}` }}></TableCell>
                 </TableRow>
             </TableHead>
             <TableBody>
                 {loading ? (
                     <TableRow>
                         <TableCell colSpan={8} align="center" sx={{ py: 8 }}>
-                            <Typography color="text.secondary">{t('Loading contracts...')}</Typography>
+                            <Typography color="text.secondary" variant="body2">{t('Loading contracts...')}</Typography>
                         </TableCell>
                     </TableRow>
                 ) : error ? (
                     <TableRow>
                         <TableCell colSpan={8} align="center" sx={{ py: 8 }}>
-                            <Typography color="error" variant="body1">{t(error)}</Typography>
-                            <Button variant="outlined" onClick={() => fetchContracts()} sx={{ mt: 2 }}>
+                            <Typography color="error" variant="body2">{t(error)}</Typography>
+                            <Button variant="outlined" size="small" onClick={() => fetchContracts()} sx={{ mt: 2, borderRadius: '8px' }}>
                                 {t('Retry')}
                             </Button>
                         </TableCell>
@@ -321,7 +337,7 @@ const ContractList = () => {
                 ) : filteredContracts.length === 0 ? (
                     <TableRow>
                         <TableCell colSpan={8} align="center" sx={{ py: 8 }}>
-                            <Typography color="text.secondary">{t('No contracts found matching your filters.')}</Typography>
+                            <Typography color="text.secondary" variant="body2">{t('No contracts found matching your filters.')}</Typography>
                         </TableCell>
                     </TableRow>
                 ) : (
@@ -329,81 +345,91 @@ const ContractList = () => {
                         <TableRow
                             key={row.id}
                             hover
-                            sx={{ cursor: 'pointer', transition: '0.2s' }}
+                            sx={{ 
+                              cursor: 'pointer', 
+                              transition: 'all 0.2s',
+                              '&:hover': { bgcolor: palette.mode === 'light' ? '#fcfcfc' : alpha(palette.background.default, 0.3) }
+                            }}
                             onClick={async () => {
                               try {
-                                // Validate contract access before navigation
                                 const isValid = await validateContractAccess(row.id);
                                 if (isValid) {
                                   navigate(`/contracts/${row.id}`);
                                 } else {
-                                  // Show error message if contract is not accessible
-                                  console.warn(`Contract ${row.id} is not accessible`);
-                                  // The ContractForm will handle the error when it tries to load the contract
                                   navigate(`/contracts/${row.id}`);
                                 }
                               } catch (error) {
-                                console.error('Error validating contract access:', error);
-                                // Navigate anyway - the ContractForm will handle the error
                                 navigate(`/contracts/${row.id}`);
                               }
                             }}
                         >
-                            <TableCell sx={{ fontWeight: 'bold', color: 'primary.main', fontFamily: 'monospace' }}>
+                            <TableCell sx={{ fontWeight: 700, color: palette.gradients.primary.main, fontSize: '0.875rem', borderBottom: `1px solid ${palette.divider}` }}>
                                 {row.no}
                             </TableCell>
-                            <TableCell>
+                            <TableCell sx={{ borderBottom: `1px solid ${palette.divider}` }}>
                                 <Chip 
-                                    icon={row.type === 'Import' ? <ArrowDownward fontSize="small" /> : <ArrowUpward fontSize="small" />}
+                                    icon={row.type === 'Import' ? <ArrowDownward sx={{ fontSize: '14px !important' }} /> : <ArrowUpward sx={{ fontSize: '14px !important' }} />}
                                     label={t(row.type)} 
                                     size="small" 
                                     sx={{ 
-                                        borderRadius: 1,
-                                        height: 24,
-                                        bgcolor: row.type === 'Import' ? alpha(theme.palette.secondary.main, 0.1) : alpha(theme.palette.primary.main, 0.1),
-                                        color: row.type === 'Import' ? theme.palette.secondary.main : theme.palette.primary.main,
-                                        fontWeight: 'bold'
+                                        borderRadius: '6px',
+                                        height: 22,
+                                        fontSize: '0.7rem',
+                                        bgcolor: row.type === 'Import' ? alpha(palette.secondary.main, 0.1) : alpha(palette.primary.main, 0.1),
+                                        color: row.type === 'Import' ? palette.secondary.main : palette.primary.main,
+                                        fontWeight: 700,
+                                        '& .MuiChip-icon': { color: 'inherit' }
                                     }} 
                                 />
                             </TableCell>
-                            <TableCell sx={{ fontWeight: 600 }}>{row.client}</TableCell>
-                            <TableCell>
-                                {row.commodity} 
+                            <TableCell sx={{ fontWeight: 600, fontSize: '0.875rem', borderBottom: `1px solid ${palette.divider}` }}>{row.client}</TableCell>
+                            <TableCell sx={{ borderBottom: `1px solid ${palette.divider}` }}>
+                                <Typography variant="body2" fontWeight={600} fontSize="0.875rem">
+                                    {row.commodity} 
+                                </Typography>
                                 <Typography variant="caption" display="block" color="text.secondary">
                                     {row.qty.toLocaleString()} MT
                                 </Typography>
                             </TableCell>
-                            <TableCell sx={{ fontWeight: 600 }}>
+                            <TableCell sx={{ fontWeight: 600, fontSize: '0.875rem', borderBottom: `1px solid ${palette.divider}` }}>
                                 ${row.value.toLocaleString()}
                             </TableCell>
-                            <TableCell>
+                            <TableCell sx={{ borderBottom: `1px solid ${palette.divider}` }}>
                                 <Chip 
                                     label={t(row.status)} 
                                     size="small" 
-                                    color={getStatusColor(row.status) as any}
-                                    variant={row.status === 'Draft' ? 'outlined' : 'filled'}
-                                    sx={{ borderRadius: 1.5, fontWeight: 600, minWidth: 80 }}
+                                    sx={{ 
+                                      borderRadius: '6px', 
+                                      fontWeight: 700, 
+                                      fontSize: '0.7rem',
+                                      minWidth: 70,
+                                      bgcolor: alpha(palette[getStatusColor(row.status)]?.main || palette.primary.main, 0.1),
+                                      color: palette[getStatusColor(row.status)]?.main || palette.primary.main,
+                                      border: 'none'
+                                    }}
                                 />
                             </TableCell>
-                            <TableCell sx={{ width: 140 }}>
+                            <TableCell sx={{ width: 140, borderBottom: `1px solid ${palette.divider}` }}>
                                 <Box display="flex" alignItems="center" gap={1}>
                                     <LinearProgress 
                                         variant="determinate" 
                                         value={row.progress} 
                                         sx={{ 
                                             flexGrow: 1, 
-                                            borderRadius: 2, 
-                                            height: 6,
-                                            bgcolor: alpha(theme.palette.text.secondary, 0.1)
+                                            borderRadius: '4px', 
+                                            height: 4,
+                                            bgcolor: alpha(palette.text.secondary, 0.1),
+                                            '& .MuiLinearProgress-bar': {
+                                              borderRadius: '4px',
+                                              bgcolor: row.progress === 100 ? palette.success.main : palette.primary.main
+                                            }
                                         }} 
-                                        color={row.progress === 100 ? "success" : "primary"}
                                     />
-                                    <Typography variant="caption" fontWeight="bold">{row.progress}%</Typography>
+                                    <Typography variant="caption" fontWeight={700} sx={{ color: 'text.secondary' }}>{row.progress}%</Typography>
                                 </Box>
                             </TableCell>
-                            <TableCell align="right">
-                                {/* Action Button */}
-                                <IconButton size="small" onClick={(e) => handleActionOpen(e, row.id)}>
+                            <TableCell align="right" sx={{ borderBottom: `1px solid ${palette.divider}` }}>
+                                <IconButton size="small" onClick={(e) => handleActionOpen(e, row.id)} sx={{ color: 'text.secondary' }}>
                                     <MoreVert fontSize="small" />
                                 </IconButton>
                             </TableCell>
@@ -419,41 +445,41 @@ const ContractList = () => {
         anchorEl={actionAnchorEl}
         open={Boolean(actionAnchorEl)}
         onClose={handleActionClose}
-        PaperProps={{ sx: { minWidth: 180, borderRadius: 2, boxShadow: theme.shadows[3] } }}
+        PaperProps={{ sx: { minWidth: 200, borderRadius: '12px', boxShadow: boxShadows.lg, border: 'none', p: 1 } }}
       >
         {/* Executive View Option */}
-        <MenuItem onClick={() => handleAction('lifecycle')} sx={{ color: theme.palette.secondary.main, bgcolor: alpha(theme.palette.secondary.main, 0.05) }}>
+        <MenuItem onClick={() => handleAction('lifecycle')} sx={{ borderRadius: '8px', mb: 0.5, color: palette.secondary.main, bgcolor: alpha(palette.secondary.main, 0.05), '&:hover': { bgcolor: alpha(palette.secondary.main, 0.1) } }}>
             <ListItemIcon><Timeline fontSize="small" color="secondary" /></ListItemIcon>
-            <ListItemText primary={t('Executive View')} primaryTypographyProps={{ fontWeight: 'bold' }} />
+            <ListItemText primary={t('Executive View')} primaryTypographyProps={{ fontWeight: 700, fontSize: '0.875rem' }} />
         </MenuItem>
         
-        <Divider />
+        <Divider sx={{ my: 1, borderColor: palette.divider }} />
         
-        <MenuItem onClick={() => handleAction('view')}>
+        <MenuItem onClick={() => handleAction('view')} sx={{ borderRadius: '8px', mb: 0.5 }}>
             <ListItemIcon><Visibility fontSize="small" /></ListItemIcon>
-            <ListItemText>{t('Open Contract')}</ListItemText>
+            <ListItemText primaryTypographyProps={{ fontSize: '0.875rem' }}>{t('Open Contract')}</ListItemText>
         </MenuItem>
-        <MenuItem onClick={() => handleAction('edit')}>
+        <MenuItem onClick={() => handleAction('edit')} sx={{ borderRadius: '8px', mb: 0.5 }}>
             <ListItemIcon><Edit fontSize="small" /></ListItemIcon>
-            <ListItemText>{t('Edit Details')}</ListItemText>
+            <ListItemText primaryTypographyProps={{ fontSize: '0.875rem' }}>{t('Edit Details')}</ListItemText>
         </MenuItem>
-        <MenuItem onClick={() => handleAction('duplicate')}>
+        <MenuItem onClick={() => handleAction('duplicate')} sx={{ borderRadius: '8px', mb: 0.5 }}>
             <ListItemIcon><ContentCopy fontSize="small" /></ListItemIcon>
-            <ListItemText>{t('Duplicate')}</ListItemText>
+            <ListItemText primaryTypographyProps={{ fontSize: '0.875rem' }}>{t('Duplicate')}</ListItemText>
         </MenuItem>
-        <Divider />
+        <Divider sx={{ my: 1, borderColor: palette.divider }} />
         {hasPermission('delete_contracts') && (
-          <MenuItem onClick={() => handleAction('delete')} sx={{ color: 'error.main' }}>
+          <MenuItem onClick={() => handleAction('delete')} sx={{ borderRadius: '8px', color: 'error.main', '&:hover': { bgcolor: alpha(palette.error.main, 0.05) } }}>
               <ListItemIcon><DeleteOutline fontSize="small" color="error" /></ListItemIcon>
-              <ListItemText>{t('Delete')}</ListItemText>
+              <ListItemText primaryTypographyProps={{ fontSize: '0.875rem' }}>{t('Delete')}</ListItemText>
           </MenuItem>
         )}
       </Menu>
 
       {/* Pagination Controls */}
       {pagination.pages > 1 && (
-        <Box display="flex" justifyContent="between" alignItems="center" mt={2} px={2} py={1}>
-          <Typography variant="body2" color="text.secondary">
+        <Box display="flex" justifyContent="space-between" alignItems="center" mt={3} px={2} py={2} sx={{ bgcolor: palette.background.paper, borderRadius: '12px', boxShadow: boxShadows.sm }}>
+          <Typography variant="body2" color="text.secondary" fontWeight={500}>
             {t('Showing {{start}} to {{end}} of {{total}} contracts', {
               start: ((pagination.page - 1) * pagination.per_page) + 1,
               end: Math.min(pagination.page * pagination.per_page, pagination.total),
@@ -466,44 +492,27 @@ const ContractList = () => {
               onClick={() => fetchContracts(pagination.page - 1)}
               disabled={pagination.page === 1 || loading || !!error}
               startIcon={<ChevronLeft />}
+              sx={{ borderRadius: '8px', textTransform: 'none', fontWeight: 600 }}
             >
               {t('Previous')}
             </Button>
-            <Typography variant="body2" color="text.secondary">
-              {t('Page {{page}} of {{pages}}', { page: pagination.page, pages: pagination.pages })}
-            </Typography>
+            <Box sx={{ px: 2, py: 0.5, borderRadius: '6px', bgcolor: alpha(palette.primary.main, 0.1), color: palette.primary.main }}>
+              <Typography variant="caption" fontWeight={700}>
+                {pagination.page} / {pagination.pages}
+              </Typography>
+            </Box>
             <Button
               size="small"
               onClick={() => fetchContracts(pagination.page + 1)}
               disabled={pagination.page === pagination.pages || loading || !!error}
               endIcon={<ChevronRight />}
+              sx={{ borderRadius: '8px', textTransform: 'none', fontWeight: 600 }}
             >
               {t('Next')}
             </Button>
           </Box>
         </Box>
       )}
-
-      {/* Delete Confirmation Dialog */}
-      <Dialog
-        open={deleteDialogOpen}
-        onClose={handleDeleteCancel}
-        maxWidth="sm"
-        fullWidth
-      >
-        <DialogTitle>{t('Delete Contract')}</DialogTitle>
-        <DialogContent>
-          <Typography>
-            {t('confirmDeleteContract', { no: contractToDelete?.no })}
-          </Typography>
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={handleDeleteCancel}>{t('Cancel')}</Button>
-          <Button onClick={handleDeleteConfirm} color="error" variant="contained">
-            {t('Delete')}
-          </Button>
-        </DialogActions>
-      </Dialog>
 
     </Container>
   );

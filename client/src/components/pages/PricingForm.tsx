@@ -1,11 +1,12 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
+import { useConfirm } from '../../context/ConfirmContext';
 import api from '../../services/api';
 import { 
   Autocomplete, TextField, Button, Container, 
   Table, TableHead, TableRow, TableCell, TableBody, TableContainer,
   Typography, Box, CircularProgress, Alert, Snackbar, Chip, Card, CardContent, Stack, Divider, InputAdornment,
-  List, ListItem, ListItemText, ListItemIcon
+  List, ListItem, ListItemText, ListItemIcon, Select, MenuItem, FormControl
 } from '@mui/material';
 import Grid from '@mui/material/Grid2';
 import { 
@@ -34,13 +35,18 @@ interface PartialPricing {
   reference: string;
 }
 interface Article { id: string; article_name: string; item_code: string; }
+interface ExchangeQuoteUnit { id: string; name: string; symbol?: string; factor: number; description?: string; }
 
 const PricingForm: React.FC<PricingFormProps> = ({ contractId, onSaveSuccess }) => {
   const { t } = useTranslation();
+  const { confirm } = useConfirm();
   const theme = useTheme();
+  const { palette, boxShadows }: any = theme;
   const [loading, setLoading] = useState(true);
   const [contracts, setContracts] = useState<any[]>([]);
   const [articlesList, setArticlesList] = useState<Article[]>([]);
+  const [exchangeUnits, setExchangeUnits] = useState<ExchangeQuoteUnit[]>([]);
+  const [itemQuotes, setItemQuotes] = useState<{[key: string]: {quote: string, unitId: string}}>({});
   const [selectedContract, setSelectedContract] = useState<any | null>(null);
   const [pricingDate, setPricingDate] = useState(new Date().toISOString().split('T')[0]);
   const [items, setItems] = useState<ContractItem[]>([]);
@@ -53,14 +59,31 @@ const PricingForm: React.FC<PricingFormProps> = ({ contractId, onSaveSuccess }) 
   const isEmbedded = !!contractId;
 
   // Styles
-  const headerSx = { bgcolor: alpha(theme.palette.primary.main, 0.08), color: theme.palette.text.secondary, fontWeight: '700', fontSize: '0.75rem', borderBottom: `1px solid ${theme.palette.divider}`, paddingInline: '16px', paddingY: '12px' };
-  const cellSx = { borderBottom: `1px solid ${theme.palette.divider}`, paddingInline: '16px', paddingY: '12px', color: theme.palette.text.primary, fontSize: '0.9rem' };
+  const headerSx = { 
+    bgcolor: palette.mode === 'light' ? '#F8FAFC' : alpha(palette.common.white, 0.05),
+    color: palette.text.secondary, 
+    fontWeight: '700', 
+    fontSize: '0.75rem', 
+    textTransform: 'uppercase',
+    letterSpacing: '0.5px',
+    borderBottom: `1px solid ${palette.divider}`, 
+    paddingInline: '16px', 
+    paddingY: '12px' 
+  };
+  const cellSx = { 
+    borderBottom: `1px solid ${palette.divider}`, 
+    paddingInline: '16px', 
+    paddingY: '12px', 
+    color: palette.text.primary, 
+    fontSize: '0.875rem' 
+  };
   const inputSx = { 
-    bgcolor: theme.palette.mode === 'dark' ? alpha(theme.palette.background.paper, 0.5) : '#fff',
+    bgcolor: palette.background.paper,
     '& .MuiOutlinedInput-root': {
-      '& fieldset': { borderColor: alpha(theme.palette.divider, 0.2) },
-      '&:hover fieldset': { borderColor: theme.palette.primary.main },
-      '&.Mui-focused fieldset': { borderWidth: '2px' }
+      borderRadius: '8px',
+      '& fieldset': { borderColor: palette.divider },
+      '&:hover fieldset': { borderColor: palette.primary.main },
+      '&.Mui-focused fieldset': { borderWidth: '2px', borderColor: palette.primary.main }
     },
     '& input::-webkit-outer-spin-button, & input::-webkit-inner-spin-button': {
       '-webkit-appearance': 'none',
@@ -71,18 +94,21 @@ const PricingForm: React.FC<PricingFormProps> = ({ contractId, onSaveSuccess }) 
     },
     '& .MuiInputBase-input': {
       padding: '8.5px 8px',
-      textAlign: 'center'
+      textAlign: 'center',
+      fontWeight: 600
     }
   };
 
   useEffect(() => {
     const fetchData = async () => {
       try {
-        const [articlesRes, contractsRes] = await Promise.all([
-          api.get('/articles/'),
-          contractId ? api.get(`/contracts/${contractId}`) : api.get('/contracts/')
+        const [articlesRes, contractsRes, unitsRes] = await Promise.all([
+          api.get('articles/'),
+          contractId ? api.get(`contracts/${contractId}`) : api.get('contracts/'),
+          api.get('exchange-units/')
         ]);
         setArticlesList(articlesRes.data);
+        setExchangeUnits(unitsRes.data);
 
         if (contractId) {
             const contract = contractsRes.data;
@@ -101,7 +127,7 @@ const PricingForm: React.FC<PricingFormProps> = ({ contractId, onSaveSuccess }) 
   // ✅ دالة لجلب تاريخ التعديلات (الفواتير + التسويات)
   const fetchPricingHistory = async (cId: string) => {
       try {
-          const res = await api.get(`/contracts/${cId}/ledger`);
+          const res = await api.get(`contracts/${cId}/ledger`);
           
           const updates = res.data.filter((tx: any) => 
               tx.type === 'Invoice' || tx.type === 'Pricing Adjustment' || tx.type === 'Partial Pricing'
@@ -158,6 +184,36 @@ const PricingForm: React.FC<PricingFormProps> = ({ contractId, onSaveSuccess }) 
     setItems(newItems);
   };
 
+  const handleQuoteChange = (index: number, itemId: string, quoteVal: string) => {
+    const currentQuote = itemQuotes[itemId] || { quote: '', unitId: '' };
+    const updatedQuote = { ...currentQuote, quote: quoteVal };
+    setItemQuotes({ ...itemQuotes, [itemId]: updatedQuote });
+    
+    // Calculate market price if unit is selected
+    if (updatedQuote.unitId) {
+      const unit = exchangeUnits.find(u => u.id === updatedQuote.unitId);
+      if (unit) {
+        const calculatedPrice = (parseFloat(quoteVal) || 0) * unit.factor;
+        handlePriceChange(index, calculatedPrice.toFixed(2));
+      }
+    }
+  };
+
+  const handleUnitChange = (index: number, itemId: string, unitId: string) => {
+    const currentQuote = itemQuotes[itemId] || { quote: '', unitId: '' };
+    const updatedQuote = { ...currentQuote, unitId };
+    setItemQuotes({ ...itemQuotes, [itemId]: updatedQuote });
+    
+    // Calculate market price if quote is entered
+    if (updatedQuote.quote) {
+      const unit = exchangeUnits.find(u => u.id === unitId);
+      if (unit) {
+        const calculatedPrice = (parseFloat(updatedQuote.quote) || 0) * unit.factor;
+        handlePriceChange(index, calculatedPrice.toFixed(2));
+      }
+    }
+  };
+
   const summary = useMemo(() => {
     const totalQty = items.reduce((sum, i) => sum + (parseFloat(i.qty_ton) || 0), 0);
     
@@ -176,7 +232,7 @@ const PricingForm: React.FC<PricingFormProps> = ({ contractId, onSaveSuccess }) 
 
   const loadPricingTree = async (contractId: string, itemsList: ContractItem[]) => {
     try {
-      const res = await api.get(`/contracts/${contractId}/pricing-tree`);
+      const res = await api.get(`contracts/${contractId}/pricing-tree`);
       setPricingTree(res.data);
       
       // Update items with priced quantities
@@ -214,7 +270,7 @@ const PricingForm: React.FC<PricingFormProps> = ({ contractId, onSaveSuccess }) 
     }
     
     try {
-      await api.post(`/contracts/${selectedContract.id}/partial-price`, {
+      await api.post(`contracts/${selectedContract.id}/partial-price`, {
         item_id: itemId,
         qty_priced: qtyToPrice,
         market_price: marketPrice,
@@ -253,7 +309,7 @@ const PricingForm: React.FC<PricingFormProps> = ({ contractId, onSaveSuccess }) 
     setSavingAll(true);
     try {
       for (const item of itemsWithEntries) {
-        await api.post(`/contracts/${selectedContract.id}/partial-price`, {
+        await api.post(`contracts/${selectedContract.id}/partial-price`, {
           item_id: item.id,
           qty_priced: parseFloat(partialQty[item.id]),
           market_price: parseFloat(item.market_price),
@@ -284,7 +340,7 @@ const PricingForm: React.FC<PricingFormProps> = ({ contractId, onSaveSuccess }) 
     }
     
     try {
-      await api.post(`/contracts/${selectedContract.id}/approve-pricing`);
+      await api.post(`contracts/${selectedContract.id}/approve-pricing`);
       setNotification({ open: true, message: t('pricing_module.confirm_success'), severity: 'success' });
       
       if (onSaveSuccess) onSaveSuccess();
@@ -296,36 +352,114 @@ const PricingForm: React.FC<PricingFormProps> = ({ contractId, onSaveSuccess }) 
     }
   };
 
-  if (loading) return <Box display="flex" justifyContent="center" p={5}><CircularProgress /></Box>;
+  if (loading) return (
+    <Box display="flex" justifyContent="center" alignItems="center" minHeight="60vh">
+      <CircularProgress sx={{ color: palette.primary.main }} />
+    </Box>
+  );
 
   return (
     <Container maxWidth={false} disableGutters={isEmbedded} sx={{ mt: isEmbedded ? 0 : 4, mb: 8 }}>
       {!isEmbedded && (
-        <Box sx={{ mb: 4, display: 'flex', justifyContent: 'space-between' }}>
-            <Box>
-                <Box display="flex" gap={1.5} alignItems="center" mb={1}>
-                    <Box p={1} bgcolor={alpha(theme.palette.primary.main, 0.1)} borderRadius={2} color="primary.main"><PriceCheck /></Box>
-                    <Typography variant="h4" fontWeight="800" color="text.primary">{t('pricing_module.title')}</Typography>
-                </Box>
+        <Box sx={{ mb: 4, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+              <Box 
+                sx={{ 
+                  p: 1.5, 
+                  background: palette.gradients.primary.main, 
+                  borderRadius: '12px', 
+                  color: '#fff',
+                  boxShadow: boxShadows.colored.primary,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center'
+                }}
+              >
+                <PriceCheck fontSize="large" />
+              </Box>
+              <Box>
+                <Typography variant="h4" fontWeight="700" color="text.primary" sx={{ letterSpacing: '-0.5px' }}>
+                    {t('pricing_module.title')}
+                </Typography>
+                <Typography variant="body2" color="text.secondary">
+                    {t('pricing_module.desc')}
+                </Typography>
+              </Box>
             </Box>
-            <Chip label={t("pricing_module.market_active")} color="success" icon={<TrendingUp />} variant="outlined" />
+            <Chip 
+              label={t("pricing_module.market_active")} 
+              color="success" 
+              icon={<TrendingUp sx={{ fontSize: '1rem !important' }} />} 
+              variant="outlined" 
+              sx={{ 
+                borderRadius: '8px', 
+                fontWeight: 700, 
+                px: 1,
+                bgcolor: alpha(palette.success.main, 0.05),
+                borderColor: alpha(palette.success.main, 0.2)
+              }}
+            />
         </Box>
       )}
 
       <Grid container spacing={3}>
-        {/* ✅ Summary Section at the top */}
+        {/* Summary Section */}
         {selectedContract && items.length > 0 && (
           <Grid size={{ xs: 12 }}>
-            <Card elevation={0} sx={{ border: `1px solid ${theme.palette.divider}`, bgcolor: alpha(theme.palette.background.paper, 0.6), borderRadius: 3, mb: 1 }}>
-              <CardContent sx={{ p: 1.5, '&:last-child': { pb: 1.5 } }}>
+            <Card 
+              sx={{ 
+                borderRadius: '16px', 
+                boxShadow: boxShadows.md,
+                border: 'none',
+                mb: 1,
+                bgcolor: palette.mode === 'light' ? alpha(palette.background.paper, 0.8) : alpha(palette.background.paper, 0.6),
+                backdropFilter: 'blur(10px)'
+              }}
+            >
+              <CardContent sx={{ p: 2, '&:last-child': { pb: 2 } }}>
                 <Box display="flex" flexWrap="wrap" alignItems="center" justifyContent="space-between" gap={2}>
-                  <Box display="flex" alignItems="center" gap={1}><Assessment color="primary" fontSize="small" /><Typography variant="subtitle1" fontWeight="bold">{t('pricing_module.summary')}</Typography></Box>
+                  <Box display="flex" alignItems="center" gap={1.5}>
+                    <Box sx={{ p: 1, bgcolor: alpha(palette.primary.main, 0.1), borderRadius: '8px', color: palette.primary.main }}>
+                      <Assessment fontSize="small" />
+                    </Box>
+                    <Typography variant="subtitle1" fontWeight="700" color="text.primary">
+                      {t('pricing_module.summary')}
+                    </Typography>
+                  </Box>
                   
-                  <Box display="flex" flexWrap="wrap" gap={3} alignItems="center">
-                    <Box><Typography variant="caption" color="text.secondary" display="block" sx={{ fontSize: '0.65rem' }}>{t('pricing_module.total_contract_qty')}</Typography><Typography variant="body2" fontWeight="bold">{summary.totalQty.toLocaleString()} {t('pricing_module.mt')}</Typography></Box>
-                    <Box><Typography variant="caption" color="text.secondary" display="block" sx={{ fontSize: '0.65rem' }}>{t('pricing_module.total_priced_qty')}</Typography><Typography variant="body2" fontWeight="bold" color="success.main">{summary.totalPricedQty.toLocaleString()} {t('pricing_module.mt')}</Typography></Box>
-                    <Box><Typography variant="caption" color="text.secondary" display="block" sx={{ fontSize: '0.65rem' }}>{t('pricing_module.avg_price')}</Typography><Typography variant="body2" fontWeight="bold">${summary.avgPrice.toLocaleString(undefined, {maximumFractionDigits:2})} / {t('pricing_module.mt')}</Typography></Box>
-                    <Box sx={{ minWidth: 120 }}><Typography variant="caption" color="text.secondary" display="block" sx={{ fontSize: '0.65rem' }}>{t('pricing_module.priced_value')}</Typography><Typography variant="h6" fontWeight="800" color="info.main">${summary.totalValue.toLocaleString()}</Typography></Box>
+                  <Box display="flex" flexWrap="wrap" gap={4} alignItems="center">
+                    <Box>
+                      <Typography variant="caption" fontWeight="700" color="text.secondary" display="block" sx={{ textTransform: 'uppercase', fontSize: '0.65rem', mb: 0.5 }}>
+                        {t('pricing_module.total_contract_qty')}
+                      </Typography>
+                      <Typography variant="body2" fontWeight="700">
+                        {summary.totalQty.toLocaleString()} <Typography variant="caption" fontWeight="600">{t('pricing_module.mt')}</Typography>
+                      </Typography>
+                    </Box>
+                    <Box>
+                      <Typography variant="caption" fontWeight="700" color="text.secondary" display="block" sx={{ textTransform: 'uppercase', fontSize: '0.65rem', mb: 0.5 }}>
+                        {t('pricing_module.total_priced_qty')}
+                      </Typography>
+                      <Typography variant="body2" fontWeight="700" color="success.main">
+                        {summary.totalPricedQty.toLocaleString()} <Typography variant="caption" fontWeight="600">{t('pricing_module.mt')}</Typography>
+                      </Typography>
+                    </Box>
+                    <Box>
+                      <Typography variant="caption" fontWeight="700" color="text.secondary" display="block" sx={{ textTransform: 'uppercase', fontSize: '0.65rem', mb: 0.5 }}>
+                        {t('pricing_module.avg_price')}
+                      </Typography>
+                      <Typography variant="body2" fontWeight="700">
+                        ${summary.avgPrice.toLocaleString(undefined, {maximumFractionDigits:2})} <Typography variant="caption" fontWeight="600">/ {t('pricing_module.mt')}</Typography>
+                      </Typography>
+                    </Box>
+                    <Box>
+                      <Typography variant="caption" fontWeight="700" color="text.secondary" display="block" sx={{ textTransform: 'uppercase', fontSize: '0.65rem', mb: 0.5 }}>
+                        {t('pricing_module.priced_value')}
+                      </Typography>
+                      <Typography variant="h5" fontWeight="800" color="info.main">
+                        ${summary.totalValue.toLocaleString()}
+                      </Typography>
+                    </Box>
                   </Box>
 
                   <Box display="flex" gap={1.5}>
@@ -336,12 +470,34 @@ const PricingForm: React.FC<PricingFormProps> = ({ contractId, onSaveSuccess }) 
                         startIcon={savingAll ? <CircularProgress size={16} /> : <PriceCheck />} 
                         onClick={handleSaveAll} 
                         disabled={savingAll}
-                        sx={{ fontWeight: 'bold', fontSize: '0.75rem' }}
+                        sx={{ 
+                          borderRadius: '8px',
+                          fontWeight: 700, 
+                          textTransform: 'none',
+                          borderColor: palette.primary.main,
+                          color: palette.primary.main,
+                          '&:hover': { bgcolor: alpha(palette.primary.main, 0.05), borderColor: palette.primary.main }
+                        }}
                       >
                         {t('pricing_module.save_session')}
                       </Button>
                     )}
-                    <Button variant="contained" size="small" startIcon={<Send />} onClick={handleSave} sx={{ bgcolor: 'primary.main', color: 'white', fontWeight: 'bold', fontSize: '0.75rem' }}>{t('pricing_module.confirm_pricing')}</Button>
+                    <Button 
+                      variant="contained" 
+                      size="small" 
+                      startIcon={<Send />} 
+                      onClick={handleSave} 
+                      sx={{ 
+                        borderRadius: '8px',
+                        background: palette.gradients.primary.main,
+                        boxShadow: boxShadows.sm,
+                        fontWeight: 700, 
+                        textTransform: 'none',
+                        '&:hover': { background: palette.gradients.primary.state, boxShadow: boxShadows.md }
+                      }}
+                    >
+                      {t('pricing_module.confirm_pricing')}
+                    </Button>
                   </Box>
                 </Box>
               </CardContent>
@@ -350,30 +506,84 @@ const PricingForm: React.FC<PricingFormProps> = ({ contractId, onSaveSuccess }) 
         )}
 
         <Grid size={{ xs: 12 }}>
-           <Card elevation={0} sx={{ border: `1px solid ${theme.palette.divider}`, mb: 3, borderRadius: 3 }}>
-             <CardContent>
-               <Grid container spacing={2}>
-                 {!isEmbedded && (<Grid size={{ xs: 12, md: 8 }}><Typography variant="caption" fontWeight="bold" color="text.secondary">{t("pricing_module.select_contract")}</Typography><Autocomplete options={contracts} getOptionLabel={(opt) => opt.contract_no} value={selectedContract} onChange={(_, val) => handleContractSelect(val)} renderInput={(params) => <TextField {...params} size="small" />} /></Grid>)}
-                 <Grid size={{ xs: 12, md: isEmbedded ? 6 : 4 }}><Typography variant="caption" fontWeight="bold" color="text.secondary">{t("pricing_module.pricing_date")}</Typography><TextField type="date" fullWidth size="small" value={pricingDate} onChange={e => setPricingDate(e.target.value)} /></Grid>
+           <Card 
+             sx={{ 
+               borderRadius: '16px', 
+               boxShadow: boxShadows.md,
+               border: 'none',
+               mb: 3,
+               overflow: 'hidden'
+             }}
+           >
+             <CardContent sx={{ p: 3 }}>
+               <Grid container spacing={3} alignItems="flex-end">
+                 {!isEmbedded && (
+                   <Grid size={{ xs: 12, md: 8 }}>
+                     <Typography variant="caption" fontWeight="700" color="text.secondary" sx={{ display: 'block', mb: 1, textTransform: 'uppercase', fontSize: '0.7rem' }}>
+                       {t("pricing_module.select_contract")}
+                     </Typography>
+                     <Autocomplete 
+                       options={contracts} 
+                       getOptionLabel={(opt) => opt.contract_no} 
+                       value={selectedContract} 
+                       onChange={(_, val) => handleContractSelect(val)} 
+                       renderInput={(params) => (
+                         <TextField 
+                           {...params} 
+                           size="small" 
+                           sx={{ 
+                             '& .MuiOutlinedInput-root': { borderRadius: '8px' } 
+                           }} 
+                         />
+                       )} 
+                     />
+                   </Grid>
+                 )}
+                 <Grid size={{ xs: 12, md: isEmbedded ? 6 : 4 }}>
+                   <Typography variant="caption" fontWeight="700" color="text.secondary" sx={{ display: 'block', mb: 1, textTransform: 'uppercase', fontSize: '0.7rem' }}>
+                     {t("pricing_module.pricing_date")}
+                   </Typography>
+                   <TextField 
+                     type="date" 
+                     fullWidth 
+                     size="small" 
+                     value={pricingDate} 
+                     onChange={e => setPricingDate(e.target.value)} 
+                     sx={{ 
+                       '& .MuiOutlinedInput-root': { borderRadius: '8px' } 
+                     }}
+                   />
+                 </Grid>
                </Grid>
              </CardContent>
            </Card>
 
            {selectedContract ? (
              <Box>
-               <Card elevation={0} sx={{ border: `1px solid ${theme.palette.divider}`, borderRadius: 3, overflow: 'hidden', mb: 3 }}>
+               <Card 
+                 sx={{ 
+                   borderRadius: '16px', 
+                   boxShadow: boxShadows.lg,
+                   border: 'none',
+                   overflow: 'hidden',
+                   mb: 3,
+                   p: 0
+                 }}
+               >
                  <TableContainer>
                    <Table>
                      <TableHead>
                       <TableRow>
-                        <TableCell sx={{...headerSx, width: '18%'}}>{t("pricing_module.article")}</TableCell>
-                        <TableCell sx={{...headerSx, width: '8%', textAlign: 'center'}}>{t("pricing_module.total_qty")}</TableCell>
-                        <TableCell sx={{...headerSx, width: '8%', textAlign: 'center'}}>{t("pricing_module.priced")}</TableCell>
-                        <TableCell sx={{...headerSx, width: '8%', textAlign: 'center'}}>{t("pricing_module.remaining")}</TableCell>
-                        <TableCell sx={{...headerSx, width: '8%', textAlign: 'center'}}>{t("pricing_module.premium")}</TableCell>
-                        <TableCell sx={{...headerSx, width: '18%', bgcolor: alpha(theme.palette.info.main, 0.08), color: theme.palette.info.main, textAlign: 'center'}}>{t("pricing_module.market_price")}</TableCell>
-                        <TableCell sx={{...headerSx, width: '18%', textAlign: 'center'}}>{t("pricing_module.qty_to_price")}</TableCell>
-                        <TableCell sx={{...headerSx, width: '14%', textAlign: 'center'}}>{t("pricing_module.action")}</TableCell>
+                        <TableCell sx={{...headerSx, width: '15%'}}>{t("pricing_module.article")}</TableCell>
+                        <TableCell sx={{...headerSx, width: '10%', textAlign: 'center'}}>{t("pricing_module.total_qty")}</TableCell>
+                        <TableCell sx={{...headerSx, width: '10%', textAlign: 'center'}}>{t("pricing_module.priced")}</TableCell>
+                        <TableCell sx={{...headerSx, width: '10%', textAlign: 'center'}}>{t("pricing_module.remaining")}</TableCell>
+                        <TableCell sx={{...headerSx, width: '10%', textAlign: 'center'}}>{t("pricing_module.premium")}</TableCell>
+                        <TableCell sx={{...headerSx, width: '12%', bgcolor: alpha(theme.palette.warning.main, 0.08), color: theme.palette.warning.main, textAlign: 'center'}}>{t("pricing_module.exchange_quote")}</TableCell>
+                        <TableCell sx={{...headerSx, width: '12%', bgcolor: alpha(theme.palette.warning.main, 0.08), color: theme.palette.warning.main, textAlign: 'center'}}>{t("pricing_module.unit")}</TableCell>
+                        <TableCell sx={{...headerSx, width: '12%', bgcolor: alpha(theme.palette.info.main, 0.08), color: theme.palette.info.main, textAlign: 'center'}}>{t("pricing_module.market_price")}</TableCell>
+                        <TableCell sx={{...headerSx, width: '10%', textAlign: 'center'}}>{t("pricing_module.qty_to_price")}</TableCell>
+                        <TableCell sx={{...headerSx, width: '11%', textAlign: 'center'}}>{t("pricing_module.action")}</TableCell>
                       </TableRow>
                     </TableHead>
                      <TableBody>
@@ -402,6 +612,37 @@ const PricingForm: React.FC<PricingFormProps> = ({ contractId, onSaveSuccess }) 
                              </TableCell>
                              <TableCell sx={{...cellSx, textAlign: 'center'}}>
                                <Typography fontWeight="bold" fontSize="0.9rem">${item.premium}</Typography>
+                             </TableCell>
+                             <TableCell sx={{ p: 1, bgcolor: alpha(theme.palette.warning.main, 0.03) }}>
+                               <TextField 
+                                 fullWidth 
+                                 size="small" 
+                                 type="number" 
+                                 value={itemQuotes[item.id]?.quote || ''} 
+                                 onChange={e => handleQuoteChange(idx, item.id, e.target.value)} 
+                                 placeholder="0.00"
+                                 InputProps={{ 
+                                   sx: { ...inputSx, fontWeight: 'bold' } 
+                                 }} 
+                                 disabled={item.qty_remaining === 0}
+                               />
+                             </TableCell>
+                             <TableCell sx={{ p: 1, bgcolor: alpha(theme.palette.warning.main, 0.03) }}>
+                               <FormControl fullWidth size="small">
+                                 <Select
+                                   value={itemQuotes[item.id]?.unitId || ''}
+                                   onChange={e => handleUnitChange(idx, item.id, e.target.value as string)}
+                                   sx={{ fontSize: '0.75rem' }}
+                                   disabled={item.qty_remaining === 0}
+                                 >
+                                   <MenuItem value=""><em>{t("None")}</em></MenuItem>
+                                   {exchangeUnits.map(unit => (
+                                     <MenuItem key={unit.id} value={unit.id} sx={{ fontSize: '0.75rem' }}>
+                                       {unit.name} {unit.symbol ? `(${unit.symbol})` : ''}
+                                     </MenuItem>
+                                   ))}
+                                 </Select>
+                               </FormControl>
                              </TableCell>
                              <TableCell sx={{ p: 1, bgcolor: alpha(theme.palette.info.main, 0.03) }}>
                                <TextField 
@@ -466,9 +707,9 @@ const PricingForm: React.FC<PricingFormProps> = ({ contractId, onSaveSuccess }) 
                                          </Box>
                                          <Chip label={`$${pricing.total_value.toLocaleString()}`} size="small" color="success" variant="outlined" sx={{ fontWeight: 'bold', fontSize: '0.75rem' }} />
                                          <Button size="small" color="error" onClick={async () => {
-                                           if (window.confirm(t('pricing_module.delete_pricing'))) {
+                                           if (await confirm({ message: t('pricing_module.delete_pricing') })) {
                                              try {
-                                               await api.delete(`/financial-transactions/${pricing.id}`);
+                                               await api.delete(`financial-transactions/${pricing.id}`);
                                                setNotification({ open: true, message: t('pricing_module.save_success'), severity: 'success' });
                                                fetchPricingHistory(selectedContract.id);
                                                loadPricingTree(selectedContract.id, items);

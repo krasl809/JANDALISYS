@@ -179,11 +179,13 @@ class ContractService:
         try:
             contracts, total_count = crud.get_contracts(db, skip=skip, limit=limit)
 
-            # Add view information to each contract (simplified to avoid errors)
+            # Add view and financial information to each contract (simplified to avoid errors)
             for contract in contracts:
                 contract.view_count = 0
                 contract.last_viewed_by = None
                 contract.last_viewed_at = None
+                # Calculate financial value from items
+                contract.financial_value = sum(item.total for item in contract.items if item.total) or 0
 
             # Add pagination metadata
             pagination_info = {
@@ -224,19 +226,26 @@ class ContractService:
     @staticmethod
     def get_contract_views(db: Session, contract_id: uuid.UUID):
         """Get viewing history for a specific contract"""
-        return db.query(core_models.ContractView)\
+        results = db.query(core_models.ContractView)\
             .filter(core_models.ContractView.contract_id == contract_id)\
-            .join(core_models.User)\
+            .join(core_models.User, core_models.ContractView.user_id == core_models.User.id)\
             .add_columns(core_models.User.name.label('user_name'))\
             .order_by(core_models.ContractView.viewed_at.desc())\
             .all()
+        
+        views = []
+        for view_obj, user_name in results:
+            # Set the user_name attribute on the ORM object for Pydantic to pick up
+            view_obj.user_name = user_name
+            views.append(view_obj)
+        return views
 
     @staticmethod
     def get_user_contract_views(db: Session, user_id: uuid.UUID, skip: int = 0, limit: int = 50):
         """Get viewing history for a specific user"""
-        return db.query(core_models.ContractView)\
+        results = db.query(core_models.ContractView)\
             .filter(core_models.ContractView.user_id == user_id)\
-            .join(core_models.Contract)\
+            .join(core_models.Contract, core_models.ContractView.contract_id == core_models.Contract.id)\
             .add_columns(
                 core_models.Contract.contract_no.label('contract_no'),
                 core_models.Contract.direction.label('direction')
@@ -245,6 +254,14 @@ class ContractService:
             .offset(skip)\
             .limit(limit)\
             .all()
+        
+        views = []
+        for view_obj, contract_no, direction in results:
+            # Set attributes on the ORM object for Pydantic to pick up
+            view_obj.contract_no = contract_no
+            view_obj.direction = direction
+            views.append(view_obj)
+        return views
 
     @staticmethod
     async def price_contract(db: Session, contract_id: uuid.UUID, pricing_data: schemas.ContractPricingRequest, user_id: uuid.UUID):
@@ -338,10 +355,12 @@ class ContractService:
 
     @staticmethod
     async def partial_price(db: Session, contract_id: uuid.UUID, pricing_data: schemas.ContractPartialPricingRequest, user_id: uuid.UUID):
-        try:
-            item_id = uuid.UUID(pricing_data.item_id)
-        except ValueError:
-            raise HTTPException(status_code=400, detail="Invalid UUID")
+        item_id = pricing_data.item_id
+        if isinstance(item_id, str):
+            try:
+                item_id = uuid.UUID(item_id)
+            except ValueError:
+                raise HTTPException(status_code=400, detail="Invalid item UUID format")
 
         contract = db.query(core_models.Contract).filter(core_models.Contract.id == contract_id).first()
         if not contract:

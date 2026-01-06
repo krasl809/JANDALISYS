@@ -1,14 +1,15 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   Container, Paper, Grid, Typography, TextField, MenuItem, Button,
   Box, Table, TableBody, TableCell, TableHead, TableRow, IconButton,
-  Card, CardContent, InputAdornment, Divider, Chip, CircularProgress
+  Card, CardContent, CircularProgress
 } from '@mui/material';
 import { Add, Delete, Save, Send, ArrowBack } from '@mui/icons-material';
 import { useTranslation } from 'react-i18next';
 import api from '../../services/api';
 import { inventoryApi } from '../../services/inventoryApi';
+import { useConfirm } from '../../context/ConfirmContext';
 
 // تعريف واجهة لنوع القوائم لحل مشكلة TypeScript
 interface ListsState {
@@ -21,6 +22,7 @@ interface ListsState {
 const DeliveryNoteForm = () => {
   const navigate = useNavigate();
   const { t } = useTranslation();
+  const { alert } = useConfirm();
   const [loading, setLoading] = useState(false);
   const [pageLoading, setPageLoading] = useState(true);
   
@@ -53,8 +55,8 @@ const DeliveryNoteForm = () => {
       try {
         const [wh, art, con] = await Promise.all([
           inventoryApi.getWarehouses(),
-          api.get('/articles/'),
-          api.get('/contracts/')
+          api.get('articles/'),
+          api.get('contracts/')
         ]);
         
         setLists(prev => ({
@@ -77,10 +79,10 @@ const DeliveryNoteForm = () => {
     const loadEntities = async () => {
       try {
         if (formData.type === 'inbound') {
-          const res = await api.get('/sellers/');
+          const res = await api.get('sellers/');
           setLists(prev => ({ ...prev, entities: res.data || [] }));
         } else if (formData.type === 'outbound') {
-          const res = await api.get('/buyers/');
+          const res = await api.get('buyers/');
           setLists(prev => ({ ...prev, entities: res.data || [] }));
         } else {
           setLists(prev => ({ ...prev, entities: [] }));
@@ -108,7 +110,7 @@ const DeliveryNoteForm = () => {
   const handleSubmit = async (action: 'draft' | 'approve') => {
     // تحقق بسيط قبل الإرسال
     if (!formData.warehouse_id) {
-        alert(t("Please select a warehouse."));
+        alert(t("Please select a warehouse."), t('Warning'), 'warning');
         return;
     }
 
@@ -138,7 +140,7 @@ const DeliveryNoteForm = () => {
       navigate('/inventory/movements');
     } catch (err) {
       console.error(err);
-      alert(t('Error processing request. Please check all fields.'));
+      alert(t('Error processing request. Please check all fields.'), t('Error'), 'error');
     } finally {
         setLoading(false);
     }
@@ -261,7 +263,7 @@ const DeliveryNoteForm = () => {
                     </TableRow>
                 </TableHead>
                 <TableBody>
-                    {items.map((item, index) => (
+                    {items.map((item) => (
                         <TableRow key={item.id}>
                             <TableCell>
                                 <TextField 

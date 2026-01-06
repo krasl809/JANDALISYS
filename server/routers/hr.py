@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks, UploadFile, File, Query
-from sqlalchemy.orm import Session, aliased
-from sqlalchemy import func, or_
+from sqlalchemy.orm import Session, aliased, joinedload
+from sqlalchemy import func, or_, and_
 from core.database import get_db
 from models import hr_models, core_models, employee_models
 from core.auth import get_current_user, require_permission
@@ -8,6 +8,9 @@ from services.zk_service import ZkTecoService
 from services.import_service import EmployeeImportService
 import datetime
 import uuid
+import logging
+
+logger = logging.getLogger(__name__)
 
 # Define permissions
 PERM_HR_READ = "hr_read"
@@ -16,36 +19,124 @@ PERM_HR_WRITE = "hr_write"
 router = APIRouter(prefix="/hr", tags=["HR Management"])
 
 @router.get("/dashboard")
-def get_hr_dashboard(db: Session = Depends(get_db), current_user = Depends(get_current_user)):
+def get_hr_dashboard(
+    db: Session = Depends(get_db), 
+    department: str = Query(None),
+    current_user = Depends(get_current_user)
+):
+    import logging
+    logger = logging.getLogger(__name__)
+    logger.info(f"📊 HR Dashboard request from user: {current_user.email}")
+    
+    # Handle Query object if called directly in tests
+    if hasattr(department, 'default'):
+        department = None
+
     # Simple stats
     today = datetime.date.today()
-    total_employees = db.query(employee_models.Employee).filter(employee_models.Employee.status == 'active').count()
+    today_str = today.isoformat()
+    
+    emp_query = db.query(employee_models.Employee).filter(employee_models.Employee.status == 'active')
+    logger.info(f"Initial emp_query count: {emp_query.count()}")
+    if department:
+        logger.info(f"Filtering by department: {department}")
+        emp_query = emp_query.filter(employee_models.Employee.department_id == department)
+    
+    active_employees = emp_query.all()
+    total_employees = len(active_employees)
+    logger.info(f"Final active employees count: {total_employees}")
+    
+    logger.info(f"Total active employees: {total_employees}")
     
     # Attendance today
-    today_logs = db.query(hr_models.AttendanceLog).filter(
-        func.date(hr_models.AttendanceLog.timestamp) == today
-    ).all()
+    today_logs_query = db.query(hr_models.AttendanceLog).filter(
+        func.date(hr_models.AttendanceLog.timestamp) == today_str
+    )
+    if department:
+        # Join with Employee to filter by department
+        today_logs_query = today_logs_query.join(
+            employee_models.Employee, 
+            hr_models.AttendanceLog.employee_id == employee_models.Employee.code
+        ).filter(employee_models.Employee.department_id == department)
+        
+    today_logs = today_logs_query.all()
     
     present_ids = set(log.employee_id for log in today_logs)
     present_count = len(present_ids)
     
-    # Improved absent count: exclude those who have a holiday today
-    # 1. Get all active employees
-    active_employees = db.query(employee_models.Employee).filter(employee_models.Employee.status == 'active').all()
+    # Calculate late, early leave and currently_in
+    late_query = db.query(hr_models.AttendanceLog).filter(
+        func.date(hr_models.AttendanceLog.timestamp) == today_str,
+        hr_models.AttendanceLog.status == 'late'
+    )
+    if department:
+        late_query = late_query.join(
+            employee_models.Employee, 
+            hr_models.AttendanceLog.employee_id == employee_models.Employee.code
+        ).filter(employee_models.Employee.department_id == department)
+    late_count = late_query.distinct(hr_models.AttendanceLog.employee_id).count()
+
+    early_leave_query = db.query(hr_models.AttendanceLog).filter(
+        func.date(hr_models.AttendanceLog.timestamp) == today_str,
+        hr_models.AttendanceLog.status == 'early_leave'
+    )
+    if department:
+        early_leave_query = early_leave_query.join(
+            employee_models.Employee, 
+            hr_models.AttendanceLog.employee_id == employee_models.Employee.code
+        ).filter(employee_models.Employee.department_id == department)
+    early_leave_count = early_leave_query.distinct(hr_models.AttendanceLog.employee_id).count()
+
+    # Currently in - optimized query
+    from sqlalchemy import and_
     
-    # 2. Get their current shift assignments
+    # Subquery to get the latest log for each employee today
+    subq = db.query(
+        hr_models.AttendanceLog.employee_id,
+        func.max(hr_models.AttendanceLog.timestamp).label('max_ts')
+    ).filter(
+        func.date(hr_models.AttendanceLog.timestamp) == today_str
+    ).group_by(hr_models.AttendanceLog.employee_id).subquery()
+
+    currently_in = db.query(hr_models.AttendanceLog).join(
+        subq,
+        and_(
+            hr_models.AttendanceLog.employee_id == subq.c.employee_id,
+            hr_models.AttendanceLog.timestamp == subq.c.max_ts
+        )
+    ).filter(hr_models.AttendanceLog.type == 'check_in').count()
+
+    # Improved absent count - pre-fetch assignments
     day_name = today.strftime('%A')
+    
+    # Pre-fetch assignments for all active employees to avoid N+1 queries
+    all_assignments = db.query(hr_models.EmployeeShiftAssignment).filter(
+        hr_models.EmployeeShiftAssignment.start_date <= today,
+        or_(hr_models.EmployeeShiftAssignment.end_date == None, hr_models.EmployeeShiftAssignment.end_date >= today)
+    ).all()
+    
+    assignment_map = {a.employee_id: a for a in all_assignments}
+    
+    # Pre-fetch recent checkins for holiday pay calculation in one go
+    seven_days_ago = today - datetime.timedelta(days=6)
+    recent_checkins_all = db.query(
+        hr_models.AttendanceLog.employee_id,
+        func.count(func.distinct(func.date(hr_models.AttendanceLog.timestamp))).label('work_days')
+    ).filter(
+        hr_models.AttendanceLog.type == 'check_in',
+        func.date(hr_models.AttendanceLog.timestamp) >= seven_days_ago,
+        func.date(hr_models.AttendanceLog.timestamp) < today
+    ).group_by(hr_models.AttendanceLog.employee_id).all()
+    
+    recent_work_days_map = {r.employee_id: r.work_days for r in recent_checkins_all}
+
     absent_count = 0
     for emp in active_employees:
         if emp.code in present_ids:
             continue
             
-        # Check if today is a holiday for this employee
-        assignment = db.query(hr_models.EmployeeShiftAssignment).filter(
-            hr_models.EmployeeShiftAssignment.employee_id == emp.id,
-            hr_models.EmployeeShiftAssignment.start_date <= today,
-            or_(hr_models.EmployeeShiftAssignment.end_date == None, hr_models.EmployeeShiftAssignment.end_date >= today)
-        ).order_by(hr_models.EmployeeShiftAssignment.start_date.desc()).first()
+        # Check if today is a holiday
+        assignment = assignment_map.get(emp.id)
         
         is_holiday = False
         if assignment and assignment.shift:
@@ -63,24 +154,12 @@ def get_hr_dashboard(db: Session = Depends(get_db), current_user = Depends(get_c
                 except: pass
             
             if not is_holiday and day_name in (shift.holiday_days or []):
-                # Check if holiday is paid based on 4/7 rule
                 if shift.is_holiday_paid:
-                    # Look back 7 days from today (including today)
-                    seven_days_ago = today - datetime.timedelta(days=6)
-                    # Count number of check-in logs in the last 7 days
-                    recent_checkins = db.query(hr_models.AttendanceLog).filter(
-                        hr_models.AttendanceLog.employee_id == emp.code,
-                        hr_models.AttendanceLog.type == 'check_in',
-                        func.date(hr_models.AttendanceLog.timestamp) >= seven_days_ago,
-                        func.date(hr_models.AttendanceLog.timestamp) < today
-                    ).count()
-                    
+                    recent_checkins = recent_work_days_map.get(emp.code, 0)
                     min_required = shift.min_days_for_paid_holiday or 4
-                    
                     if recent_checkins >= min_required:
-                        is_holiday = True # Qualifies as paid holiday (not absent)
+                        is_holiday = True
                 else:
-                    # If holidays are not paid, it's just a holiday (not absent)
                     is_holiday = True
         
         if not is_holiday:
@@ -89,9 +168,109 @@ def get_hr_dashboard(db: Session = Depends(get_db), current_user = Depends(get_c
     return {
         "total_employees": total_employees,
         "present_today": present_count,
-        "late_today": 0, # TODO: recalculate based on shift
-        "absent_today": absent_count
+        "late_today": late_count,
+        "early_leave_today": early_leave_count,
+        "absent_today": absent_count,
+        "currently_in": currently_in
     }
+
+@router.get("/absent-employees")
+def get_absent_employees(
+    db: Session = Depends(get_db), 
+    department: str = Query(None),
+    current_user = Depends(get_current_user)
+):
+    today = datetime.date.today()
+    day_name = today.strftime('%A')
+    
+    # Handle Query object
+    if hasattr(department, 'default'):
+        department = None
+
+    # 1. Get present IDs today
+    today_logs_query = db.query(hr_models.AttendanceLog).filter(
+        func.date(hr_models.AttendanceLog.timestamp) == today
+    )
+    if department:
+        today_logs_query = today_logs_query.join(
+            employee_models.Employee, 
+            hr_models.AttendanceLog.employee_id == employee_models.Employee.code
+        ).filter(employee_models.Employee.department_id == department)
+        
+    today_logs = today_logs_query.all()
+    present_ids = set(log.employee_id for log in today_logs)
+    
+    # 2. Get all active employees
+    emp_query = db.query(employee_models.Employee).filter(employee_models.Employee.status == 'active')
+    if department:
+        emp_query = emp_query.filter(employee_models.Employee.department_id == department)
+    active_employees = emp_query.all()
+    
+    # 3. Pre-fetch assignments
+    all_assignments = db.query(hr_models.EmployeeShiftAssignment).filter(
+        hr_models.EmployeeShiftAssignment.start_date <= today,
+        or_(hr_models.EmployeeShiftAssignment.end_date == None, hr_models.EmployeeShiftAssignment.end_date >= today)
+    ).all()
+    assignment_map = {a.employee_id: a for a in all_assignments}
+
+    absent_list = []
+    for emp in active_employees:
+        if emp.code in present_ids:
+            continue
+            
+        # Check if today is a holiday
+        assignment = assignment_map.get(emp.id)
+        
+        is_holiday = False
+        if assignment and assignment.shift:
+            shift = assignment.shift
+            if shift.shift_type == "rotational" and shift.rotation_pattern:
+                try:
+                    seq = shift.rotation_pattern.get("sequence", [])
+                    if seq:
+                        assignment_start = assignment.start_date
+                        days_since_start = (today - assignment_start.date()).days
+                        step_index = days_since_start % len(seq)
+                        current_step = seq[step_index]
+                        if str(current_step).upper() == "OFF":
+                            is_holiday = True
+                except: pass
+            
+            if not is_holiday and day_name in (shift.holiday_days or []):
+                is_holiday = True
+        
+        if not is_holiday:
+            absent_list.append({
+                "id": str(emp.id),
+                "employee_id": emp.code,
+                "employee_name": emp.full_name,
+                "department": emp.department_name,
+                "status": "absent"
+            })
+            
+    return absent_list
+
+@router.get("/recent-activity")
+def get_recent_activity(db: Session = Depends(get_db), current_user = Depends(get_current_user)):
+    # Get last 15 raw logs
+    logs = db.query(hr_models.AttendanceLog).order_by(
+        hr_models.AttendanceLog.timestamp.desc()
+    ).limit(15).all()
+    
+    result = []
+    for log in logs:
+        # Get employee name
+        emp = db.query(employee_models.Employee).filter(employee_models.Employee.code == log.employee_id).first()
+        result.append({
+            "id": log.id,
+            "employee_id": log.employee_id,
+            "employee_name": emp.full_name if emp else f"ID: {log.employee_id}",
+            "timestamp": log.timestamp.isoformat(),
+            "type": log.type,
+            "device": log.device.name if log.device else "Manual"
+        })
+    
+    return result
 
 # --- EMPLOYEE MANAGEMENT ---
 
@@ -240,9 +419,98 @@ def create_employee(
         db.rollback()
         raise HTTPException(status_code=400, detail=str(e))
 
+@router.get("/employees/{emp_id}")
+def get_employee(
+    emp_id: uuid.UUID,
+    db: Session = Depends(get_db),
+    current_user = Depends(require_permission(PERM_HR_READ))
+):
+    """
+    Get a single employee's detailed information.
+    """
+    emp = db.query(employee_models.Employee).filter(employee_models.Employee.id == emp_id).first()
+    if not emp:
+        raise HTTPException(status_code=404, detail="Employee not found")
+        
+    # Get shift assignments
+    assignments = db.query(hr_models.EmployeeShiftAssignment).filter(
+        hr_models.EmployeeShiftAssignment.employee_id == emp.id
+    ).order_by(hr_models.EmployeeShiftAssignment.start_date.desc()).all()
+    
+    assignment_list = []
+    for assignment in assignments:
+        assignment_list.append({
+            "id": assignment.id,
+            "shift_id": assignment.shift_id,
+            "start_date": assignment.start_date.isoformat() if assignment.start_date else None,
+            "end_date": assignment.end_date.isoformat() if assignment.end_date else None,
+            "shift": {
+                "id": assignment.shift.id,
+                "name": assignment.shift.name,
+                "shift_type": assignment.shift.shift_type,
+                "start_time": assignment.shift.start_time,
+                "end_time": assignment.shift.end_time
+            } if assignment.shift else None
+        })
+
+    # Get personal info
+    personal_info = emp.personal_info
+    
+    # Get emergency contacts
+    emergency_contact = emp.emergency_contact
+    emergency_contacts_list = []
+    if emergency_contact:
+        emergency_contacts_list.append({
+            "id": str(emergency_contact.id),
+            "name": emergency_contact.full_name,
+            "relationship": emergency_contact.relationship_type,
+            "phone": emergency_contact.phone_primary,
+            "email": emergency_contact.email,
+            "is_primary": emergency_contact.primary_contact
+        })
+
+    # Get documents
+    documents_list = []
+    for doc in emp.documents:
+        documents_list.append({
+            "id": str(doc.id),
+            "type": doc.document_type,
+            "name": doc.document_name,
+            "number": doc.document_number,
+            "expiry_date": doc.expiry_date.isoformat() if doc.expiry_date else None,
+            "file_path": doc.file_path
+        })
+
+    return {
+        "id": str(emp.id),
+        "employee_id": emp.code,
+        "name": emp.full_name,
+        "first_name": emp.first_name,
+        "last_name": emp.last_name,
+        "email": emp.work_email,
+        "department": emp.department_name,
+        "department_id": str(emp.department_id) if emp.department_id else None,
+        "company": emp.company,
+        "position": emp.position,
+        "status": emp.status,
+        "hire_date": emp.joining_date.isoformat() if emp.joining_date else None,
+        "is_active": emp.status == "active",
+        "user_id": str(emp.user_id) if emp.user_id else None,
+        "has_system_access": emp.user_id is not None,
+        "shift_assignments": assignment_list,
+        # Additional fields from Employee and PersonalInfo
+        "phone": emp.phone or (personal_info.personal_phone if personal_info else None),
+        "national_id": personal_info.national_id if personal_info else None,
+        "gender": personal_info.gender if personal_info else None,
+        "date_of_birth": personal_info.date_of_birth.isoformat() if personal_info and personal_info.date_of_birth else None,
+        "emergency_contacts": emergency_contacts_list,
+        "documents": documents_list,
+        "work_history": [] # TODO: Implement if needed
+    }
+
 @router.put("/employees/{emp_id}")
 def update_employee(
-    emp_id: str, 
+    emp_id: uuid.UUID, 
     data: dict, 
     db: Session = Depends(get_db),
     current_user = Depends(require_permission(PERM_HR_WRITE))
@@ -260,7 +528,7 @@ def update_employee(
 
 @router.delete("/employees/{emp_id}")
 def delete_employee(
-    emp_id: str,
+    emp_id: uuid.UUID, 
     db: Session = Depends(get_db),
     current_user = Depends(require_permission(PERM_HR_WRITE))
 ):
@@ -358,6 +626,19 @@ def sync_device(
 
 # --- ATTENDANCE (Updated for new schema) ---
 
+@router.delete("/attendance/clear")
+def clear_attendance_logs(
+    db: Session = Depends(get_db),
+    current_user = Depends(require_permission(PERM_HR_WRITE))
+):
+    try:
+        db.query(hr_models.AttendanceLog).delete()
+        db.commit()
+        return {"status": "success", "message": "All attendance logs cleared successfully"}
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(status_code=500, detail=str(e))
+
 @router.get("/attendance")
 def get_attendance(
     db: Session = Depends(get_db),
@@ -367,6 +648,13 @@ def get_attendance(
     end_date: str = Query(None),
     raw: bool = Query(False)
 ):
+    # Handle Query objects if called directly in tests
+    if hasattr(employee_id, 'default'): employee_id = None
+    if hasattr(department, 'default'): department = None
+    if hasattr(start_date, 'default'): start_date = None
+    if hasattr(end_date, 'default'): end_date = None
+    if hasattr(raw, 'default'): raw = False
+
     query = db.query(
         hr_models.AttendanceLog,
         employee_models.Employee
@@ -384,17 +672,61 @@ def get_attendance(
         query = query.filter(func.date(hr_models.AttendanceLog.timestamp) <= end_date)
     if employee_id:
         # Check both UUID and Code for flexibility
-        query = query.filter(
-            or_(
-                employee_models.Employee.id == employee_id,
-                employee_models.Employee.code == employee_id
+        try:
+            emp_uuid = uuid.UUID(employee_id)
+            query = query.filter(
+                or_(
+                    employee_models.Employee.id == emp_uuid,
+                    employee_models.Employee.code == employee_id
+                )
             )
-        )
+        except (ValueError, TypeError):
+            query = query.filter(employee_models.Employee.code == employee_id)
     if department:
         query = query.filter(employee_models.Employee.department_name == department)
 
     logs = query.order_by(hr_models.AttendanceLog.timestamp.asc()).all()
     
+    # Pre-fetch data for optimization
+    emp_pks = {log.AttendanceLog.employee_pk for log in logs if log.AttendanceLog.employee_pk}
+    emp_ids = {log.AttendanceLog.employee_id for log in logs if log.AttendanceLog.employee_id}
+    
+    # 1. Pre-fetch Shift Assignments
+    assignment_map = {}
+    if emp_pks:
+        all_assignments = db.query(hr_models.EmployeeShiftAssignment).options(
+            joinedload(hr_models.EmployeeShiftAssignment.shift)
+        ).filter(
+            hr_models.EmployeeShiftAssignment.employee_id.in_(emp_pks)
+        ).all()
+        for a in all_assignments:
+            if a.employee_id not in assignment_map:
+                assignment_map[a.employee_id] = []
+            assignment_map[a.employee_id].append(a)
+    
+    # 2. Pre-fetch work days for 4/7 rule
+    # We need to look back 7 days from the earliest log
+    work_days_map = {}
+    if logs and emp_ids:
+        min_ts = logs[0].AttendanceLog.timestamp
+        start_history = (min_ts - datetime.timedelta(days=7)).date()
+        max_ts = logs[-1].AttendanceLog.timestamp
+        end_history = max_ts.date()
+        
+        history_logs = db.query(
+            hr_models.AttendanceLog.employee_id,
+            func.date(hr_models.AttendanceLog.timestamp).label('work_date')
+        ).filter(
+            hr_models.AttendanceLog.employee_id.in_(emp_ids),
+            func.date(hr_models.AttendanceLog.timestamp) >= start_history,
+            func.date(hr_models.AttendanceLog.timestamp) <= end_history
+        ).distinct().all()
+        
+        for h in history_logs:
+            if h.employee_id not in work_days_map:
+                work_days_map[h.employee_id] = set()
+            work_days_map[h.employee_id].add(h.work_date)
+
     # Format Raw Logs
     raw_results = [{
         "id": log.AttendanceLog.id,
@@ -422,18 +754,18 @@ def get_attendance(
     for log in raw_results:
         if current_emp != log["employee_id"]:
             if current_emp:
-                processed_sessions.extend(process_employee_sessions(current_emp, emp_logs, db))
+                processed_sessions.extend(process_employee_sessions(current_emp, emp_logs, db, assignment_map, work_days_map))
             current_emp = log["employee_id"]
             emp_logs = [log]
         else:
             emp_logs.append(log)
             
     if current_emp:
-        processed_sessions.extend(process_employee_sessions(current_emp, emp_logs, db))
+        processed_sessions.extend(process_employee_sessions(current_emp, emp_logs, db, assignment_map, work_days_map))
 
     return processed_sessions
 
-def process_employee_sessions(emp_id, logs, db):
+def process_employee_sessions(emp_id, logs, db, assignment_map=None, work_days_map=None):
     sessions = []
     i = 0
     while i < len(logs):
@@ -463,196 +795,231 @@ def process_employee_sessions(emp_id, logs, db):
             j += 1
         
         # Process the session
-        sessions.append(calculate_session_metrics(emp_id, session_logs, db))
+        sessions.append(calculate_session_metrics(emp_id, session_logs, db, assignment_map, work_days_map))
         i += 1
         
     return sessions
 
-def calculate_session_metrics(emp_id, session_logs, db):
-    first_in = session_logs[0]
-    last_out = next((l for l in reversed(session_logs) if l["type"] == "check_out"), None)
-    
-    emp_pk = first_in["employee_pk"]
-    emp_name = first_in["employee_name"]
-    check_in_dt = datetime.datetime.fromisoformat(first_in["timestamp"])
-    date_str = first_in["timestamp"][:10]
-    
-    # Fetch Shift Policy
+def calculate_session_metrics(emp_id, session_logs, db, assignment_map=None, work_days_map=None):
     try:
-        emp_pk = uuid.UUID(first_in["employee_pk"])
-        assignment = db.query(hr_models.EmployeeShiftAssignment).filter(
-            hr_models.EmployeeShiftAssignment.employee_id == emp_pk,
-            hr_models.EmployeeShiftAssignment.start_date <= check_in_dt,
-            or_(hr_models.EmployeeShiftAssignment.end_date == None, hr_models.EmployeeShiftAssignment.end_date >= check_in_dt)
-        ).order_by(hr_models.EmployeeShiftAssignment.start_date.desc()).first()
-    except (ValueError, TypeError):
+        first_in = session_logs[0]
+        last_out = next((l for l in reversed(session_logs) if l["type"] == "check_out"), None)
+        
+        emp_pk_str = first_in.get("employee_pk")
+        emp_name = first_in.get("employee_name")
+        check_in_dt = datetime.datetime.fromisoformat(first_in["timestamp"])
+        date_str = first_in["timestamp"][:10]
+        
+        # Fetch Shift Policy
         assignment = None
-    shift = assignment.shift if assignment else None
-    
-    # Break Calculation
-    break_duration = 0
-    for k in range(len(session_logs) - 1):
-        if session_logs[k]["type"] in ["check_out", "break_out"] and session_logs[k+1]["type"] in ["check_in", "break_in"]:
-            t1 = datetime.datetime.fromisoformat(session_logs[k]["timestamp"])
-            t2 = datetime.datetime.fromisoformat(session_logs[k+1]["timestamp"])
-            diff = (t2 - t1).total_seconds() / 3600
-            if diff < 4: # Assume breaks are less than 4h, otherwise might be separate shifts
-                break_duration += diff
-                
-    total_hours = 0
-    if last_out:
-        check_out_dt = datetime.datetime.fromisoformat(last_out["timestamp"])
-        total_hours = round((check_out_dt - check_in_dt).total_seconds() / 3600, 2)
+        if emp_pk_str and assignment_map:
+            try:
+                emp_uuid = uuid.UUID(str(emp_pk_str))
+                # Filter assignments locally
+                emp_assignments = assignment_map.get(emp_uuid, [])
+                for a in emp_assignments:
+                    if a.start_date <= check_in_dt and (a.end_date is None or a.end_date >= check_in_dt):
+                        # Find the most recent assignment that fits
+                        if not assignment or a.start_date > assignment.start_date:
+                            assignment = a
+            except (ValueError, TypeError):
+                pass
         
-    capacity = shift.expected_hours if shift else 8.0
-    
-    # Handle Rotational Capacity (Advanced)
-    if shift and shift.shift_type == "rotational" and shift.rotation_pattern:
-        try:
-            seq = shift.rotation_pattern.get("sequence", [])
-            if seq and len(seq) > 0:
-                # Find which step this is based on start_date of assignment
-                assignment_start = assignment.start_date
-                days_since_start = (check_in_dt.date() - assignment_start.date()).days
-                step_index = days_since_start % len(seq)
-                current_step = seq[step_index]
-                
-                if isinstance(current_step, dict):
-                    capacity = current_step.get("hours", capacity)
-                elif str(current_step).upper() == "OFF":
-                    capacity = 0 # It's an OFF day, but if they worked, all is OT
-        except Exception as e:
-            print(f"Error calculating rotational capacity: {e}")
-
-    actual_work = max(0, total_hours - break_duration)
-    
-    # Multiplier Logic
-    day_name = check_in_dt.strftime('%A')
-    
-    # Check if holiday is paid based on 4/7 rule
-    is_holiday = False
-    distribute_bonus = getattr(shift, 'distribute_holiday_bonus', False)
-
-    if shift and not distribute_bonus and day_name in shift.holiday_days:
-        if shift.is_holiday_paid:
-            # Look back 7 days
-            seven_days_ago = check_in_dt.date() - datetime.timedelta(days=6)
-            recent_logs = db.query(hr_models.AttendanceLog).filter(
-                hr_models.AttendanceLog.employee_id == emp_id,
-                func.date(hr_models.AttendanceLog.timestamp) >= seven_days_ago,
-                func.date(hr_models.AttendanceLog.timestamp) < check_in_dt.date()
-            ).all()
-            work_days_count = len(set(log.timestamp.date() for log in recent_logs))
-            if work_days_count >= (shift.min_days_for_paid_holiday or 4):
-                is_holiday = True
-        else:
-            is_holiday = True
-
-    multiplier = (shift.multiplier_holiday if is_holiday else shift.multiplier_normal) if shift else 1.0
-    
-    # Distributed Holiday Credit
-    holiday_credit = 0
-    if distribute_bonus and shift.shift_type == "rotational" and actual_work > 0:
-        try:
-            seq = shift.rotation_pattern.get("sequence", [])
-            total_work_hours = sum(s.get("hours", 0) for s in seq if isinstance(s, dict))
-            if total_work_hours > 0:
-                # 1 holiday day = 8 hours credit
-                holiday_factor = 8.0 / total_work_hours
-                holiday_credit = round(actual_work * holiday_factor, 2)
-        except: pass
-
-    overtime = 0
-    ot_threshold = (shift.ot_threshold if shift else 30) / 60.0
-    if actual_work > (capacity + ot_threshold):
-        overtime = round((actual_work - capacity) * multiplier, 2)
+        # Fallback if no map (legacy support)
+        if not assignment and not assignment_map and emp_pk_str:
+            try:
+                emp_uuid = uuid.UUID(str(emp_pk_str))
+                assignment = db.query(hr_models.EmployeeShiftAssignment).filter(
+                    hr_models.EmployeeShiftAssignment.employee_id == emp_uuid,
+                    hr_models.EmployeeShiftAssignment.start_date <= check_in_dt,
+                    or_(hr_models.EmployeeShiftAssignment.end_date == None, hr_models.EmployeeShiftAssignment.end_date >= check_in_dt)
+                ).order_by(hr_models.EmployeeShiftAssignment.start_date.desc()).first()
+            except: pass
+            
+        shift = assignment.shift if assignment else None
         
-    # Final pay hours (work + overtime + holiday_credit)
-    # We add holiday_credit to overtime for reporting or keep it separate
-    if holiday_credit > 0:
-        overtime = round(overtime + holiday_credit, 2)
-        
-    # Status calculation
-    status = "present"
-    
-    # Custom Logic for Rotational Step Timing
-    target_start_time = shift.start_time if shift else "08:00"
-    target_end_time = shift.end_time if shift else "17:00"
-    target_offset = getattr(shift, 'end_day_offset', 0)
-    
-    if shift and shift.shift_type == "rotational" and shift.rotation_pattern:
-        try:
-            seq = shift.rotation_pattern.get("sequence", [])
-            if seq and len(seq) > 0:
-                assignment_start = assignment.start_date
-                days_since_start = (check_in_dt.date() - assignment_start.date()).days
-                step_index = days_since_start % len(seq)
-                current_step = seq[step_index]
-                
-                if isinstance(current_step, dict):
-                    # Check for slot-based times
-                    slots = shift.rotation_pattern.get("slots", {})
-                    step_slots = current_step.get("slots", [])
-                    if step_slots and slots:
-                        # Use first slot for start, last for end
-                        first_slot = slots.get(step_slots[0], {})
-                        last_slot = slots.get(step_slots[-1], {})
-                        if "start" in first_slot: target_start_time = first_slot["start"]
-                        if "end" in last_slot: target_end_time = last_slot["end"]
-                    else:
-                        # Legacy/Direct dict fields
-                        if "start" in current_step: target_start_time = current_step["start"]
-                        if "end" in current_step: target_end_time = current_step["end"]
+        # Break Calculation
+        break_duration = 0
+        for k in range(len(session_logs) - 1):
+            if session_logs[k]["type"] in ["check_out", "break_out"] and session_logs[k+1]["type"] in ["check_in", "break_in"]:
+                t1 = datetime.datetime.fromisoformat(session_logs[k]["timestamp"])
+                t2 = datetime.datetime.fromisoformat(session_logs[k+1]["timestamp"])
+                diff = (t2 - t1).total_seconds() / 3600
+                if diff < 4: # Assume breaks are less than 4h, otherwise might be separate shifts
+                    break_duration += diff
                     
-                    if "offset" in current_step: target_offset = current_step["offset"]
-                elif str(current_step).upper() == "OFF":
-                    status = "overtime" # Working on OFF day
-        except: pass
+        total_hours = 0
+        if last_out:
+            check_out_dt = datetime.datetime.fromisoformat(last_out["timestamp"])
+            total_hours = round((check_out_dt - check_in_dt).total_seconds() / 3600, 2)
+            
+        capacity = (shift.expected_hours if shift and shift.expected_hours is not None else 8.0)
+        
+        # Handle Rotational Capacity (Advanced)
+        if shift and shift.shift_type == "rotational" and shift.rotation_pattern and assignment:
+            try:
+                seq = shift.rotation_pattern.get("sequence", [])
+                if seq and len(seq) > 0:
+                    # Find which step this is based on start_date of assignment
+                    assignment_start = assignment.start_date
+                    days_since_start = (check_in_dt.date() - assignment_start.date()).days
+                    step_index = days_since_start % len(seq)
+                    current_step = seq[step_index]
+                    
+                    if isinstance(current_step, dict):
+                        capacity = current_step.get("hours", capacity)
+                    elif str(current_step).upper() == "OFF":
+                        capacity = 0 # It's an OFF day, but if they worked, all is OT
+            except Exception as e:
+                logger.error(f"Error calculating rotational capacity: {e}")
 
-    if target_start_time:
-        shift_start_hour, shift_start_min = map(int, target_start_time.split(':'))
-        shift_in_dt = check_in_dt.replace(hour=shift_start_hour, minute=shift_start_min, second=0, microsecond=0)
+        actual_work = max(0, total_hours - break_duration)
         
-        # Late check-in
-        if status != "overtime" and check_in_dt > shift_in_dt + datetime.timedelta(minutes=shift.grace_period_in or 0):
-            status = "late"
+        # Multiplier Logic
+        day_name = check_in_dt.strftime('%A')
+        
+        # Check if holiday is paid based on 4/7 rule
+        is_holiday = False
+        distribute_bonus = getattr(shift, 'distribute_holiday_bonus', False) if shift else False
+
+        if shift and not distribute_bonus and shift.holiday_days and day_name in shift.holiday_days:
+            if shift.is_holiday_paid:
+                # Look back 7 days
+                seven_days_ago = check_in_dt.date() - datetime.timedelta(days=6)
+                
+                work_days_count = 0
+                if work_days_map and emp_id in work_days_map:
+                    # Count distinct dates in map within the range
+                    emp_work_dates = work_days_map[emp_id]
+                    work_days_count = sum(1 for d in emp_work_dates if seven_days_ago <= d < check_in_dt.date())
+                else:
+                    # Fallback if no map
+                    recent_logs = db.query(hr_models.AttendanceLog).filter(
+                        hr_models.AttendanceLog.employee_id == emp_id,
+                        func.date(hr_models.AttendanceLog.timestamp) >= seven_days_ago,
+                        func.date(hr_models.AttendanceLog.timestamp) < check_in_dt.date()
+                    ).all()
+                    work_days_count = len(set(log.timestamp.date() for log in recent_logs))
+                
+                if work_days_count >= (shift.min_days_for_paid_holiday or 4):
+                    is_holiday = True
+            else:
+                is_holiday = True
+
+        multiplier = (shift.multiplier_holiday if is_holiday else shift.multiplier_normal) if shift else 1.0
+        
+        # Distributed Holiday Credit
+        holiday_credit = 0
+        if distribute_bonus and shift and shift.shift_type == "rotational" and shift.rotation_pattern and actual_work > 0:
+            try:
+                seq = shift.rotation_pattern.get("sequence", [])
+                total_work_hours = sum(s.get("hours", 0) for s in seq if isinstance(s, dict))
+                if total_work_hours > 0:
+                    # 1 holiday day = 8 hours credit
+                    holiday_factor = 8.0 / total_work_hours
+                    holiday_credit = round(actual_work * holiday_factor, 2)
+            except: pass
+
+        overtime = 0
+        ot_threshold = (shift.ot_threshold if shift and shift.ot_threshold is not None else 30) / 60.0
+        if actual_work > (capacity + ot_threshold):
+            overtime = round((actual_work - capacity) * multiplier, 2)
             
-    if last_out and target_end_time:
-        check_out_dt = datetime.datetime.fromisoformat(last_out["timestamp"])
-        shift_out_hour, shift_out_min = map(int, target_end_time.split(':'))
-        
-        shift_out_dt = shift_in_dt.replace(hour=shift_out_hour, minute=shift_out_min, second=0, microsecond=0)
-        
-        if target_offset > 0:
-            shift_out_dt += datetime.timedelta(days=target_offset)
-        elif target_end_time < target_start_time:
-            shift_out_dt += datetime.timedelta(days=1)
-        
-        # Early leave
-        if status != "overtime" and check_out_dt < shift_out_dt - datetime.timedelta(minutes=shift.grace_period_out or 0):
-            if status == "present": 
-                status = "early_leave"
-            elif status == "late":
-                status = "late & early_leave"
-    elif not last_out:
-        status = "ongoing"
+        # Final pay hours (work + overtime + holiday_credit)
+        if holiday_credit > 0:
+            overtime = round(overtime + holiday_credit, 2)
             
-    return {
-        "employee_id": emp_id,
-        "employee_pk": emp_pk,
-        "employee_name": emp_name,
-        "check_in": first_in["timestamp"],
-        "check_out": last_out["timestamp"] if last_out else None,
-        "check_in_date": date_str,
-        "total_hours": total_hours,
-        "break_hours": round(break_duration, 2),
-        "actual_work": round(actual_work, 2),
-        "capacity": capacity,
-        "overtime": overtime,
-        "status": status,
-        "shift_name": shift.name if shift else "Standard",
-        "is_holiday": is_holiday
-    }
+        # Status calculation
+        status = "present"
+        
+        # Custom Logic for Rotational Step Timing
+        target_start_time = shift.start_time if shift else "08:00"
+        target_end_time = shift.end_time if shift else "17:00"
+        target_offset = getattr(shift, 'end_day_offset', 0) if shift else 0
+        
+        if shift and shift.shift_type == "rotational" and shift.rotation_pattern and assignment:
+            try:
+                seq = shift.rotation_pattern.get("sequence", [])
+                if seq and len(seq) > 0:
+                    assignment_start = assignment.start_date
+                    days_since_start = (check_in_dt.date() - assignment_start.date()).days
+                    step_index = days_since_start % len(seq)
+                    current_step = seq[step_index]
+                    
+                    if isinstance(current_step, dict):
+                        # Check for slot-based times
+                        slots = shift.rotation_pattern.get("slots", {})
+                        step_slots = current_step.get("slots", [])
+                        if step_slots and slots:
+                            # Use first slot for start, last for end
+                            first_slot = slots.get(step_slots[0], {})
+                            last_slot = slots.get(step_slots[-1], {})
+                            if "start" in first_slot: target_start_time = first_slot["start"]
+                            if "end" in last_slot: target_end_time = last_slot["end"]
+                        else:
+                            # Legacy/Direct dict fields
+                            if "start" in current_step: target_start_time = current_step["start"]
+                            if "end" in current_step: target_end_time = current_step["end"]
+                            
+                        if "offset" in current_step: target_offset = current_step["offset"]
+                    elif str(current_step).upper() == "OFF":
+                        status = "overtime" # Working on OFF day
+            except: pass
+
+        try:
+            if target_start_time:
+                shift_start_hour, shift_start_min = map(int, target_start_time.split(':'))
+                shift_in_dt = check_in_dt.replace(hour=shift_start_hour, minute=shift_start_min, second=0, microsecond=0)
+                
+                # Late check-in
+                if status != "overtime" and shift and check_in_dt > shift_in_dt + datetime.timedelta(minutes=shift.grace_period_in or 0):
+                    status = "late"
+                    
+            if last_out and target_end_time:
+                check_out_dt = datetime.datetime.fromisoformat(last_out["timestamp"])
+                shift_out_hour, shift_out_min = map(int, target_end_time.split(':'))
+                
+                shift_out_dt = shift_in_dt.replace(hour=shift_out_hour, minute=shift_out_min, second=0, microsecond=0)
+                
+                if target_offset > 0:
+                    shift_out_dt += datetime.timedelta(days=target_offset)
+                elif target_end_time < target_start_time:
+                    shift_out_dt += datetime.timedelta(days=1)
+                
+                # Early leave
+                if status != "overtime" and shift and check_out_dt < shift_out_dt - datetime.timedelta(minutes=shift.grace_period_out or 0):
+                    if status == "present": 
+                        status = "early_leave"
+                    elif status == "late":
+                        status = "late & early_leave"
+            elif not last_out:
+                status = "ongoing"
+        except:
+            pass
+                
+        return {
+            "employee_id": str(emp_id),
+            "employee_pk": str(emp_pk_str) if emp_pk_str else None,
+            "employee_name": emp_name,
+            "check_in": first_in["timestamp"],
+            "check_out": last_out["timestamp"] if last_out else None,
+            "check_in_date": date_str,
+            "total_hours": total_hours,
+            "break_hours": round(break_duration, 2),
+            "actual_work": round(actual_work, 2),
+            "capacity": capacity,
+            "overtime": overtime,
+            "status": status,
+            "shift_name": shift.name if shift else "Standard",
+            "is_holiday": is_holiday
+        }
+    except Exception as e:
+        print(f"CRITICAL ERROR in calculate_session_metrics: {e}")
+        return {
+            "employee_id": str(emp_id),
+            "status": "error",
+            "error": str(e)
+        }
 
 # --- SHIFT MANAGEMENT ---
 

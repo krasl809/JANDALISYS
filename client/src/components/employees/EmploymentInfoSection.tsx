@@ -1,14 +1,13 @@
 import React from 'react';
 import {
-  Card, CardContent, Grid, TextField, MenuItem, Typography, Box, Button,
-  IconButton, FormControl, FormLabel, RadioGroup, FormControlLabel, Radio,
-  InputAdornment, Autocomplete, Divider, List, ListItem, ListItemText,
-  ListItemSecondaryAction, Chip
+  Card, CardContent, Grid, TextField, MenuItem, Box, Button,
+  IconButton, InputAdornment, Autocomplete, Divider, Chip, Paper
 } from '@mui/material';
 import {
-  Work, AccountBalance, Person, Add, Delete, Business, Event,
-  TrendingUp, LocationOn, Schedule, AttachMoney
+  Person, Add, Delete, Business, Event,
+  TrendingUp, LocationOn, Schedule
 } from '@mui/icons-material';
+import { MDBox, MDTypography } from '../common/MDComponents';
 
 interface EmploymentInfoSectionProps {
   formData: any;
@@ -79,117 +78,128 @@ const EmploymentInfoSection: React.FC<EmploymentInfoSectionProps> = ({
     <Grid container spacing={3}>
       {/* Employment Details */}
       <Grid item xs={12}>
-        <Card elevation={0}>
-          <CardContent>
-            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, mb: 3 }}>
-              <Box sx={{ 
-                color: 'primary.main', 
-                display: 'flex', 
-                p: 0.5, 
-                borderRadius: 1, 
-                bgcolor: 'primary.light', 
-                opacity: 0.1 
-              }}>
-                <Work />
-              </Box>
-              <Typography variant="h6" fontWeight="bold">
-                Employment Details
-              </Typography>
-            </Box>
-
+        <Card sx={{ overflow: 'visible' }}>
+          <MDBox
+            variant="gradient"
+            bgColor="primary"
+            borderRadius="lg"
+            coloredShadow="primary"
+            mx={2}
+            mt={-3}
+            p={2}
+            mb={1}
+            textAlign="center"
+          >
+            <MDTypography variant="h6" fontWeight="medium" color="white">
+              Employment Details
+            </MDTypography>
+          </MDBox>
+          <CardContent sx={{ pt: 4 }}>
             <Grid container spacing={3}>
-              <Grid item xs={12} md={4}>
-                <Typography variant="caption" sx={{ fontWeight: 'bold', color: 'text.secondary', mb: 1, display: 'block' }}>
-                  Employee ID
-                </Typography>
+              <Grid item xs={12} md={6}>
+                <MDTypography variant="caption" fontWeight="bold" color="text" sx={{ mb: 1, display: 'block' }}>
+                  Employee ID (Required) *
+                </MDTypography>
+                <Box sx={{ display: 'flex', gap: 1 }}>
+                  <TextField
+                    fullWidth
+                    value={formData.employee_id || ''}
+                    onChange={(e) => onInputChange('employee_id', e.target.value)}
+                    placeholder="EMP-XXXXX"
+                    size="small"
+                    required
+                  />
+                  <Button
+                    variant="outlined"
+                    onClick={onGenerateEmployeeId}
+                    disabled={isGeneratingId}
+                    sx={{ minWidth: 100, borderRadius: 1 }}
+                  >
+                    {isGeneratingId ? '...' : 'Auto'}
+                  </Button>
+                </Box>
+              </Grid>
+
+              <Grid item xs={12} md={6}>
+                <MDTypography variant="caption" fontWeight="bold" color="text" sx={{ mb: 1, display: 'block' }}>
+                  Joining Date (Required) *
+                </MDTypography>
                 <TextField
                   fullWidth
-                  value={formData.employee_id || ''}
-                  onChange={(e) => onInputChange('employee_id', e.target.value)}
-                  placeholder="Enter or generate employee ID"
+                  type="date"
+                  value={formData.joining_date || ''}
+                  onChange={(e) => onInputChange('joining_date', e.target.value)}
                   size="small"
+                  required
+                  InputLabelProps={{ shrink: true }}
                   InputProps={{
-                    endAdornment: (
-                      <InputAdornment position="end">
-                        <Button
-                          size="small"
-                          onClick={onGenerateEmployeeId}
-                          disabled={isGeneratingId}
-                          variant="outlined"
-                        >
-                          {isGeneratingId ? 'Generating...' : 'Generate'}
-                        </Button>
-                      </InputAdornment>
-                    )
+                    startAdornment: <InputAdornment position="start" sx={{ color: 'text.disabled' }}><Event fontSize="small" /></InputAdornment>
                   }}
                 />
               </Grid>
 
-              <Grid item xs={12} md={4}>
-                <Typography variant="caption" sx={{ fontWeight: 'bold', color: 'text.secondary', mb: 1, display: 'block' }}>
-                  Company
-                </Typography>
-                <TextField
-                  fullWidth
-                  value={formData.company || ''}
-                  onChange={(e) => onInputChange('company', e.target.value)}
-                  placeholder="Enter company name"
-                  size="small"
-                  InputProps={{
-                    startAdornment: <InputAdornment position="start"><Business fontSize="small" /></InputAdornment>
-                  }}
-                />
-              </Grid>
-
-              <Grid item xs={12} md={4}>
-                <Typography variant="caption" sx={{ fontWeight: 'bold', color: 'text.secondary', mb: 1, display: 'block' }}>
+              <Grid item xs={12} md={6}>
+                <MDTypography variant="caption" fontWeight="bold" color="text" sx={{ mb: 1, display: 'block' }}>
                   Department
-                </Typography>
+                </MDTypography>
                 <Autocomplete
                   options={departments}
                   value={formData.department || ''}
                   onChange={(_, value) => onInputChange('department', value)}
                   renderInput={(params) => (
-                    <TextField {...params} size="small" placeholder="Select department" />
+                    <TextField 
+                      {...params} 
+                      size="small" 
+                      placeholder="Select department"
+                      InputProps={{
+                        ...params.InputProps,
+                        startAdornment: (
+                          <>
+                            <InputAdornment position="start" sx={{ color: 'text.disabled' }}><Business fontSize="small" /></InputAdornment>
+                            {params.InputProps.startAdornment}
+                          </>
+                        )
+                      }}
+                    />
                   )}
                 />
               </Grid>
 
-              <Grid item xs={12} md={4}>
-                <Typography variant="caption" sx={{ fontWeight: 'bold', color: 'text.secondary', mb: 1, display: 'block' }}>
-                  Position
-                </Typography>
+              <Grid item xs={12} md={6}>
+                <MDTypography variant="caption" fontWeight="bold" color="text" sx={{ mb: 1, display: 'block' }}>
+                  Position / Job Title
+                </MDTypography>
                 <Autocomplete
                   options={positions}
                   value={formData.position || ''}
                   onChange={(_, value) => onInputChange('position', value)}
                   renderInput={(params) => (
-                    <TextField {...params} size="small" placeholder="Select position" />
+                    <TextField 
+                      {...params} 
+                      size="small" 
+                      placeholder="Select position"
+                      InputProps={{
+                        ...params.InputProps,
+                        startAdornment: (
+                          <>
+                            <InputAdornment position="start" sx={{ color: 'text.disabled' }}><TrendingUp fontSize="small" /></InputAdornment>
+                            {params.InputProps.startAdornment}
+                          </>
+                        )
+                      }}
+                    />
                   )}
                 />
               </Grid>
 
-              <Grid item xs={12} md={4}>
-                <Typography variant="caption" sx={{ fontWeight: 'bold', color: 'text.secondary', mb: 1, display: 'block' }}>
-                  Job Title
-                </Typography>
-                <TextField
-                  fullWidth
-                  value={formData.job_title || ''}
-                  onChange={(e) => onInputChange('job_title', e.target.value)}
-                  placeholder="Specific job title"
-                  size="small"
-                />
-              </Grid>
-
-              <Grid item xs={12} md={4}>
-                <Typography variant="caption" sx={{ fontWeight: 'bold', color: 'text.secondary', mb: 1, display: 'block' }}>
+              <Grid item xs={12} md={6}>
+                <MDTypography variant="caption" fontWeight="bold" color="text" sx={{ mb: 1, display: 'block' }}>
                   Employment Type
-                </Typography>
+                </MDTypography>
                 <TextField
                   select
                   fullWidth
-                  value={formData.employment_type || 'full_time'}
+                  value={formData.employment_type || ''}
                   onChange={(e) => onInputChange('employment_type', e.target.value)}
                   size="small"
                 >
@@ -201,73 +211,53 @@ const EmploymentInfoSection: React.FC<EmploymentInfoSectionProps> = ({
                 </TextField>
               </Grid>
 
-              <Grid item xs={12} md={4}>
-                <Typography variant="caption" sx={{ fontWeight: 'bold', color: 'text.secondary', mb: 1, display: 'block' }}>
-                  Hire Date
-                </Typography>
-                <TextField
-                  fullWidth
-                  type="date"
-                  value={formData.hire_date || ''}
-                  onChange={(e) => onInputChange('hire_date', e.target.value)}
-                  size="small"
-                  InputLabelProps={{ shrink: true }}
-                  InputProps={{
-                    startAdornment: <InputAdornment position="start"><Event fontSize="small" /></InputAdornment>
-                  }}
-                />
-              </Grid>
-
               <Grid item xs={12} md={6}>
-                <Typography variant="caption" sx={{ fontWeight: 'bold', color: 'text.secondary', mb: 1, display: 'block' }}>
-                  Reporting To
-                </Typography>
-                <TextField
-                  fullWidth
-                  value={formData.reporting_to || ''}
-                  onChange={(e) => onInputChange('reporting_to', e.target.value)}
-                  placeholder="Manager or supervisor name"
-                  size="small"
-                  InputProps={{
-                    startAdornment: <InputAdornment position="start"><Person fontSize="small" /></InputAdornment>
-                  }}
-                />
-              </Grid>
-
-              <Grid item xs={12} md={6}>
-                <Typography variant="caption" sx={{ fontWeight: 'bold', color: 'text.secondary', mb: 1, display: 'block' }}>
+                <MDTypography variant="caption" fontWeight="bold" color="text" sx={{ mb: 1, display: 'block' }}>
                   Work Location
-                </Typography>
+                </MDTypography>
                 <TextField
                   fullWidth
                   value={formData.work_location || ''}
                   onChange={(e) => onInputChange('work_location', e.target.value)}
-                  placeholder="Office location or remote"
+                  placeholder="Office or remote"
                   size="small"
                   InputProps={{
-                    startAdornment: <InputAdornment position="start"><LocationOn fontSize="small" /></InputAdornment>
+                    startAdornment: <InputAdornment position="start" sx={{ color: 'text.disabled' }}><LocationOn fontSize="small" /></InputAdornment>
                   }}
                 />
               </Grid>
 
               <Grid item xs={12} md={6}>
-                <Typography variant="caption" sx={{ fontWeight: 'bold', color: 'text.secondary', mb: 1, display: 'block' }}>
+                <MDTypography variant="caption" fontWeight="bold" color="text" sx={{ mb: 1, display: 'block' }}>
                   Work Schedule
-                </Typography>
+                </MDTypography>
                 <Autocomplete
                   options={workSchedules}
                   value={formData.work_schedule || ''}
                   onChange={(_, value) => onInputChange('work_schedule', value)}
                   renderInput={(params) => (
-                    <TextField {...params} size="small" placeholder="Select work schedule" />
+                    <TextField 
+                      {...params} 
+                      size="small" 
+                      placeholder="Select schedule"
+                      InputProps={{
+                        ...params.InputProps,
+                        startAdornment: (
+                          <>
+                            <InputAdornment position="start" sx={{ color: 'text.disabled' }}><Schedule fontSize="small" /></InputAdornment>
+                            {params.InputProps.startAdornment}
+                          </>
+                        )
+                      }}
+                    />
                   )}
                 />
               </Grid>
 
               <Grid item xs={12} md={6}>
-                <Typography variant="caption" sx={{ fontWeight: 'bold', color: 'text.secondary', mb: 1, display: 'block' }}>
+                <MDTypography variant="caption" fontWeight="bold" color="text" sx={{ mb: 1, display: 'block' }}>
                   Status
-                </Typography>
+                </MDTypography>
                 <TextField
                   select
                   fullWidth
@@ -290,29 +280,28 @@ const EmploymentInfoSection: React.FC<EmploymentInfoSectionProps> = ({
 
       {/* Salary Information */}
       <Grid item xs={12}>
-        <Card elevation={0}>
-          <CardContent>
-            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, mb: 3 }}>
-              <Box sx={{ 
-                color: 'success.main', 
-                display: 'flex', 
-                p: 0.5, 
-                borderRadius: 1, 
-                bgcolor: 'success.light', 
-                opacity: 0.1 
-              }}>
-                <AttachMoney />
-              </Box>
-              <Typography variant="h6" fontWeight="bold">
-                Salary Information
-              </Typography>
-            </Box>
-
+        <Card sx={{ overflow: 'visible', mt: 4 }}>
+          <MDBox
+            variant="gradient"
+            bgColor="success"
+            borderRadius="lg"
+            coloredShadow="success"
+            mx={2}
+            mt={-3}
+            p={2}
+            mb={1}
+            textAlign="center"
+          >
+            <MDTypography variant="h6" fontWeight="medium" color="white">
+              Salary Information
+            </MDTypography>
+          </MDBox>
+          <CardContent sx={{ pt: 4 }}>
             <Grid container spacing={3}>
               <Grid item xs={12} md={4}>
-                <Typography variant="caption" sx={{ fontWeight: 'bold', color: 'text.secondary', mb: 1, display: 'block' }}>
+                <MDTypography variant="caption" fontWeight="bold" color="text" sx={{ mb: 1, display: 'block' }}>
                   Basic Salary (Required) *
-                </Typography>
+                </MDTypography>
                 <TextField
                   fullWidth
                   type="number"
@@ -321,15 +310,15 @@ const EmploymentInfoSection: React.FC<EmploymentInfoSectionProps> = ({
                   placeholder="0.00"
                   size="small"
                   InputProps={{
-                    startAdornment: <InputAdornment position="start">$</InputAdornment>
+                    startAdornment: <InputAdornment position="start" sx={{ color: 'text.disabled' }}>$</InputAdornment>
                   }}
                 />
               </Grid>
 
               <Grid item xs={12} md={4}>
-                <Typography variant="caption" sx={{ fontWeight: 'bold', color: 'text.secondary', mb: 1, display: 'block' }}>
+                <MDTypography variant="caption" fontWeight="bold" color="text" sx={{ mb: 1, display: 'block' }}>
                   Currency
-                </Typography>
+                </MDTypography>
                 <TextField
                   select
                   fullWidth
@@ -346,9 +335,9 @@ const EmploymentInfoSection: React.FC<EmploymentInfoSectionProps> = ({
               </Grid>
 
               <Grid item xs={12} md={4}>
-                <Typography variant="caption" sx={{ fontWeight: 'bold', color: 'text.secondary', mb: 1, display: 'block' }}>
+                <MDTypography variant="caption" fontWeight="bold" color="text" sx={{ mb: 1, display: 'block' }}>
                   Effective Date
-                </Typography>
+                </MDTypography>
                 <TextField
                   fullWidth
                   type="date"
@@ -360,17 +349,17 @@ const EmploymentInfoSection: React.FC<EmploymentInfoSectionProps> = ({
               </Grid>
             </Grid>
 
-            <Divider sx={{ my: 3 }} />
+            <Divider sx={{ my: 4, opacity: 0.6 }} />
 
-            <Typography variant="subtitle2" fontWeight="bold" sx={{ mb: 2, color: 'text.secondary' }}>
-              Allowances
-            </Typography>
+            <MDTypography variant="subtitle2" fontWeight="bold" sx={{ mb: 3, color: 'text.primary' }}>
+              Monthly Allowances
+            </MDTypography>
 
             <Grid container spacing={3}>
               <Grid item xs={12} md={6}>
-                <Typography variant="caption" sx={{ fontWeight: 'bold', color: 'text.secondary', mb: 1, display: 'block' }}>
+                <MDTypography variant="caption" fontWeight="bold" color="text" sx={{ mb: 1, display: 'block' }}>
                   Housing Allowance
-                </Typography>
+                </MDTypography>
                 <TextField
                   fullWidth
                   type="number"
@@ -379,15 +368,15 @@ const EmploymentInfoSection: React.FC<EmploymentInfoSectionProps> = ({
                   placeholder="0.00"
                   size="small"
                   InputProps={{
-                    startAdornment: <InputAdornment position="start">$</InputAdornment>
+                    startAdornment: <InputAdornment position="start" sx={{ color: 'text.disabled' }}>$</InputAdornment>
                   }}
                 />
               </Grid>
 
               <Grid item xs={12} md={6}>
-                <Typography variant="caption" sx={{ fontWeight: 'bold', color: 'text.secondary', mb: 1, display: 'block' }}>
+                <MDTypography variant="caption" fontWeight="bold" color="text" sx={{ mb: 1, display: 'block' }}>
                   Transport Allowance
-                </Typography>
+                </MDTypography>
                 <TextField
                   fullWidth
                   type="number"
@@ -396,15 +385,15 @@ const EmploymentInfoSection: React.FC<EmploymentInfoSectionProps> = ({
                   placeholder="0.00"
                   size="small"
                   InputProps={{
-                    startAdornment: <InputAdornment position="start">$</InputAdornment>
+                    startAdornment: <InputAdornment position="start" sx={{ color: 'text.disabled' }}>$</InputAdornment>
                   }}
                 />
               </Grid>
 
-              <Grid item xs={12} md={6}>
-                <Typography variant="caption" sx={{ fontWeight: 'bold', color: 'text.secondary', mb: 1, display: 'block' }}>
+              <Grid item xs={12} md={4}>
+                <MDTypography variant="caption" fontWeight="bold" color="text" sx={{ mb: 1, display: 'block' }}>
                   Food Allowance
-                </Typography>
+                </MDTypography>
                 <TextField
                   fullWidth
                   type="number"
@@ -413,15 +402,15 @@ const EmploymentInfoSection: React.FC<EmploymentInfoSectionProps> = ({
                   placeholder="0.00"
                   size="small"
                   InputProps={{
-                    startAdornment: <InputAdornment position="start">$</InputAdornment>
+                    startAdornment: <InputAdornment position="start" sx={{ color: 'text.disabled' }}>$</InputAdornment>
                   }}
                 />
               </Grid>
 
-              <Grid item xs={12} md={6}>
-                <Typography variant="caption" sx={{ fontWeight: 'bold', color: 'text.secondary', mb: 1, display: 'block' }}>
+              <Grid item xs={12} md={4}>
+                <MDTypography variant="caption" fontWeight="bold" color="text" sx={{ mb: 1, display: 'block' }}>
                   Medical Allowance
-                </Typography>
+                </MDTypography>
                 <TextField
                   fullWidth
                   type="number"
@@ -430,15 +419,15 @@ const EmploymentInfoSection: React.FC<EmploymentInfoSectionProps> = ({
                   placeholder="0.00"
                   size="small"
                   InputProps={{
-                    startAdornment: <InputAdornment position="start">$</InputAdornment>
+                    startAdornment: <InputAdornment position="start" sx={{ color: 'text.disabled' }}>$</InputAdornment>
                   }}
                 />
               </Grid>
 
-              <Grid item xs={12} md={6}>
-                <Typography variant="caption" sx={{ fontWeight: 'bold', color: 'text.secondary', mb: 1, display: 'block' }}>
+              <Grid item xs={12} md={4}>
+                <MDTypography variant="caption" fontWeight="bold" color="text" sx={{ mb: 1, display: 'block' }}>
                   Other Allowances
-                </Typography>
+                </MDTypography>
                 <TextField
                   fullWidth
                   type="number"
@@ -447,23 +436,23 @@ const EmploymentInfoSection: React.FC<EmploymentInfoSectionProps> = ({
                   placeholder="0.00"
                   size="small"
                   InputProps={{
-                    startAdornment: <InputAdornment position="start">$</InputAdornment>
+                    startAdornment: <InputAdornment position="start" sx={{ color: 'text.disabled' }}>$</InputAdornment>
                   }}
                 />
               </Grid>
             </Grid>
 
-            <Divider sx={{ my: 3 }} />
+            <Divider sx={{ my: 4, opacity: 0.6 }} />
 
-            <Typography variant="subtitle2" fontWeight="bold" sx={{ mb: 2, color: 'text.secondary' }}>
-              Deductions
-            </Typography>
+            <MDTypography variant="subtitle2" fontWeight="bold" sx={{ mb: 3, color: 'text.primary' }}>
+              Monthly Deductions
+            </MDTypography>
 
             <Grid container spacing={3}>
               <Grid item xs={12} md={4}>
-                <Typography variant="caption" sx={{ fontWeight: 'bold', color: 'text.secondary', mb: 1, display: 'block' }}>
+                <MDTypography variant="caption" fontWeight="bold" color="text" sx={{ mb: 1, display: 'block' }}>
                   Tax Deduction
-                </Typography>
+                </MDTypography>
                 <TextField
                   fullWidth
                   type="number"
@@ -472,15 +461,15 @@ const EmploymentInfoSection: React.FC<EmploymentInfoSectionProps> = ({
                   placeholder="0.00"
                   size="small"
                   InputProps={{
-                    startAdornment: <InputAdornment position="start">$</InputAdornment>
+                    startAdornment: <InputAdornment position="start" sx={{ color: 'text.disabled' }}>$</InputAdornment>
                   }}
                 />
               </Grid>
 
               <Grid item xs={12} md={4}>
-                <Typography variant="caption" sx={{ fontWeight: 'bold', color: 'text.secondary', mb: 1, display: 'block' }}>
+                <MDTypography variant="caption" fontWeight="bold" color="text" sx={{ mb: 1, display: 'block' }}>
                   Insurance Deduction
-                </Typography>
+                </MDTypography>
                 <TextField
                   fullWidth
                   type="number"
@@ -489,15 +478,15 @@ const EmploymentInfoSection: React.FC<EmploymentInfoSectionProps> = ({
                   placeholder="0.00"
                   size="small"
                   InputProps={{
-                    startAdornment: <InputAdornment position="start">$</InputAdornment>
+                    startAdornment: <InputAdornment position="start" sx={{ color: 'text.disabled' }}>$</InputAdornment>
                   }}
                 />
               </Grid>
 
               <Grid item xs={12} md={4}>
-                <Typography variant="caption" sx={{ fontWeight: 'bold', color: 'text.secondary', mb: 1, display: 'block' }}>
+                <MDTypography variant="caption" fontWeight="bold" color="text" sx={{ mb: 1, display: 'block' }}>
                   Other Deductions
-                </Typography>
+                </MDTypography>
                 <TextField
                   fullWidth
                   type="number"
@@ -506,7 +495,7 @@ const EmploymentInfoSection: React.FC<EmploymentInfoSectionProps> = ({
                   placeholder="0.00"
                   size="small"
                   InputProps={{
-                    startAdornment: <InputAdornment position="start">$</InputAdornment>
+                    startAdornment: <InputAdornment position="start" sx={{ color: 'text.disabled' }}>$</InputAdornment>
                   }}
                 />
               </Grid>
@@ -517,29 +506,28 @@ const EmploymentInfoSection: React.FC<EmploymentInfoSectionProps> = ({
 
       {/* Bank Information */}
       <Grid item xs={12}>
-        <Card elevation={0}>
-          <CardContent>
-            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, mb: 3 }}>
-              <Box sx={{ 
-                color: 'info.main', 
-                display: 'flex', 
-                p: 0.5, 
-                borderRadius: 1, 
-                bgcolor: 'info.light', 
-                opacity: 0.1 
-              }}>
-                <AccountBalance />
-              </Box>
-              <Typography variant="h6" fontWeight="bold">
-                Bank Information
-              </Typography>
-            </Box>
-
+        <Card sx={{ overflow: 'visible', mt: 4 }}>
+          <MDBox
+            variant="gradient"
+            bgColor="info"
+            borderRadius="lg"
+            coloredShadow="info"
+            mx={2}
+            mt={-3}
+            p={2}
+            mb={1}
+            textAlign="center"
+          >
+            <MDTypography variant="h6" fontWeight="medium" color="white">
+              Bank Information
+            </MDTypography>
+          </MDBox>
+          <CardContent sx={{ pt: 4 }}>
             <Grid container spacing={3}>
               <Grid item xs={12} md={6}>
-                <Typography variant="caption" sx={{ fontWeight: 'bold', color: 'text.secondary', mb: 1, display: 'block' }}>
+                <MDTypography variant="caption" fontWeight="bold" color="text" sx={{ mb: 1, display: 'block' }}>
                   Bank Name
-                </Typography>
+                </MDTypography>
                 <TextField
                   fullWidth
                   value={formData.bank_info?.bank_name || ''}
@@ -550,9 +538,9 @@ const EmploymentInfoSection: React.FC<EmploymentInfoSectionProps> = ({
               </Grid>
 
               <Grid item xs={12} md={6}>
-                <Typography variant="caption" sx={{ fontWeight: 'bold', color: 'text.secondary', mb: 1, display: 'block' }}>
+                <MDTypography variant="caption" fontWeight="bold" color="text" sx={{ mb: 1, display: 'block' }}>
                   Bank Account Number
-                </Typography>
+                </MDTypography>
                 <TextField
                   fullWidth
                   value={formData.bank_info?.bank_account || ''}
@@ -563,9 +551,9 @@ const EmploymentInfoSection: React.FC<EmploymentInfoSectionProps> = ({
               </Grid>
 
               <Grid item xs={12} md={6}>
-                <Typography variant="caption" sx={{ fontWeight: 'bold', color: 'text.secondary', mb: 1, display: 'block' }}>
+                <MDTypography variant="caption" fontWeight="bold" color="text" sx={{ mb: 1, display: 'block' }}>
                   IBAN
-                </Typography>
+                </MDTypography>
                 <TextField
                   fullWidth
                   value={formData.bank_info?.iban || ''}
@@ -576,9 +564,9 @@ const EmploymentInfoSection: React.FC<EmploymentInfoSectionProps> = ({
               </Grid>
 
               <Grid item xs={12} md={6}>
-                <Typography variant="caption" sx={{ fontWeight: 'bold', color: 'text.secondary', mb: 1, display: 'block' }}>
+                <MDTypography variant="caption" fontWeight="bold" color="text" sx={{ mb: 1, display: 'block' }}>
                   SWIFT Code
-                </Typography>
+                </MDTypography>
                 <TextField
                   fullWidth
                   value={formData.bank_info?.swift_code || ''}
@@ -594,165 +582,172 @@ const EmploymentInfoSection: React.FC<EmploymentInfoSectionProps> = ({
 
       {/* Emergency Contacts */}
       <Grid item xs={12}>
-        <Card elevation={0}>
-          <CardContent>
-            <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 3 }}>
-              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
-                <Box sx={{ 
-                  color: 'warning.main', 
-                  display: 'flex', 
-                  p: 0.5, 
-                  borderRadius: 1, 
-                  bgcolor: 'warning.light', 
-                  opacity: 0.1 
-                }}>
-                  <Person />
-                </Box>
-                <Typography variant="h6" fontWeight="bold">
-                  Emergency Contacts
-                </Typography>
-              </Box>
+        <Card sx={{ overflow: 'visible', mt: 4 }}>
+          <MDBox
+            variant="gradient"
+            bgColor="warning"
+            borderRadius="lg"
+            coloredShadow="warning"
+            mx={2}
+            mt={-3}
+            p={2}
+            mb={1}
+            textAlign="center"
+          >
+            <MDTypography variant="h6" fontWeight="medium" color="white">
+              Emergency Contacts
+            </MDTypography>
+          </MDBox>
+          <CardContent sx={{ pt: 4 }}>
+            <MDBox sx={{ display: 'flex', justifyContent: 'flex-end', mb: 2 }}>
               <Button
                 variant="outlined"
+                color="primary"
+                size="small"
                 startIcon={<Add />}
                 onClick={onAddEmergencyContact}
-                size="small"
+                sx={{ borderRadius: 2 }}
               >
                 Add Contact
               </Button>
-            </Box>
+            </MDBox>
 
             {emergencyContacts.length === 0 ? (
-              <Typography variant="body2" color="text.secondary" sx={{ textAlign: 'center', py: 4 }}>
-                No emergency contacts added yet. Click "Add Contact" to add one.
-              </Typography>
+              <Box sx={{ py: 6, display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center' }}>
+                <Person sx={{ fontSize: 48, color: 'text.disabled', mb: 2, opacity: 0.5 }} />
+                <MDTypography variant="body1" color="text" fontWeight="medium">
+                  No emergency contacts added yet
+                </MDTypography>
+                <MDTypography variant="caption" color="text">
+                  Click the button above to add your first contact
+                </MDTypography>
+              </Box>
             ) : (
-              <List>
+              <Grid container spacing={3}>
                 {emergencyContacts.map((contact, index) => (
-                  <ListItem key={index} sx={{ border: '1px solid', borderColor: 'divider', borderRadius: 1, mb: 2 }}>
-                    <ListItemText
-                      primary={
-                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                          <Typography variant="subtitle2" fontWeight="bold">
-                            {contact.full_name || 'Unnamed Contact'}
-                          </Typography>
-                          {contact.primary_contact && (
-                            <Chip label="Primary" size="small" color="primary" />
+                  <Grid item xs={12} key={index}>
+                    <Paper 
+                      variant="outlined" 
+                      sx={{ 
+                        p: 3, 
+                        borderRadius: 2,
+                        bgcolor: 'background.paper',
+                        transition: 'all 0.2s',
+                        '&:hover': {
+                          borderColor: 'primary.main',
+                          boxShadow: '0 4px 12px rgba(0,0,0,0.05)'
+                        }
+                      }}
+                    >
+                      <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 3 }}>
+                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
+                          <MDTypography variant="subtitle2" fontWeight="bold">
+                            Contact #{index + 1}
+                          </MDTypography>
+                          {index === 0 && (
+                            <Chip 
+                              label="Primary" 
+                              size="small" 
+                              color="primary" 
+                              sx={{ fontWeight: 'bold', borderRadius: 1 }} 
+                            />
                           )}
                         </Box>
-                      }
-                      secondary={
-                        <Box>
-                          <Typography variant="body2" color="text.secondary">
-                            {contact.relationship} • {contact.phone_primary}
-                          </Typography>
-                          {contact.email && (
-                            <Typography variant="body2" color="text.secondary">
-                              {contact.email}
-                            </Typography>
-                          )}
-                        </Box>
-                      }
-                    />
-                    <ListItemSecondaryAction>
-                      <IconButton
-                        edge="end"
-                        onClick={() => onRemoveEmergencyContact(index)}
-                        color="error"
-                      >
-                        <Delete />
-                      </IconButton>
-                    </ListItemSecondaryAction>
-                  </ListItem>
-                ))}
-              </List>
-            )}
+                        <IconButton
+                          size="small"
+                          onClick={() => onRemoveEmergencyContact(index)}
+                          color="error"
+                          sx={{ bgcolor: 'error.lighter', '&:hover': { bgcolor: 'error.light' } }}
+                        >
+                          <Delete fontSize="small" />
+                        </IconButton>
+                      </Box>
 
-            {emergencyContacts.length > 0 && (
-              <>
-                <Divider sx={{ my: 3 }} />
-                <Typography variant="subtitle2" fontWeight="bold" sx={{ mb: 2, color: 'text.secondary' }}>
-                  Contact Details
-                </Typography>
-                <Grid container spacing={3}>
-                  {emergencyContacts.map((contact, index) => (
-                    <Grid item xs={12} key={index}>
-                      <Card variant="outlined" sx={{ mb: 2 }}>
-                        <CardContent>
-                          <Typography variant="subtitle2" fontWeight="bold" sx={{ mb: 2 }}>
-                            Contact {index + 1}
-                          </Typography>
-                          <Grid container spacing={2}>
-                            <Grid item xs={12} md={4}>
-                              <TextField
-                                fullWidth
-                                label="Full Name"
-                                value={contact.full_name || ''}
-                                onChange={(e) => onUpdateEmergencyContact(index, 'full_name', e.target.value)}
-                                size="small"
-                                required
-                              />
-                            </Grid>
-                            <Grid item xs={12} md={4}>
-                              <TextField
-                                fullWidth
-                                select
-                                label="Relationship"
-                                value={contact.relationship || ''}
-                                onChange={(e) => onUpdateEmergencyContact(index, 'relationship', e.target.value)}
-                                size="small"
-                              >
-                                {relationships.map((rel) => (
-                                  <MenuItem key={rel} value={rel}>
-                                    {rel}
-                                  </MenuItem>
-                                ))}
-                              </TextField>
-                            </Grid>
-                            <Grid item xs={12} md={4}>
-                              <TextField
-                                fullWidth
-                                label="Primary Phone"
-                                value={contact.phone_primary || ''}
-                                onChange={(e) => onUpdateEmergencyContact(index, 'phone_primary', e.target.value)}
-                                size="small"
-                              />
-                            </Grid>
-                            <Grid item xs={12} md={4}>
-                              <TextField
-                                fullWidth
-                                label="Secondary Phone"
-                                value={contact.phone_secondary || ''}
-                                onChange={(e) => onUpdateEmergencyContact(index, 'phone_secondary', e.target.value)}
-                                size="small"
-                              />
-                            </Grid>
-                            <Grid item xs={12} md={4}>
-                              <TextField
-                                fullWidth
-                                type="email"
-                                label="Email"
-                                value={contact.email || ''}
-                                onChange={(e) => onUpdateEmergencyContact(index, 'email', e.target.value)}
-                                size="small"
-                              />
-                            </Grid>
-                            <Grid item xs={12} md={4}>
-                              <TextField
-                                fullWidth
-                                label="Address"
-                                value={contact.address || ''}
-                                onChange={(e) => onUpdateEmergencyContact(index, 'address', e.target.value)}
-                                size="small"
-                              />
-                            </Grid>
-                          </Grid>
-                        </CardContent>
-                      </Card>
-                    </Grid>
-                  ))}
-                </Grid>
-              </>
+                      <Grid container spacing={3}>
+                        <Grid item xs={12} md={4}>
+                          <MDTypography variant="caption" fontWeight="bold" color="text" sx={{ mb: 1, display: 'block' }}>
+                            Full Name
+                          </MDTypography>
+                          <TextField
+                            fullWidth
+                            value={contact.full_name || ''}
+                            onChange={(e) => onUpdateEmergencyContact(index, 'full_name', e.target.value)}
+                            placeholder="Enter full name"
+                            size="small"
+                          />
+                        </Grid>
+                        <Grid item xs={12} md={4}>
+                          <MDTypography variant="caption" fontWeight="bold" color="text" sx={{ mb: 1, display: 'block' }}>
+                            Relationship
+                          </MDTypography>
+                          <TextField
+                            fullWidth
+                            select
+                            value={contact.relationship || ''}
+                            onChange={(e) => onUpdateEmergencyContact(index, 'relationship', e.target.value)}
+                            size="small"
+                          >
+                            {relationships.map((rel) => (
+                              <MenuItem key={rel} value={rel}>
+                                {rel}
+                              </MenuItem>
+                            ))}
+                          </TextField>
+                        </Grid>
+                        <Grid item xs={12} md={4}>
+                          <MDTypography variant="caption" fontWeight="bold" color="text" sx={{ mb: 1, display: 'block' }}>
+                            Primary Phone
+                          </MDTypography>
+                          <TextField
+                            fullWidth
+                            value={contact.phone_primary || ''}
+                            onChange={(e) => onUpdateEmergencyContact(index, 'phone_primary', e.target.value)}
+                            placeholder="Enter phone number"
+                            size="small"
+                          />
+                        </Grid>
+                        <Grid item xs={12} md={4}>
+                          <MDTypography variant="caption" fontWeight="bold" color="text" sx={{ mb: 1, display: 'block' }}>
+                            Secondary Phone
+                          </MDTypography>
+                          <TextField
+                            fullWidth
+                            value={contact.phone_secondary || ''}
+                            onChange={(e) => onUpdateEmergencyContact(index, 'phone_secondary', e.target.value)}
+                            placeholder="Optional"
+                            size="small"
+                          />
+                        </Grid>
+                        <Grid item xs={12} md={4}>
+                          <MDTypography variant="caption" fontWeight="bold" color="text" sx={{ mb: 1, display: 'block' }}>
+                            Email
+                          </MDTypography>
+                          <TextField
+                            fullWidth
+                            type="email"
+                            value={contact.email || ''}
+                            onChange={(e) => onUpdateEmergencyContact(index, 'email', e.target.value)}
+                            placeholder="email@example.com"
+                            size="small"
+                          />
+                        </Grid>
+                        <Grid item xs={12} md={4}>
+                          <MDTypography variant="caption" fontWeight="bold" color="text" sx={{ mb: 1, display: 'block' }}>
+                            Address
+                          </MDTypography>
+                          <TextField
+                            fullWidth
+                            value={contact.address || ''}
+                            onChange={(e) => onUpdateEmergencyContact(index, 'address', e.target.value)}
+                            placeholder="City, Street, Building"
+                            size="small"
+                          />
+                        </Grid>
+                      </Grid>
+                    </Paper>
+                  </Grid>
+                ))}
+              </Grid>
             )}
           </CardContent>
         </Card>

@@ -101,6 +101,22 @@ class Shipper(Base):
     email = Column(String(255))
     created_at = Column(DateTime, default=func.now())
 
+class ExchangeQuoteUnit(Base):
+    """
+    Units used in market exchanges (e.g., CBOT, ICE) and their conversion factors to $/MT.
+    Factor is what you multiply the quote by to get $/MT (if quote is in $/unit) 
+    or what you use to convert quote to $/MT.
+    """
+    __tablename__ = "exchange_quote_units"
+    __table_args__ = {'extend_existing': True}
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    name = Column(String(100), unique=True, nullable=False) # e.g., cents/lb, $/short ton
+    symbol = Column(String(20))
+    factor = Column(DECIMAL(20, 10), nullable=False) # Factor to convert to MT
+    description = Column(String(255))
+    created_at = Column(DateTime, default=func.now())
+
 class Article(Base):
     __tablename__ = "articles"
     __table_args__ = {'extend_existing': True}

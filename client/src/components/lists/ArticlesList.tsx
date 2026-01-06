@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import api from '../../services/api';
+import { useConfirm } from '../../context/ConfirmContext';
 import { v4 as uuidv4 } from 'uuid';
 import {
   Container,
@@ -43,8 +44,7 @@ import {
   Label,
   Save,
   Close,
-  FilterListOff,
-  MoreVert
+  FilterListOff
 } from '@mui/icons-material';
 import { motion, AnimatePresence } from 'framer-motion';
 
@@ -58,6 +58,7 @@ interface Article {
 
 const ArticlesList: React.FC = () => {
   const { t } = useTranslation();
+  const { confirm } = useConfirm();
   const theme = useTheme();
   // ✅ هوك لاكتشاف حجم الشاشة
   const isMobile = useMediaQuery(theme.breakpoints.down('md'));
@@ -85,8 +86,9 @@ const ArticlesList: React.FC = () => {
   }, []);
 
   const fetchArticles = async () => {
+    setLoading(true);
     try {
-      const response = await api.get('/articles/');
+      const response = await api.get('articles/');
       setArticles(response.data);
     } catch (err: any) {
       console.error('Error fetching articles:', err);
@@ -104,7 +106,7 @@ const ArticlesList: React.FC = () => {
 
     try {
       const articleWithId = { ...newArticle, id: uuidv4() };
-      const response = await api.post('/articles/', articleWithId);
+      const response = await api.post('articles/', articleWithId);
       
       setArticles((prev) => [...prev, response.data]);
       setNewArticle({ article_name: '', uom: '', item_code: '' });
@@ -120,7 +122,7 @@ const ArticlesList: React.FC = () => {
     if (!currentArticle) return;
 
     try {
-      const response = await api.put(`/articles/${currentArticle.id}`, currentArticle);
+      const response = await api.put(`articles/${currentArticle.id}`, currentArticle);
       setArticles(articles.map(article => 
         article.id === currentArticle.id ? response.data : article
       ));
@@ -133,10 +135,10 @@ const ArticlesList: React.FC = () => {
   };
 
   const handleDeleteArticle = async (id: string) => {
-    if (!window.confirm(t('confirmDelete'))) return;
+    if (!await confirm({ message: t('confirmDelete') })) return;
 
     try {
-      await api.delete(`/articles/${id}`);
+      await api.delete(`articles/${id}`);
       setArticles(articles.filter(a => a.id !== id));
     } catch (err: any) {
       console.error('Error deleting article:', err);

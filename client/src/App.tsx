@@ -26,6 +26,7 @@ import ProtectedRoute from './components/auth/ProtectedRoute';
 import Login from './components/auth/Login';
 import MainLayout from './components/layout/MainLayout';
 import Dashboard from './components/layout/Dashboard';
+import PWAUpdater from './components/common/PWAUpdater';
 
 // Lazy load page components
 const Reports = lazy(() => import('./components/pages/Reports'));
@@ -74,6 +75,7 @@ const LoadingFallback = () => (
 function App() {
   return (
     <AppThemeProvider>
+      <PWAUpdater />
       <Router future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
         <Suspense fallback={<LoadingFallback />}>
           <Routes>

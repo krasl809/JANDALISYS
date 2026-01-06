@@ -1,15 +1,17 @@
 import React, { useEffect, useState } from 'react';
 import {
-    Box, Typography, Grid, Paper, Button, TextField, Dialog, DialogTitle,
+    Box, Typography, Grid, Button, TextField, Dialog, DialogTitle,
     DialogContent, DialogActions, Chip, IconButton, Card, CardContent, Divider, Alert,
     Select, MenuItem, FormControl, InputLabel
 } from '@mui/material';
-import { Add, Delete, Edit, Scanner, Settings as SettingsIcon } from '@mui/icons-material';
+import { Add, Delete, Edit, Scanner } from '@mui/icons-material';
 import api from '../../services/api';
 import { useTranslation } from 'react-i18next';
+import { useConfirm } from '../../context/ConfirmContext';
 
 const ArchiveSettings: React.FC = () => {
     const { t } = useTranslation();
+    const { confirm } = useConfirm();
     const [scanners, setScanners] = useState<any[]>([]);
     const [openAdd, setOpenAdd] = useState(false);
     const [openEdit, setOpenEdit] = useState(false);
@@ -24,7 +26,7 @@ const ArchiveSettings: React.FC = () => {
 
     const fetchScanners = async () => {
         try {
-            const res = await api.get('/archive/scanners');
+            const res = await api.get('archive/scanners');
             setScanners(res.data);
         } catch (error) {
             console.error(error);
@@ -37,7 +39,7 @@ const ArchiveSettings: React.FC = () => {
 
     const handleAdd = async () => {
         try {
-            await api.post('/archive/scanners', newScanner);
+            await api.post('archive/scanners', newScanner);
             setOpenAdd(false);
             setNewScanner({
                 name: '',
@@ -59,7 +61,7 @@ const ArchiveSettings: React.FC = () => {
 
     const handleUpdate = async () => {
         try {
-            await api.put(`/archive/scanners/${editingScanner.id}`, editingScanner);
+            await api.put(`archive/scanners/${editingScanner.id}`, editingScanner);
             setOpenEdit(false);
             setEditingScanner(null);
             fetchScanners();
@@ -70,9 +72,9 @@ const ArchiveSettings: React.FC = () => {
     };
 
     const handleDelete = async (id: number) => {
-        if (window.confirm(t('Are you sure you want to delete this scanner?'))) {
+        if (await confirm({ message: t('Are you sure you want to delete this scanner?') })) {
             try {
-                await api.delete(`/archive/scanners/${id}`);
+                await api.delete(`archive/scanners/${id}`);
                 fetchScanners();
                 setFeedback({ type: 'success', msg: t('Scanner deleted successfully') });
             } catch (error) {

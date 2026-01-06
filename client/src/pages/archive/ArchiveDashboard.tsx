@@ -1,6 +1,6 @@
-import { useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
-  Box, Container, Typography, Grid, Card, CardContent, 
+  Box, Container, Typography, Grid, 
   IconButton, useTheme, CircularProgress, Alert, Paper,
   Stack, Divider, Button, alpha, Avatar
 } from '@mui/material';
@@ -9,7 +9,6 @@ import {
   History, Print, 
   CloudUpload, Download, FileOpen
 } from '@mui/icons-material';
-import { motion } from 'framer-motion';
 import {
   XAxis, YAxis, Tooltip as RechartsTooltip, 
   ResponsiveContainer, Cell, PieChart, Pie, AreaChart, Area
@@ -34,7 +33,7 @@ const ArchiveDashboard = () => {
   const fetchStats = async () => {
     try {
       setLoading(true);
-      const response = await api.get('/archive/stats');
+      const response = await api.get('archive/stats');
       setStats(response.data);
       setError(null);
     } catch (err) {
@@ -67,29 +66,29 @@ const ArchiveDashboard = () => {
   const COLORS = [theme.palette.primary.main, theme.palette.secondary.main, theme.palette.success.main, theme.palette.warning.main, theme.palette.error.main];
 
   return (
-    <Container maxWidth="xl" sx={{ mt: 4, mb: 4 }}>
-      <Box display="flex" justifyContent="space-between" alignItems="center" mb={4} sx={{ flexDirection: isRtl ? 'row-reverse' : 'row' }}>
-        <Box sx={{ textAlign: isRtl ? 'right' : 'left' }}>
-          <Typography variant="h4" fontWeight="800" color="primary">
+    <Box sx={{ p: { xs: 2, md: 4 }, bgcolor: 'background.default', minHeight: '100vh' }}>
+      <Box mb={6} display="flex" justifyContent="space-between" alignItems="center">
+        <Box>
+          <Typography variant="h4" fontWeight="700" sx={{ mb: 1, color: 'text.primary' }}>
             {t('archive.dashboard')}
           </Typography>
-          <Typography variant="body1" color="textSecondary">
+          <Typography variant="body2" color="text.secondary">
             {t('archive.system_overview')}
           </Typography>
         </Box>
         <Button 
-          variant="contained" 
-          startIcon={isRtl ? null : <Print />} 
-          endIcon={isRtl ? <Print /> : null}
+          variant="outlined" 
+          size="small"
+          startIcon={<Print />} 
           onClick={() => window.print()}
-          sx={{ borderRadius: 2 }}
+          sx={{ borderRadius: '4px' }}
         >
           {t('archive.print_report')}
         </Button>
       </Box>
 
       {/* Quick Stats */}
-      <Grid container spacing={3} mb={4}>
+      <Grid container spacing={2} mb={4}>
         {[
           { title: t('archive.total_folders'), value: stats?.total_folders || 0, icon: <Folder />, color: theme.palette.primary.main },
           { title: t('archive.total_files'), value: stats?.total_files || 0, icon: <Description />, color: theme.palette.success.main },
@@ -97,31 +96,47 @@ const ArchiveDashboard = () => {
           { title: t('archive.recent_uploads'), value: stats?.activity?.length || 0, icon: <History />, color: theme.palette.secondary.main },
         ].map((stat, index) => (
           <Grid item xs={12} sm={6} md={3} key={index}>
-            <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: index * 0.1 }}>
-              <Card sx={{ 
-                borderRadius: 4, 
-                boxShadow: '0 4px 20px rgba(0,0,0,0.05)',
-                border: '1px solid',
-                borderColor: alpha(stat.color, 0.1),
-                bgcolor: alpha(stat.color, 0.02)
-              }}>
-                <CardContent>
-                  <Box display="flex" justifyContent="space-between" alignItems="center">
-                    <Box>
-                      <Typography variant="subtitle2" color="textSecondary" gutterBottom>
-                        {stat.title}
-                      </Typography>
-                      <Typography variant="h4" fontWeight="bold">
-                        {stat.value}
-                      </Typography>
-                    </Box>
-                    <Avatar sx={{ bgcolor: alpha(stat.color, 0.1), color: stat.color, width: 56, height: 56 }}>
-                      {stat.icon}
-                    </Avatar>
-                  </Box>
-                </CardContent>
-              </Card>
-            </motion.div>
+            <Paper
+              elevation={0}
+              sx={{
+                p: 2,
+                borderRadius: 2,
+                bgcolor: 'background.paper',
+                border: `1px solid ${theme.palette.divider}`,
+                display: 'flex',
+                alignItems: 'center',
+                gap: 2,
+                transition: 'all 0.2s ease-in-out',
+                '&:hover': {
+                  borderColor: stat.color,
+                  boxShadow: `0 4px 12px ${alpha(stat.color, 0.08)}`,
+                  transform: 'translateY(-2px)',
+                }
+              }}
+            >
+              <Box
+                sx={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  width: 40,
+                  height: 40,
+                  borderRadius: '8px',
+                  bgcolor: alpha(stat.color as string, 0.1),
+                  color: stat.color,
+                }}
+              >
+                {React.cloneElement(stat.icon as React.ReactElement, { fontSize: 'small' })}
+              </Box>
+              <Box>
+                <Typography variant="h6" fontWeight="700" sx={{ lineHeight: 1.2 }}>
+                  {stat.value}
+                </Typography>
+                <Typography variant="caption" color="text.secondary" fontWeight="500">
+                  {stat.title}
+                </Typography>
+              </Box>
+            </Paper>
           </Grid>
         ))}
       </Grid>
@@ -129,11 +144,20 @@ const ArchiveDashboard = () => {
       <Grid container spacing={3}>
         {/* Monthly Uploads Chart */}
         <Grid item xs={12} md={8}>
-          <Paper sx={{ p: 3, borderRadius: 4, boxShadow: '0 4px 20px rgba(0,0,0,0.05)', height: '100%' }}>
-            <Typography variant="h6" fontWeight="bold" mb={3}>
+          <Paper 
+            elevation={0}
+            sx={{ 
+              p: 3, 
+              borderRadius: 2, 
+              border: `1px solid ${theme.palette.divider}`,
+              height: '100%',
+              bgcolor: 'background.paper'
+            }}
+          >
+            <Typography variant="h6" fontWeight="700" mb={3}>
               {t('archive.upload_activity')}
             </Typography>
-            <Box sx={{ height: 300, minHeight: 300, width: '100%', position: 'relative' }}>
+            <Box sx={{ height: 300, minHeight: 300, width: '100%', position: 'relative', minWidth: 0 }}>
               {stats?.monthly_stats && stats.monthly_stats.length > 0 ? (
                 <ResponsiveContainer width="100%" height="100%">
                   <AreaChart data={stats.monthly_stats}>
@@ -147,15 +171,23 @@ const ArchiveDashboard = () => {
                       dataKey="month" 
                       axisLine={false} 
                       tickLine={false} 
+                      tick={{ fontSize: 12, fill: theme.palette.text.secondary }}
                       reversed={isRtl}
                     />
                     <YAxis 
                       axisLine={false} 
                       tickLine={false} 
+                      tick={{ fontSize: 12, fill: theme.palette.text.secondary }}
                       orientation={isRtl ? 'right' : 'left'}
                     />
                     <RechartsTooltip 
-                      contentStyle={{ borderRadius: 8, border: 'none', boxShadow: theme.shadows[3] }}
+                      contentStyle={{ 
+                        borderRadius: 8, 
+                        border: `1px solid ${theme.palette.divider}`, 
+                        boxShadow: '0 4px 15px rgba(0,0,0,0.1)',
+                        backgroundColor: theme.palette.background.paper,
+                        color: theme.palette.text.primary
+                      }}
                     />
                     <Area 
                       type="monotone" 
@@ -178,12 +210,21 @@ const ArchiveDashboard = () => {
 
         {/* File Types Distribution */}
         <Grid item xs={12} md={4}>
-          <Paper sx={{ p: 3, borderRadius: 4, boxShadow: '0 4px 20px rgba(0,0,0,0.05)', height: '100%' }}>
-            <Typography variant="h6" fontWeight="bold" mb={3}>
+          <Paper 
+            elevation={0}
+            sx={{ 
+              p: 3, 
+              borderRadius: 2, 
+              border: `1px solid ${theme.palette.divider}`,
+              height: '100%',
+              bgcolor: 'background.paper'
+            }}
+          >
+            <Typography variant="h6" fontWeight="700" mb={3}>
               {t('archive.file_types')}
             </Typography>
-            <Box sx={{ height: 300, minHeight: 300, width: '100%', position: 'relative', display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
-              <Box sx={{ height: 200, width: '100%' }}>
+            <Box sx={{ height: 300, minHeight: 300, width: '100%', position: 'relative', display: 'flex', flexDirection: 'column', justifyContent: 'center', minWidth: 0 }}>
+              <Box sx={{ height: 200, minHeight: 200, width: '100%', position: 'relative', minWidth: 0 }}>
                 {stats?.files_by_ext && stats.files_by_ext.length > 0 ? (
                   <ResponsiveContainer width="100%" height="100%">
                     <PieChart>
@@ -201,7 +242,14 @@ const ArchiveDashboard = () => {
                           <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
                         ))}
                       </Pie>
-                      <RechartsTooltip />
+                      <RechartsTooltip 
+                        contentStyle={{ 
+                          borderRadius: 8, 
+                          border: `1px solid ${theme.palette.divider}`, 
+                          boxShadow: '0 4px 15px rgba(0,0,0,0.1)',
+                          backgroundColor: theme.palette.background.paper
+                        }}
+                      />
                     </PieChart>
                   </ResponsiveContainer>
                 ) : (
@@ -214,10 +262,10 @@ const ArchiveDashboard = () => {
                 {stats?.files_by_ext?.map((entry: any, index: number) => (
                   <Box key={index} display="flex" justifyContent="space-between" alignItems="center">
                     <Stack direction="row" spacing={1} alignItems="center">
-                      <Box sx={{ width: 12, height: 12, borderRadius: '50%', bgcolor: COLORS[index % COLORS.length] }} />
-                      <Typography variant="body2">{entry.ext}</Typography>
+                      <Box sx={{ width: 8, height: 8, borderRadius: '50%', bgcolor: COLORS[index % COLORS.length] }} />
+                      <Typography variant="caption" color="text.secondary">{entry.ext}</Typography>
                     </Stack>
-                    <Typography variant="body2" fontWeight="bold">{entry.count}</Typography>
+                    <Typography variant="caption" fontWeight="700">{entry.count}</Typography>
                   </Box>
                 ))}
               </Stack>
@@ -227,31 +275,63 @@ const ArchiveDashboard = () => {
 
         {/* Recent Activity List */}
         <Grid item xs={12}>
-          <Paper sx={{ p: 3, borderRadius: 4, boxShadow: '0 4px 20px rgba(0,0,0,0.05)' }}>
-            <Typography variant="h6" fontWeight="bold" mb={3}>
+          <Paper 
+            elevation={0}
+            sx={{ 
+              p: 3, 
+              borderRadius: 2, 
+              border: `1px solid ${theme.palette.divider}`,
+              bgcolor: 'background.paper'
+            }}
+          >
+            <Typography variant="h6" fontWeight="700" mb={3}>
               {t('archive.recent_activity')}
             </Typography>
-            <Stack divider={<Divider />}>
+            <Stack divider={<Divider sx={{ opacity: 0.5 }} />}>
               {stats?.activity?.map((item: any, index: number) => (
-                <Box key={index} py={2} display="flex" justifyContent="space-between" alignItems="center">
+                <Box 
+                  key={index} 
+                  py={2} 
+                  display="flex" 
+                  justifyContent="space-between" 
+                  alignItems="center"
+                  sx={{ 
+                    transition: 'all 0.2s',
+                    '&:hover': { bgcolor: alpha(theme.palette.primary.main, 0.02) },
+                    px: 1,
+                    borderRadius: 1
+                  }}
+                >
                   <Stack direction="row" spacing={2} alignItems="center">
-                    <Avatar sx={{ bgcolor: alpha(theme.palette.primary.main, 0.1), color: theme.palette.primary.main }}>
-                      <CloudUpload />
+                    <Avatar sx={{ 
+                      width: 36, 
+                      height: 36, 
+                      bgcolor: alpha(theme.palette.primary.main, 0.1), 
+                      color: theme.palette.primary.main,
+                      border: `1px solid ${alpha(theme.palette.primary.main, 0.2)}`
+                    }}>
+                      <CloudUpload fontSize="small" />
                     </Avatar>
                     <Box>
-                      <Typography variant="body1" fontWeight="600">
+                      <Typography variant="subtitle2" fontWeight="600">
                         {item.name}
                       </Typography>
-                      <Typography variant="caption" color="textSecondary">
+                      <Typography variant="caption" color="text.secondary">
                         {item.created_at ? format(new Date(item.created_at), 'PPP p', { locale: isRtl ? ar : undefined }) : '---'}
                       </Typography>
                     </Box>
                   </Stack>
-                  <Stack direction="row" spacing={1}>
-                    <IconButton size="small" color="primary">
+                  <Stack direction="row" spacing={0.5}>
+                    <IconButton 
+                      size="small" 
+                      sx={{ '&:hover': { color: 'primary.main', bgcolor: alpha(theme.palette.primary.main, 0.05) } }}
+                    >
                       <FileOpen fontSize="small" />
                     </IconButton>
-                    <IconButton size="small" color="secondary">
+                    <IconButton 
+                      size="small" 
+                      sx={{ '&:hover': { color: 'secondary.main', bgcolor: alpha(theme.palette.secondary.main, 0.05) } }}
+                    >
                       <Download fontSize="small" />
                     </IconButton>
                   </Stack>
@@ -260,13 +340,13 @@ const ArchiveDashboard = () => {
             </Stack>
             {(!stats?.activity || stats.activity.length === 0) && (
               <Box py={4} textAlign="center">
-                <Typography color="textSecondary">{t('archive.no_recent_activity')}</Typography>
+                <Typography variant="body2" color="text.secondary">{t('archive.no_recent_activity')}</Typography>
               </Box>
             )}
           </Paper>
         </Grid>
       </Grid>
-    </Container>
+    </Box>
   );
 };
 

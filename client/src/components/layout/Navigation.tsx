@@ -7,11 +7,10 @@ import {
 } from '@mui/material';
 import {
   Dashboard, Description, PriceCheck, Payment,
-  LocalShipping, ExpandLess, ExpandMore, Circle, Assessment,
+  LocalShipping, ExpandLess, ExpandMore, Assessment,
   AccessTime, SettingsInputComponent, People, Schedule,
   FolderSpecial
 } from '@mui/icons-material';
-import { motion, AnimatePresence } from 'framer-motion';
 import { alpha } from '@mui/material/styles';
 import { useAuth } from '../../context/AuthContext';
 import { PERMISSIONS } from '../../config/permissions';
@@ -22,141 +21,131 @@ interface NavProps {
   handleDrawerToggle: () => void;
 }
 
+const menuItems = [
+  { text: 'dashboard.title', path: '/', icon: <Dashboard />, permission: PERMISSIONS.VIEW_DASHBOARD },
+  { text: 'contracts', path: '/contracts', icon: <Description />, permission: PERMISSIONS.VIEW_CONTRACTS },
+  { text: 'pricing', path: '/pricing', icon: <PriceCheck />, permission: PERMISSIONS.VIEW_PRICING },
+  { text: 'payments', path: '/payments', icon: <Payment />, permission: PERMISSIONS.VIEW_PAYMENTS },
+  { text: 'Archive Dashboard', path: '/archive/dashboard', icon: <Dashboard />, permission: PERMISSIONS.VIEW_ARCHIVE },
+  { text: 'Electronic Archive', path: '/archive', icon: <FolderSpecial />, permission: PERMISSIONS.VIEW_ARCHIVE },
+  { text: 'Reports & Analytics', path: '/reports', icon: <Assessment />, permission: PERMISSIONS.VIEW_REPORTS },
+];
+
+const inventoryItems = [
+  { text: 'Warehouses', path: '/inventory/warehouses' },
+  { text: 'Stock Levels', path: '/inventory/stock' },
+  { text: 'Movements', path: '/inventory/movements' },
+];
+
 const Navigation: React.FC<NavProps> = ({ width, mobileOpen, handleDrawerToggle }) => {
   const { t, i18n } = useTranslation();
   const navigate = useNavigate();
   const location = useLocation();
   const theme = useTheme();
-  const { user, hasPermission, isLoading } = useAuth();
+  const { hasPermission } = useAuth();
 
   const isRTL = i18n.language === 'ar';
   const [invOpen, setInvOpen] = React.useState(true);
   const [empOpen, setEmpOpen] = React.useState(true);
 
   // Dynamic Theme Colors
-  const sidebarBg = theme.palette.mode === 'dark' ? theme.palette.background.paper : theme.palette.background.default;
-  const textActive = theme.palette.primary.main;
-  const textInactive = theme.palette.text.secondary;
-  const accentColor = theme.palette.primary.main;
-  const dividerColor = theme.palette.divider;
-  const hoverTextColor = theme.palette.text.primary;
-  const brandTextColor = theme.palette.text.primary;
+  const isDark = theme.palette.mode === 'dark';
+  const sidebarBg = isDark ? '#1a2035' : '#FFFFFF';
+  const textActive = '#FFFFFF';
+  const textInactive = isDark ? 'rgba(255, 255, 255, 0.7)' : '#8392AB';
+  const accentColor = '#5E72E4';
+  const dividerColor = isDark ? 'rgba(255, 255, 255, 0.12)' : '#E9ECEF';
+  const hoverBg = isDark ? 'rgba(255, 255, 255, 0.05)' : '#F8F9FA';
 
-  const menuItems = [
-    { text: t('dashboard'), path: '/', icon: <Dashboard />, permission: PERMISSIONS.VIEW_DASHBOARD },
-    { text: t('contracts'), path: '/contracts', icon: <Description />, permission: PERMISSIONS.VIEW_CONTRACTS },
-    { text: t('pricing'), path: '/pricing', icon: <PriceCheck />, permission: PERMISSIONS.VIEW_PRICING },
-    { text: t('payments'), path: '/payments', icon: <Payment />, permission: PERMISSIONS.VIEW_PAYMENTS },
-    { text: t('Archive Dashboard'), path: '/archive/dashboard', icon: <Dashboard />, permission: PERMISSIONS.VIEW_ARCHIVE },
-    { text: t('Electronic Archive'), path: '/archive', icon: <FolderSpecial />, permission: PERMISSIONS.VIEW_ARCHIVE },
-    { text: t('Reports & Analytics'), path: '/reports', icon: <Assessment />, permission: PERMISSIONS.VIEW_REPORTS },
-  ];
+  const { boxShadows }: any = theme;
 
-  const inventoryItems = [
-    { text: t('Warehouses'), path: '/inventory/warehouses' },
-    { text: t('Stock Levels'), path: '/inventory/stock' },
-    { text: t('Movements'), path: '/inventory/movements' },
-  ];
+  const drawerPaperStyles = React.useMemo(() => ({
+    boxSizing: 'border-box' as const,
+    width: width,
+    border: 'none',
+    bgcolor: sidebarBg,
+    boxShadow: boxShadows.md,
+  }), [width, sidebarBg, boxShadows]);
 
-  // Filter items based on permissions (Admin gets everything via hasPermission check)
-  const filteredMenuItems = menuItems.filter(item => {
-    const hasPerm = hasPermission(item.permission);
-    if (import.meta.env.DEV && user) {
-      console.log('Menu item permission check:', { item: item.text, permission: item.permission, hasPerm, userRole: user?.role });
-    }
-    return hasPerm;
-  });
-  const showInventory = hasPermission(PERMISSIONS.VIEW_INVENTORY);
-  const showSettings = hasPermission(PERMISSIONS.VIEW_SETTINGS);
-  
-  if (import.meta.env.DEV && !isLoading) {
-    console.log('Navigation render state:', {
-      user: user,
-      filteredMenuItems: filteredMenuItems.length,
-      showInventory,
-      showSettings,
-      permissions: user?.permissions || []
-    });
-  }
+  // Filter items based on permissions
+  const filteredMenuItems = React.useMemo(() => 
+    menuItems.filter(item => hasPermission(item.permission)).map(item => ({
+        ...item,
+        text: t(item.text)
+    })),
+    [hasPermission, t]
+  );
 
-  const drawerContent = (
+  const memoizedInventoryItems = React.useMemo(() => 
+    inventoryItems.map(item => ({
+        ...item,
+        text: t(item.text)
+    })),
+    [t]
+  );
+
+  const showInventory = React.useMemo(() => hasPermission(PERMISSIONS.VIEW_INVENTORY), [hasPermission]);
+  const showHR = React.useMemo(() => hasPermission(PERMISSIONS.VIEW_HR), [hasPermission]);
+  const canManageHR = React.useMemo(() => hasPermission(PERMISSIONS.MANAGE_HR), [hasPermission]);
+
+  const drawerContent = React.useMemo(() => (
     <Box sx={{ height: '100%', display: 'flex', flexDirection: 'column', bgcolor: sidebarBg, color: textInactive }}>
 
       {/* Brand */}
-      <Box sx={{ p: 3, display: 'flex', alignItems: 'center', gap: 1.5 }}>
-        <motion.div whileHover={{ rotate: 10, scale: 1.1 }} whileTap={{ scale: 0.9 }}>
-          <Box sx={{
-            width: 40, height: 40, bgcolor: accentColor, borderRadius: '12px',
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            color: '#fff', fontWeight: '900', fontSize: '1.2rem',
-            boxShadow: `0 0 20px ${alpha(accentColor, 0.4)}`
-          }}>
-            J
-          </Box>
-        </motion.div>
+      <Box sx={{ p: 3, display: 'flex', alignItems: 'center', gap: 2 }}>
+        <Box sx={{
+          width: 36, height: 36, bgcolor: accentColor, borderRadius: 1.5,
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          color: '#fff', fontWeight: '800', fontSize: '1.2rem',
+          boxShadow: `0 4px 12px ${alpha(accentColor, 0.4)}`
+        }}>
+          J
+        </Box>
         <Box>
-          <Typography variant="h6" sx={{ color: brandTextColor, fontWeight: 700, lineHeight: 1 }}>
+          <Typography variant="h6" sx={{ color: '#fff', fontWeight: 800, letterSpacing: '0.05em', fontSize: '1.1rem' }}>
             {t('JANDALISYS')}
-          </Typography>
-          <Typography variant="caption" sx={{ fontSize: '0.65rem', opacity: 0.6, letterSpacing: 1, textTransform: 'uppercase', color: textInactive }}>
-            {t('Enterprise Management System')}
           </Typography>
         </Box>
       </Box>
 
-      <Divider sx={{ borderColor: dividerColor, mb: 2 }} />
+      <Divider sx={{ borderColor: dividerColor, mb: 1, mx: 2 }} />
 
       {/* Menu Items */}
-      <Box sx={{ flexGrow: 1, overflowY: 'auto', px: 2 }}>
+      <Box sx={{ flexGrow: 1, overflowY: 'auto', px: 1.5 }}>
         <List>
-          <Typography variant="caption" sx={{ px: 2, mb: 1, display: 'block', fontWeight: 700, fontSize: '0.7rem', opacity: 0.5, letterSpacing: 1.2, textTransform: 'uppercase' }}>
+          <Typography variant="caption" sx={{ px: 2, mb: 1, mt: 2, display: 'block', fontWeight: 600, fontSize: '0.75rem', color: textInactive, opacity: 0.8 }}>
             {t('Main Menu')}
           </Typography>
 
           {filteredMenuItems.map((item) => {
             const isActive = location.pathname === item.path;
             return (
-              <ListItem key={item.text} disablePadding sx={{ mb: 0.5 }}>
+              <ListItem key={item.text} disablePadding sx={{ mb: 0.5, px: 1.5 }}>
                 <ListItemButton
-                  component={motion.div}
-                  whileHover={{ scale: 1.02, x: 5 }}
-                  whileTap={{ scale: 0.98 }}
                   onClick={() => { navigate(item.path); if (mobileOpen) handleDrawerToggle(); }}
                   sx={{
-                    borderRadius: 2,
+                    borderRadius: '8px',
+                    py: 1.2,
+                    px: 2,
                     color: isActive ? textActive : textInactive,
-                    position: 'relative',
-                    overflow: 'hidden',
-                    '&:hover': { color: hoverTextColor, bgcolor: 'transparent' }
+                    bgcolor: isActive ? accentColor : 'transparent',
+                    boxShadow: isActive ? boxShadows.sm : 'none',
+                    transition: 'all 0.2s ease-in-out',
+                    '&:hover': { 
+                      bgcolor: isActive ? accentColor : hoverBg,
+                      color: isActive ? textActive : (isDark ? '#fff' : '#344767'),
+                      transform: 'translateX(4px)'
+                    },
                   }}
                 >
-                  {/* ✅ Active Background Animation */}
-                  {isActive && (
-                    <Box
-                      component={motion.div}
-                      layoutId="activeNavBackground"
-                      initial={{ opacity: 0 }}
-                      animate={{ opacity: 1 }}
-                      exit={{ opacity: 0 }}
-                      sx={{
-                        position: 'absolute', left: 0, top: 0, width: '100%', height: '100%',
-                        bgcolor: alpha(accentColor, 0.15), zIndex: 0, borderRadius: 2
-                      }}
-                      transition={{ type: "spring", stiffness: 300, damping: 30 }}
-                    />
-                  )}
-
-                  <ListItemIcon sx={{ minWidth: 40, color: isActive ? accentColor : 'inherit', zIndex: 1 }}>
-                    {item.icon}
+                  <ListItemIcon sx={{ minWidth: 32, color: isActive ? textActive : 'inherit' }}>
+                    {React.cloneElement(item.icon as React.ReactElement, { sx: { fontSize: 18 } })}
                   </ListItemIcon>
                   <ListItemText
                     primary={item.text}
-                    primaryTypographyProps={{ fontSize: '0.9rem', fontWeight: isActive ? 600 : 500, zIndex: 1 }}
-                    sx={{ textAlign: isRTL ? 'right' : 'left', zIndex: 1 }}
+                    primaryTypographyProps={{ fontSize: '0.875rem', fontWeight: isActive ? 600 : 400 }}
+                    sx={{ textAlign: isRTL ? 'right' : 'left' }}
                   />
-                  {isActive && (
-                    <Box component={motion.div} layoutId="activeIndicator" sx={{ width: 6, height: 6, borderRadius: '50%', bgcolor: accentColor, zIndex: 1 }} />
-                  )}
                 </ListItemButton>
               </ListItem>
             );
@@ -166,83 +155,91 @@ const Navigation: React.FC<NavProps> = ({ width, mobileOpen, handleDrawerToggle 
 
           {showInventory && (
             <>
-              <Typography variant="caption" sx={{ px: 2, mb: 1, display: 'block', fontWeight: 700, fontSize: '0.7rem', opacity: 0.5, letterSpacing: 1.2, textTransform: 'uppercase' }}>
+              <Typography variant="caption" sx={{ px: 2, mb: 1, mt: 3, display: 'block', fontWeight: 600, fontSize: '0.75rem', color: textInactive, opacity: 0.8 }}>
                 {t('Operations')}
               </Typography>
-              {/* ... (inventory items) */}
-
 
               <ListItemButton
                 onClick={() => setInvOpen(!invOpen)}
-                sx={{ borderRadius: 2, mb: 0.5, color: location.pathname.includes('inventory') ? textActive : textInactive }}
+                sx={{ 
+                  borderRadius: 1, 
+                  mb: 0.2, 
+                  px: 2,
+                  color: location.pathname.includes('inventory') ? textActive : textInactive,
+                  '&:hover': { bgcolor: hoverBg, color: isDark ? '#fff' : '#323338' }
+                }}
               >
-                <ListItemIcon sx={{ minWidth: 40, color: location.pathname.includes('inventory') ? accentColor : 'inherit' }}>
-                  <LocalShipping />
+                <ListItemIcon sx={{ minWidth: 36, color: location.pathname.includes('inventory') ? accentColor : 'inherit' }}>
+                  <LocalShipping sx={{ fontSize: 20 }} />
                 </ListItemIcon>
-                <ListItemText primary={t('Logistics')} primaryTypographyProps={{ fontSize: '0.9rem', fontWeight: 500 }} sx={{ textAlign: isRTL ? 'right' : 'left' }} />
-                {invOpen ? <ExpandLess sx={{ opacity: 0.5 }} /> : <ExpandMore sx={{ opacity: 0.5 }} />}
+                <ListItemText primary={t('Logistics')} primaryTypographyProps={{ fontSize: '0.85rem', fontWeight: 400 }} sx={{ textAlign: isRTL ? 'right' : 'left' }} />
+                {invOpen ? <ExpandLess sx={{ opacity: 0.5, fontSize: 18 }} /> : <ExpandMore sx={{ opacity: 0.5, fontSize: 18 }} />}
               </ListItemButton>
 
               <Collapse in={invOpen} timeout="auto" unmountOnExit>
                 <List component="div" disablePadding>
-                  <AnimatePresence>
-                    {inventoryItems.map((item, i) => {
-                      const isActive = location.pathname === item.path;
-                      return (
-                        <ListItemButton
-                          key={item.text}
-                          component={motion.div}
-                          initial={{ opacity: 0, x: -10 }}
-                          animate={{ opacity: 1, x: 0 }}
-                          transition={{ delay: i * 0.05 }}
-                          onClick={() => { navigate(item.path); if (mobileOpen) handleDrawerToggle(); }}
-                          sx={{
-                            pl: isRTL ? 2 : 6.5, pr: isRTL ? 6.5 : 2,
-                            borderRadius: 2, mb: 0.5,
-                            color: isActive ? textActive : textInactive,
-                            '&:hover': { color: hoverTextColor }
-                          }}
-                        >
-                          <ListItemIcon sx={{ minWidth: 20 }}>
-                            <Circle sx={{ fontSize: 6, color: isActive ? accentColor : alpha(textInactive, 0.3) }} />
-                          </ListItemIcon>
-                          <ListItemText primary={item.text} primaryTypographyProps={{ fontSize: '0.85rem', fontWeight: isActive ? 600 : 400 }} sx={{ textAlign: isRTL ? 'right' : 'left' }} />
-                        </ListItemButton>
-                      )
-                    })}
-                  </AnimatePresence>
+                  {memoizedInventoryItems.map((item) => {
+                    const isActive = location.pathname === item.path;
+                    return (
+                      <ListItemButton
+                        key={item.text}
+                        onClick={() => { navigate(item.path); if (mobileOpen) handleDrawerToggle(); }}
+                        sx={{
+                          pl: isRTL ? 2 : 6.5, pr: isRTL ? 6.5 : 2,
+                          borderRadius: 1, mb: 0.2,
+                          color: isActive ? textActive : textInactive,
+                          bgcolor: isActive ? (isDark ? 'rgba(0, 115, 234, 0.15)' : 'rgba(0, 115, 234, 0.1)') : 'transparent',
+                          '&:hover': { bgcolor: isActive ? (isDark ? 'rgba(0, 115, 234, 0.2)' : 'rgba(0, 115, 234, 0.15)') : hoverBg }
+                        }}
+                      >
+                        <ListItemText primary={item.text} primaryTypographyProps={{ fontSize: '0.8rem', fontWeight: isActive ? 600 : 400 }} sx={{ textAlign: isRTL ? 'right' : 'left' }} />
+                      </ListItemButton>
+                    )
+                  })}
                 </List>
               </Collapse>
             </>
           )}
 
           {/* HR Section */}
-          {hasPermission(PERMISSIONS.VIEW_HR) && (
+          {showHR && (
             <>
-              <Box sx={{ my: 3 }} />
-              <Typography variant="caption" sx={{ px: 2, mb: 1, display: 'block', fontWeight: 700, fontSize: '0.7rem', opacity: 0.5, letterSpacing: 1.2, textTransform: 'uppercase' }}>
+              <Typography variant="caption" sx={{ px: 2, mb: 1, mt: 3, display: 'block', fontWeight: 600, fontSize: '0.75rem', color: textInactive, opacity: 0.8 }}>
                 {t('Human Resources')}
               </Typography>
 
               <ListItemButton
                 onClick={() => navigate('/hr')}
-                sx={{ borderRadius: 2, mb: 0.5, color: location.pathname === '/hr' ? textActive : textInactive, '&:hover': { color: hoverTextColor } }}
+                sx={{ 
+                  borderRadius: 1, 
+                  mb: 0.2, 
+                  px: 2,
+                  color: location.pathname === '/hr' ? textActive : textInactive,
+                  bgcolor: location.pathname === '/hr' ? (isDark ? 'rgba(0, 115, 234, 0.15)' : 'rgba(0, 115, 234, 0.1)') : 'transparent',
+                  '&:hover': { bgcolor: hoverBg, color: isDark ? '#fff' : '#323338' }
+                }}
               >
-                <ListItemIcon sx={{ minWidth: 40, color: location.pathname === '/hr' ? accentColor : 'inherit' }}>
-                  <Dashboard />
+                <ListItemIcon sx={{ minWidth: 36, color: location.pathname === '/hr' ? accentColor : 'inherit' }}>
+                  <Dashboard sx={{ fontSize: 20 }} />
                 </ListItemIcon>
-                <ListItemText primary={t('HR Dashboard')} primaryTypographyProps={{ fontSize: '0.9rem', fontWeight: 500 }} sx={{ textAlign: isRTL ? 'right' : 'left' }} />
+                <ListItemText primary={t('HR Dashboard')} primaryTypographyProps={{ fontSize: '0.85rem', fontWeight: 400 }} sx={{ textAlign: isRTL ? 'right' : 'left' }} />
               </ListItemButton>
 
               <ListItemButton
                 onClick={() => setEmpOpen(!empOpen)}
-                sx={{ borderRadius: 2, mb: 0.5, color: location.pathname.startsWith('/employees') ? textActive : textInactive, '&:hover': { color: hoverTextColor } }}
+                sx={{ 
+                  borderRadius: 1, 
+                  mb: 0.2, 
+                  px: 2,
+                  color: location.pathname.startsWith('/employees') ? textActive : textInactive,
+                  '&:hover': { bgcolor: hoverBg, color: isDark ? '#fff' : '#323338' }
+                }}
               >
-                <ListItemIcon sx={{ minWidth: 40, color: location.pathname.startsWith('/employees') ? accentColor : 'inherit' }}>
-                  <People />
+                <ListItemIcon sx={{ minWidth: 36, color: location.pathname.startsWith('/employees') ? accentColor : 'inherit' }}>
+                  <People sx={{ fontSize: 20 }} />
                 </ListItemIcon>
-                <ListItemText primary={t('Human Resources')} primaryTypographyProps={{ fontSize: '0.9rem', fontWeight: 500 }} sx={{ textAlign: isRTL ? 'right' : 'left' }} />
-                {empOpen ? <ExpandLess sx={{ opacity: 0.5 }} /> : <ExpandMore sx={{ opacity: 0.5 }} />}
+                <ListItemText primary={t('Human Resources')} primaryTypographyProps={{ fontSize: '0.85rem', fontWeight: 400 }} sx={{ textAlign: isRTL ? 'right' : 'left' }} />
+                {empOpen ? <ExpandLess sx={{ opacity: 0.5, fontSize: 18 }} /> : <ExpandMore sx={{ opacity: 0.5, fontSize: 18 }} />}
               </ListItemButton>
 
               <Collapse in={empOpen} timeout="auto" unmountOnExit>
@@ -251,47 +248,41 @@ const Navigation: React.FC<NavProps> = ({ width, mobileOpen, handleDrawerToggle 
                     onClick={() => { navigate('/employees'); if (mobileOpen) handleDrawerToggle(); }}
                     sx={{
                       pl: isRTL ? 2 : 6.5, pr: isRTL ? 6.5 : 2,
-                      borderRadius: 2, mb: 0.5,
+                      borderRadius: 1, mb: 0.2,
                       color: location.pathname === '/employees' ? textActive : textInactive,
-                      '&:hover': { color: hoverTextColor }
+                      bgcolor: location.pathname === '/employees' ? (isDark ? 'rgba(0, 115, 234, 0.15)' : 'rgba(0, 115, 234, 0.1)') : 'transparent',
+                      '&:hover': { bgcolor: hoverBg }
                     }}
                   >
-                    <ListItemIcon sx={{ minWidth: 20 }}>
-                      <Circle sx={{ fontSize: 6, color: location.pathname === '/employees' ? accentColor : alpha(textInactive, 0.3) }} />
-                    </ListItemIcon>
-                    <ListItemText primary={t('All Employees')} primaryTypographyProps={{ fontSize: '0.85rem', fontWeight: location.pathname === '/employees' ? 600 : 400 }} sx={{ textAlign: isRTL ? 'right' : 'left' }} />
+                    <ListItemText primary={t('All Employees')} primaryTypographyProps={{ fontSize: '0.8rem', fontWeight: location.pathname === '/employees' ? 600 : 400 }} sx={{ textAlign: isRTL ? 'right' : 'left' }} />
                   </ListItemButton>
-
-                  {hasPermission(PERMISSIONS.MANAGE_HR) && (
+  
+                  {canManageHR && (
                     <>
                       <ListItemButton
                         onClick={() => { navigate('/employees/import'); if (mobileOpen) handleDrawerToggle(); }}
                         sx={{
                           pl: isRTL ? 2 : 6.5, pr: isRTL ? 6.5 : 2,
-                          borderRadius: 2, mb: 0.5,
+                          borderRadius: 1, mb: 0.2,
                           color: location.pathname === '/employees/import' ? textActive : textInactive,
-                          '&:hover': { color: hoverTextColor }
+                          bgcolor: location.pathname === '/employees/import' ? (isDark ? 'rgba(0, 115, 234, 0.15)' : 'rgba(0, 115, 234, 0.1)') : 'transparent',
+                          '&:hover': { bgcolor: hoverBg }
                         }}
                       >
-                        <ListItemIcon sx={{ minWidth: 20 }}>
-                          <Circle sx={{ fontSize: 6, color: location.pathname === '/employees/import' ? accentColor : alpha(textInactive, 0.3) }} />
-                        </ListItemIcon>
-                        <ListItemText primary={t('Import Employees')} primaryTypographyProps={{ fontSize: '0.85rem', fontWeight: location.pathname === '/employees/import' ? 600 : 400 }} sx={{ textAlign: isRTL ? 'right' : 'left' }} />
+                        <ListItemText primary={t('Import Employees')} primaryTypographyProps={{ fontSize: '0.8rem', fontWeight: location.pathname === '/employees/import' ? 600 : 400 }} sx={{ textAlign: isRTL ? 'right' : 'left' }} />
                       </ListItemButton>
 
                       <ListItemButton
                         onClick={() => { navigate('/employees/add'); if (mobileOpen) handleDrawerToggle(); }}
                         sx={{
                           pl: isRTL ? 2 : 6.5, pr: isRTL ? 6.5 : 2,
-                          borderRadius: 2, mb: 0.5,
+                          borderRadius: 1, mb: 0.2,
                           color: location.pathname === '/employees/add' ? textActive : textInactive,
-                          '&:hover': { color: hoverTextColor }
+                          bgcolor: location.pathname === '/employees/add' ? (isDark ? 'rgba(0, 115, 234, 0.15)' : 'rgba(0, 115, 234, 0.1)') : 'transparent',
+                          '&:hover': { bgcolor: hoverBg }
                         }}
                       >
-                        <ListItemIcon sx={{ minWidth: 20 }}>
-                          <Circle sx={{ fontSize: 6, color: location.pathname === '/employees/add' ? accentColor : alpha(textInactive, 0.3) }} />
-                        </ListItemIcon>
-                        <ListItemText primary={t('Add Employee')} primaryTypographyProps={{ fontSize: '0.85rem', fontWeight: location.pathname === '/employees/add' ? 600 : 400 }} sx={{ textAlign: isRTL ? 'right' : 'left' }} />
+                        <ListItemText primary={t('Add Employee')} primaryTypographyProps={{ fontSize: '0.8rem', fontWeight: location.pathname === '/employees/add' ? 600 : 400 }} sx={{ textAlign: isRTL ? 'right' : 'left' }} />
                       </ListItemButton>
                     </>
                   )}
@@ -300,33 +291,54 @@ const Navigation: React.FC<NavProps> = ({ width, mobileOpen, handleDrawerToggle 
 
               <ListItemButton
                 onClick={() => navigate('/hr/attendance')}
-                sx={{ borderRadius: 2, mb: 0.5, color: location.pathname === '/hr/attendance' ? textActive : textInactive, '&:hover': { color: hoverTextColor } }}
+                sx={{ 
+                  borderRadius: 1, 
+                  mb: 0.2, 
+                  px: 2,
+                  color: location.pathname === '/hr/attendance' ? textActive : textInactive,
+                  bgcolor: location.pathname === '/hr/attendance' ? (isDark ? 'rgba(0, 115, 234, 0.15)' : 'rgba(0, 115, 234, 0.1)') : 'transparent',
+                  '&:hover': { bgcolor: hoverBg, color: isDark ? '#fff' : '#323338' }
+                }}
               >
-                <ListItemIcon sx={{ minWidth: 40, color: location.pathname === '/hr/attendance' ? accentColor : 'inherit' }}>
-                  <AccessTime />
+                <ListItemIcon sx={{ minWidth: 36, color: location.pathname === '/hr/attendance' ? accentColor : 'inherit' }}>
+                  <AccessTime sx={{ fontSize: 20 }} />
                 </ListItemIcon>
-                <ListItemText primary={t('Attendance')} primaryTypographyProps={{ fontSize: '0.9rem', fontWeight: 500 }} sx={{ textAlign: isRTL ? 'right' : 'left' }} />
+                <ListItemText primary={t('Attendance')} primaryTypographyProps={{ fontSize: '0.85rem', fontWeight: 400 }} sx={{ textAlign: isRTL ? 'right' : 'left' }} />
               </ListItemButton>
 
               <ListItemButton
                 onClick={() => navigate('/hr/shifts')}
-                sx={{ borderRadius: 2, mb: 0.5, color: location.pathname === '/hr/shifts' ? textActive : textInactive, '&:hover': { color: hoverTextColor } }}
+                sx={{ 
+                  borderRadius: 1, 
+                  mb: 0.2, 
+                  px: 2,
+                  color: location.pathname === '/hr/shifts' ? textActive : textInactive,
+                  bgcolor: location.pathname === '/hr/shifts' ? (isDark ? 'rgba(0, 115, 234, 0.15)' : 'rgba(0, 115, 234, 0.1)') : 'transparent',
+                  '&:hover': { bgcolor: hoverBg, color: isDark ? '#fff' : '#323338' }
+                }}
               >
-                <ListItemIcon sx={{ minWidth: 40, color: location.pathname === '/hr/shifts' ? accentColor : 'inherit' }}>
-                  <Schedule />
+                <ListItemIcon sx={{ minWidth: 36, color: location.pathname === '/hr/shifts' ? accentColor : 'inherit' }}>
+                  <Schedule sx={{ fontSize: 20 }} />
                 </ListItemIcon>
-                <ListItemText primary={t('Shift Settings')} primaryTypographyProps={{ fontSize: '0.9rem', fontWeight: 500 }} sx={{ textAlign: isRTL ? 'right' : 'left' }} />
+                <ListItemText primary={t('Shift Settings')} primaryTypographyProps={{ fontSize: '0.85rem', fontWeight: 400 }} sx={{ textAlign: isRTL ? 'right' : 'left' }} />
               </ListItemButton>
-
-              {hasPermission(PERMISSIONS.MANAGE_HR) && (
+  
+              {canManageHR && (
                 <ListItemButton
                   onClick={() => navigate('/hr/devices')}
-                  sx={{ borderRadius: 2, mb: 0.5, color: location.pathname === '/hr/devices' ? textActive : textInactive, '&:hover': { color: hoverTextColor } }}
+                  sx={{ 
+                    borderRadius: 1, 
+                    mb: 0.2, 
+                    px: 2,
+                    color: location.pathname === '/hr/devices' ? textActive : textInactive,
+                    bgcolor: location.pathname === '/hr/devices' ? (isDark ? 'rgba(0, 115, 234, 0.15)' : 'rgba(0, 115, 234, 0.1)') : 'transparent',
+                    '&:hover': { bgcolor: hoverBg, color: isDark ? '#fff' : '#323338' }
+                  }}
                 >
-                  <ListItemIcon sx={{ minWidth: 40, color: location.pathname === '/hr/devices' ? accentColor : 'inherit' }}>
-                    <SettingsInputComponent />
+                  <ListItemIcon sx={{ minWidth: 36, color: location.pathname === '/hr/devices' ? accentColor : 'inherit' }}>
+                    <SettingsInputComponent sx={{ fontSize: 20 }} />
                   </ListItemIcon>
-                  <ListItemText primary={t('Devices')} primaryTypographyProps={{ fontSize: '0.9rem', fontWeight: 500 }} sx={{ textAlign: isRTL ? 'right' : 'left' }} />
+                  <ListItemText primary={t('Devices')} primaryTypographyProps={{ fontSize: '0.85rem', fontWeight: 400 }} sx={{ textAlign: isRTL ? 'right' : 'left' }} />
                 </ListItemButton>
               )}
             </>
@@ -335,7 +347,7 @@ const Navigation: React.FC<NavProps> = ({ width, mobileOpen, handleDrawerToggle 
       </Box>
 
     </Box >
-  );
+  ), [sidebarBg, textInactive, accentColor, isDark, t, dividerColor, filteredMenuItems, location.pathname, navigate, mobileOpen, handleDrawerToggle, hoverBg, textActive, isRTL, showInventory, invOpen, memoizedInventoryItems, showHR, empOpen, canManageHR]);
 
   return (
     <>
@@ -347,7 +359,7 @@ const Navigation: React.FC<NavProps> = ({ width, mobileOpen, handleDrawerToggle 
         ModalProps={{ keepMounted: true }}
         sx={{
           display: { xs: 'block', md: 'none' },
-          '& .MuiDrawer-paper': { boxSizing: 'border-box', width: width, border: 'none', bgcolor: sidebarBg }
+          '& .MuiDrawer-paper': drawerPaperStyles
         }}
       >
         {drawerContent}
@@ -359,13 +371,9 @@ const Navigation: React.FC<NavProps> = ({ width, mobileOpen, handleDrawerToggle 
         sx={{
           display: { xs: 'none', md: 'block' },
           '& .MuiDrawer-paper': {
-            boxSizing: 'border-box',
-            width: width,
+            ...drawerPaperStyles,
             position: 'fixed',
             top: 0,
-            borderRight: isRTL ? 'none' : `1px solid ${theme.palette.divider}`,
-            borderLeft: isRTL ? `1px solid ${theme.palette.divider}` : 'none',
-            bgcolor: sidebarBg,
           }
         }}
         open

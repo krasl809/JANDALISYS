@@ -37,14 +37,12 @@ const initialShipments: Shipment[] = [];
 const DeliveryForm: React.FC<DeliveryFormProps> = ({ contractId, onSaveSuccess }) => {
   const { t } = useTranslation();
   const theme = useTheme();
+  const { palette, boxShadows }: any = theme;
   const [contracts, setContracts] = useState<Contract[]>([]);
   const [shipments, setShipments] = useState<Shipment[]>(initialShipments);
   const [editingShipment, setEditingShipment] = useState<Shipment | null>(null);
   const [notification, setNotification] = useState({ open: false, message: '', severity: 'success' as 'success' | 'error' });
   const isEmbedded = !!contractId;
-
-  const headerSx = { bgcolor: alpha(theme.palette.primary.main, 0.08), color: theme.palette.text.secondary, fontWeight: '700', fontSize: '0.75rem', borderBottom: `1px solid ${theme.palette.divider}`, paddingInline: '16px', paddingY: '12px' };
-  const cellSx = { borderBottom: `1px solid ${theme.palette.divider}`, paddingInline: '16px', paddingY: '12px', color: theme.palette.text.primary, fontSize: '0.9rem' };
 
   // Contract Totals (Mocked for now, normally fetched from Contract Details)
   const totalContractQty = 12500; 
@@ -65,7 +63,7 @@ const DeliveryForm: React.FC<DeliveryFormProps> = ({ contractId, onSaveSuccess }
 
   useEffect(() => {
     if (!isEmbedded) {
-        api.get('/contracts/').then(res => setContracts(res.data));
+        api.get('contracts/').then(res => setContracts(res.data));
     }
   }, [isEmbedded]);
 
@@ -104,13 +102,13 @@ const DeliveryForm: React.FC<DeliveryFormProps> = ({ contractId, onSaveSuccess }
     if (onSaveSuccess) onSaveSuccess();
   };
 
-  const getStatusColor = (status: string) => {
+  const getStatusColor = (status: string): 'success' | 'info' | 'warning' | 'secondary' | 'error' | 'primary' => {
       switch(status) {
           case 'Delivered': return 'success';
           case 'In Transit': return 'info';
           case 'At Port': return 'warning';
           case 'Scheduled': return 'secondary';
-          default: return 'default';
+          default: return 'primary';
       }
   };
 
@@ -129,33 +127,81 @@ const DeliveryForm: React.FC<DeliveryFormProps> = ({ contractId, onSaveSuccess }
       
       {!isEmbedded && (
         <Box sx={{ mb: 4, display: 'flex', alignItems: 'center', gap: 2 }}>
-            <Box p={1.5} bgcolor={alpha(theme.palette.info.main, 0.1)} borderRadius={2} color="info.main"><LocalShipping fontSize="large" /></Box>
-            <Box><Typography variant="h4" fontWeight="800" color="text.primary">{t('Logistics Manager')}</Typography></Box>
+            <Box 
+              sx={{ 
+                p: 1.5, 
+                background: palette.gradients.info.main, 
+                borderRadius: '12px', 
+                color: '#fff',
+                boxShadow: boxShadows.colored.info,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center'
+              }}
+            >
+              <LocalShipping fontSize="large" />
+            </Box>
+            <Box>
+              <Typography variant="h4" fontWeight="700" color="text.primary" sx={{ letterSpacing: '-0.5px' }}>
+                {t('Logistics Manager')}
+              </Typography>
+              <Typography variant="body2" color="text.secondary">
+                {t('Manage shipments, tracking, and fulfillment progress')}
+              </Typography>
+            </Box>
         </Box>
       )}
 
       {/* 1. Fulfillment Progress (KPI) */}
       <Grid container spacing={3} mb={3}>
           <Grid size={{ xs: 12 }}>
-              <Card elevation={0} sx={{ border: `1px solid ${theme.palette.divider}`, bgcolor: alpha(theme.palette.background.paper, 0.6), borderRadius: 3 }}>
-                  <CardContent>
-                      <Box display="flex" justifyContent="space-between" mb={1}>
-                          <Typography variant="caption" fontWeight="bold" color="text.secondary">{t("CONTRACT FULFILLMENT")}</Typography>
-                          <Typography variant="caption" fontWeight="bold" color="primary.main">{totalShipped.toLocaleString()} / {totalContractQty.toLocaleString()} {t("MT")}</Typography>
+              <Card 
+                sx={{ 
+                  borderRadius: '16px', 
+                  boxShadow: boxShadows.md,
+                  bgcolor: palette.mode === 'light' ? alpha(palette.background.paper, 0.8) : alpha(palette.background.paper, 0.6),
+                  backdropFilter: 'blur(10px)',
+                  border: 'none'
+                }}
+              >
+                  <CardContent sx={{ p: 3 }}>
+                      <Box display="flex" justifyContent="space-between" mb={2}>
+                          <Box display="flex" alignItems="center" gap={1}>
+                            <Inventory fontSize="small" color="primary" />
+                            <Typography variant="subtitle2" fontWeight="700" color="text.secondary" sx={{ textTransform: 'uppercase' }}>
+                              {t("CONTRACT FULFILLMENT")}
+                            </Typography>
+                          </Box>
+                          <Typography variant="subtitle2" fontWeight="700" color="primary.main">
+                            {totalShipped.toLocaleString()} / {totalContractQty.toLocaleString()} {t("MT")}
+                          </Typography>
                       </Box>
                       <LinearProgress 
                         variant="determinate" 
                         value={progress} 
                         sx={{ 
-                            height: 10, 
-                            borderRadius: 5, 
-                            bgcolor: alpha(theme.palette.grey[500], 0.1),
-                            '& .MuiLinearProgress-bar': { borderRadius: 5, bgcolor: progress >= 100 ? theme.palette.success.main : theme.palette.primary.main }
+                            height: 12, 
+                            borderRadius: 6, 
+                            bgcolor: alpha(palette.grey[500], 0.1),
+                            '& .MuiLinearProgress-bar': { 
+                              borderRadius: 6, 
+                              background: progress >= 100 ? palette.gradients.success.main : palette.gradients.primary.main 
+                            }
                         }} 
                       />
-                      <Typography variant="caption" color="text.secondary" sx={{ mt: 1, display: 'block' }}>
-                          {progress.toFixed(1)}% {t("of the contract quantity has been shipped.")}
-                      </Typography>
+                      <Box display="flex" justifyContent="space-between" mt={1.5}>
+                        <Typography variant="caption" fontWeight="600" color="text.secondary">
+                            {progress.toFixed(1)}% {t("of the contract quantity has been shipped.")}
+                        </Typography>
+                        {progress >= 100 && (
+                          <Chip 
+                            label={t("Fully Fulfilled")} 
+                            size="small" 
+                            color="success" 
+                            sx={{ fontWeight: '700', borderRadius: '4px', height: '20px' }} 
+                          />
+                        )}
+                      </Box>
                   </CardContent>
               </Card>
           </Grid>
@@ -165,30 +211,85 @@ const DeliveryForm: React.FC<DeliveryFormProps> = ({ contractId, onSaveSuccess }
         
         {/* 2. New Shipment Form */}
         <Grid size={{ xs: 12, lg: 5 }}>
-           <Card elevation={0} sx={{ border: `1px solid ${theme.palette.divider}`, borderRadius: 3, height: '100%' }}>
+           <Card 
+             sx={{ 
+               borderRadius: '16px', 
+               boxShadow: boxShadows.md,
+               bgcolor: palette.mode === 'light' ? alpha(palette.background.paper, 0.8) : alpha(palette.background.paper, 0.6),
+               backdropFilter: 'blur(10px)',
+               border: 'none',
+               height: '100%'
+             }}
+           >
              <CardContent sx={{ p: 3 }}>
-               <Typography variant="h6" fontWeight="700" gutterBottom sx={{ mb: 3 }}>{editingShipment ? t('Edit Shipment') : t('New Shipment Entry')}</Typography>
-               <Grid container spacing={3}>
+               <Box display="flex" alignItems="center" gap={1.5} mb={3}>
+                  <Box sx={{ p: 1, bgcolor: alpha(palette.primary.main, 0.1), borderRadius: '8px', color: palette.primary.main }}>
+                    <Edit fontSize="small" />
+                  </Box>
+                  <Typography variant="h6" fontWeight="700">
+                    {editingShipment ? t('Edit Shipment') : t('New Shipment Entry')}
+                  </Typography>
+               </Box>
+
+               <Grid container spacing={2.5}>
                   {!isEmbedded && (
                       <Grid size={{ xs: 12 }}>
-                        <Typography variant="caption" fontWeight="bold" color="text.secondary">{t("CONTRACT")}</Typography>
-                        <Autocomplete options={contracts} getOptionLabel={(opt) => opt.contract_no} onChange={(_, val) => setFormData({ ...formData, contract_id: val?.id || '' })} renderInput={(params) => <TextField {...params} size="small" />} />
+                        <Typography variant="caption" fontWeight="700" color="text.secondary" sx={{ mb: 1, display: 'block', textTransform: 'uppercase' }}>
+                          {t("CONTRACT")}
+                        </Typography>
+                        <Autocomplete 
+                          options={contracts} 
+                          getOptionLabel={(opt) => opt.contract_no} 
+                          onChange={(_, val) => setFormData({ ...formData, contract_id: val?.id || '' })} 
+                          renderInput={(params) => (
+                            <TextField 
+                              {...params} 
+                              size="small" 
+                              sx={{ '& .MuiOutlinedInput-root': { borderRadius: '8px' } }}
+                            />
+                          )} 
+                        />
                       </Grid>
                   )}
                   
                   <Grid size={{ xs: 6 }}>
-                      <Typography variant="caption" fontWeight="bold" color="text.secondary">{t("DATE")}</Typography>
-                      <TextField type="date" fullWidth size="small" value={formData.date} onChange={e => setFormData({...formData, date: e.target.value})} />
+                      <Typography variant="caption" fontWeight="700" color="text.secondary" sx={{ mb: 1, display: 'block', textTransform: 'uppercase' }}>
+                        {t("DATE")}
+                      </Typography>
+                      <TextField 
+                        type="date" 
+                        fullWidth 
+                        size="small" 
+                        value={formData.date} 
+                        onChange={e => setFormData({...formData, date: e.target.value})} 
+                        sx={{ '& .MuiOutlinedInput-root': { borderRadius: '8px' } }}
+                      />
                   </Grid>
                   <Grid size={{ xs: 6 }}>
-                      <Typography variant="caption" fontWeight="bold" color="text.secondary">{t("REF / BL NO.")}</Typography>
-                      <TextField fullWidth size="small" value={formData.ref_id} onChange={e => setFormData({...formData, ref_id: e.target.value})} />
+                      <Typography variant="caption" fontWeight="700" color="text.secondary" sx={{ mb: 1, display: 'block', textTransform: 'uppercase' }}>
+                        {t("REF / BL NO.")}
+                      </Typography>
+                      <TextField 
+                        fullWidth 
+                        size="small" 
+                        value={formData.ref_id} 
+                        onChange={e => setFormData({...formData, ref_id: e.target.value})} 
+                        sx={{ '& .MuiOutlinedInput-root': { borderRadius: '8px' } }}
+                      />
                   </Grid>
                   
-                  {/* ✅ حقل الحالة الجديد */}
                   <Grid size={{ xs: 12 }}>
-                      <Typography variant="caption" fontWeight="bold" color="text.secondary">{t("CURRENT STATUS")}</Typography>
-                      <TextField select fullWidth size="small" value={formData.status} onChange={e => setFormData({...formData, status: e.target.value})}>
+                      <Typography variant="caption" fontWeight="700" color="text.secondary" sx={{ mb: 1, display: 'block', textTransform: 'uppercase' }}>
+                        {t("CURRENT STATUS")}
+                      </Typography>
+                      <TextField 
+                        select 
+                        fullWidth 
+                        size="small" 
+                        value={formData.status} 
+                        onChange={e => setFormData({...formData, status: e.target.value})}
+                        sx={{ '& .MuiOutlinedInput-root': { borderRadius: '8px' } }}
+                      >
                         <MenuItem value="Scheduled">{t("Scheduled (Planned)")}</MenuItem>
                         <MenuItem value="In Transit">{t("In Transit (On The Way)")}</MenuItem>
                         <MenuItem value="At Port">{t("At Port (Customs Clearance)")}</MenuItem>
@@ -197,28 +298,102 @@ const DeliveryForm: React.FC<DeliveryFormProps> = ({ contractId, onSaveSuccess }
                   </Grid>
 
                   <Grid size={{ xs: 12 }}>
-                     <Typography variant="caption" fontWeight="bold" color="text.secondary" display="block" mb={1}>{t("METHOD")}</Typography>
+                     <Typography variant="caption" fontWeight="700" color="text.secondary" sx={{ mb: 1.5, display: 'block', textTransform: 'uppercase' }}>
+                        {t("METHOD")}
+                     </Typography>
                      <ToggleButtonGroup 
-                        value={formData.method} exclusive onChange={(_, val) => val && setFormData({ ...formData, method: val })} fullWidth size="small"
-                        sx={{ '& .Mui-selected': { bgcolor: alpha(theme.palette.info.main, 0.1) + ' !important', color: 'info.main' } }}
+                        value={formData.method} 
+                        exclusive 
+                        onChange={(_, val) => val && setFormData({ ...formData, method: val })} 
+                        fullWidth 
+                        size="small"
+                        sx={{ 
+                          '& .MuiToggleButton-root': { 
+                            borderRadius: '8px', 
+                            mx: 0.5, 
+                            border: `1px solid ${alpha(palette.divider, 0.1)} !important`,
+                            fontWeight: '700',
+                            textTransform: 'none'
+                          },
+                          '& .Mui-selected': { 
+                            bgcolor: alpha(palette.info.main, 0.1) + ' !important', 
+                            color: palette.info.main + ' !important',
+                            borderColor: palette.info.main + ' !important'
+                          } 
+                        }}
                      >
-                        <ToggleButton value="Truck"><LocalShipping sx={{ marginInlineEnd: 1 }} /> {t("Truck")}</ToggleButton>
-                        <ToggleButton value="Ship"><DirectionsBoat sx={{ marginInlineEnd: 1 }} /> {t("Ship")}</ToggleButton>
-                        <ToggleButton value="Train"><Train sx={{ marginInlineEnd: 1 }} /> {t("Train")}</ToggleButton>
+                        <ToggleButton value="Truck"><LocalShipping sx={{ marginInlineEnd: 1, fontSize: 18 }} /> {t("Truck")}</ToggleButton>
+                        <ToggleButton value="Ship"><DirectionsBoat sx={{ marginInlineEnd: 1, fontSize: 18 }} /> {t("Ship")}</ToggleButton>
+                        <ToggleButton value="Train"><Train sx={{ marginInlineEnd: 1, fontSize: 18 }} /> {t("Train")}</ToggleButton>
                      </ToggleButtonGroup>
                   </Grid>
 
                   <Grid size={{ xs: 12 }}>
-                      <Typography variant="caption" fontWeight="bold" color="text.secondary">{t("QUANTITY (MT)")}</Typography>
-                      <TextField type="number" fullWidth value={formData.qty_ton} onChange={e => setFormData({...formData, qty_ton: e.target.value})} InputProps={{ startAdornment: <Inventory color="action" sx={{ marginInlineEnd: 1 }} />, sx: { fontWeight: 'bold', fontSize: '1.1rem' } }} />
+                      <Typography variant="caption" fontWeight="700" color="text.secondary" sx={{ mb: 1, display: 'block', textTransform: 'uppercase' }}>
+                        {t("QUANTITY (MT)")}
+                      </Typography>
+                      <TextField 
+                        type="number" 
+                        fullWidth 
+                        value={formData.qty_ton} 
+                        onChange={e => setFormData({...formData, qty_ton: e.target.value})} 
+                        InputProps={{ 
+                          startAdornment: <Inventory color="action" sx={{ marginInlineEnd: 1 }} />, 
+                          sx: { fontWeight: '800', fontSize: '1.25rem', borderRadius: '12px' } 
+                        }} 
+                      />
                   </Grid>
                   
-                  <Grid size={{ xs: 12 }}><Divider /></Grid>
-                  <Grid size={{ xs: 6 }}><Typography variant="caption" fontWeight="bold" color="text.secondary">{t("DRIVER")}</Typography><TextField fullWidth size="small" value={formData.driver_name} onChange={e => setFormData({...formData, driver_name: e.target.value})} /></Grid>
-                  <Grid size={{ xs: 6 }}><Typography variant="caption" fontWeight="bold" color="text.secondary">{t("PLATE / ID")}</Typography><TextField fullWidth size="small" value={formData.plate_number} onChange={e => setFormData({...formData, plate_number: e.target.value})} /></Grid>
+                  <Grid size={{ xs: 12 }}><Divider sx={{ my: 1 }} /></Grid>
+
+                  <Grid size={{ xs: 6 }}>
+                    <Typography variant="caption" fontWeight="700" color="text.secondary" sx={{ mb: 1, display: 'block', textTransform: 'uppercase' }}>
+                      {t("DRIVER")}
+                    </Typography>
+                    <TextField 
+                      fullWidth 
+                      size="small" 
+                      value={formData.driver_name} 
+                      onChange={e => setFormData({...formData, driver_name: e.target.value})} 
+                      sx={{ '& .MuiOutlinedInput-root': { borderRadius: '8px' } }}
+                    />
+                  </Grid>
+                  <Grid size={{ xs: 6 }}>
+                    <Typography variant="caption" fontWeight="700" color="text.secondary" sx={{ mb: 1, display: 'block', textTransform: 'uppercase' }}>
+                      {t("PLATE / ID")}
+                    </Typography>
+                    <TextField 
+                      fullWidth 
+                      size="small" 
+                      value={formData.plate_number} 
+                      onChange={e => setFormData({...formData, plate_number: e.target.value})} 
+                      sx={{ '& .MuiOutlinedInput-root': { borderRadius: '8px' } }}
+                    />
+                  </Grid>
 
                   <Grid size={{ xs: 12 }}>
-                      <Button fullWidth variant="contained" size="large" startIcon={<Save />} onClick={handleSave} sx={{ bgcolor: 'primary.main', py: 1.5 }}>{editingShipment ? t('Update Shipment') : t('Register Shipment')}</Button>
+                      <Button 
+                        fullWidth 
+                        variant="contained" 
+                        size="large" 
+                        startIcon={<Save />} 
+                        onClick={handleSave} 
+                        sx={{ 
+                          py: 1.5,
+                          borderRadius: '12px',
+                          background: palette.gradients.primary.main,
+                          boxShadow: boxShadows.colored.primary,
+                          fontWeight: '700',
+                          fontSize: '1rem',
+                          mt: 2,
+                          '&:hover': {
+                            background: palette.gradients.primary.state,
+                            boxShadow: boxShadows.md
+                          }
+                        }}
+                      >
+                        {editingShipment ? t('Update Shipment') : t('Register Shipment')}
+                      </Button>
                   </Grid>
                </Grid>
              </CardContent>
@@ -227,42 +402,91 @@ const DeliveryForm: React.FC<DeliveryFormProps> = ({ contractId, onSaveSuccess }
 
         {/* 3. Shipment Manifest (Log) */}
         <Grid size={{ xs: 12, lg: 7 }}>
-            <Card elevation={0} sx={{ border: `1px solid ${theme.palette.divider}`, borderRadius: 3, height: '100%', overflow: 'hidden' }}>
-                <Box sx={{ p: 2.5, bgcolor: alpha(theme.palette.primary.main, 0.03), borderBottom: `1px solid ${theme.palette.divider}`, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <Box display="flex" alignItems="center" gap={1}><History color="action" /><Typography variant="h6" fontWeight="bold">{t('Shipment Manifest')}</Typography></Box>
-                    <Button size="small" startIcon={<Print />}>{t('Report')}</Button>
+            <Card 
+              sx={{ 
+                borderRadius: '16px', 
+                boxShadow: boxShadows.md,
+                bgcolor: palette.mode === 'light' ? alpha(palette.background.paper, 0.8) : alpha(palette.background.paper, 0.6),
+                backdropFilter: 'blur(10px)',
+                border: 'none',
+                height: '100%', 
+                overflow: 'hidden' 
+              }}
+            >
+                <Box 
+                  sx={{ 
+                    p: 2.5, 
+                    bgcolor: alpha(palette.primary.main, 0.03), 
+                    borderBottom: `1px solid ${alpha(palette.divider, 0.1)}`, 
+                    display: 'flex', 
+                    justifyContent: 'space-between', 
+                    alignItems: 'center' 
+                  }}
+                >
+                    <Box display="flex" alignItems="center" gap={1.5}>
+                      <Box sx={{ p: 1, bgcolor: alpha(palette.primary.main, 0.1), borderRadius: '8px', color: palette.primary.main }}>
+                        <History fontSize="small" />
+                      </Box>
+                      <Typography variant="h6" fontWeight="700">
+                        {t('Shipment Manifest')}
+                      </Typography>
+                    </Box>
+                    <Button 
+                      size="small" 
+                      variant="outlined"
+                      startIcon={<Print />}
+                      sx={{ borderRadius: '8px', fontWeight: '700', textTransform: 'none' }}
+                    >
+                      {t('Report')}
+                    </Button>
                 </Box>
                 <TableContainer>
                     <Table size="small">
                         <TableHead>
-                            <TableRow sx={{ bgcolor: alpha(theme.palette.background.paper, 0.5) }}>
-                                <TableCell sx={headerSx}>{t('Date')}</TableCell>
-                                <TableCell sx={headerSx}>{t('Ref. No')}</TableCell>
-                                <TableCell sx={headerSx}>{t('Method')}</TableCell>
-                                <TableCell align="right" sx={headerSx}>{t('Qty (MT)')}</TableCell>
-                                <TableCell align="center" sx={headerSx}>{t('Status')}</TableCell>
-                                <TableCell align="right" sx={headerSx}></TableCell>
+                            <TableRow>
+                                <TableCell sx={{ fontWeight: '700', color: 'text.secondary', py: 2 }}>{t('Date')}</TableCell>
+                                <TableCell sx={{ fontWeight: '700', color: 'text.secondary', py: 2 }}>{t('Ref. No')}</TableCell>
+                                <TableCell sx={{ fontWeight: '700', color: 'text.secondary', py: 2 }}>{t('Method')}</TableCell>
+                                <TableCell align="right" sx={{ fontWeight: '700', color: 'text.secondary', py: 2 }}>{t('Qty (MT)')}</TableCell>
+                                <TableCell align="center" sx={{ fontWeight: '700', color: 'text.secondary', py: 2 }}>{t('Status')}</TableCell>
+                                <TableCell align="right" sx={{ fontWeight: '700', color: 'text.secondary', py: 2 }}></TableCell>
                             </TableRow>
                         </TableHead>
                         <TableBody>
                             {shipments.length > 0 ? shipments.map((row) => (
-                                <TableRow key={row.id} hover>
-                                    <TableCell sx={{ ...cellSx, fontFamily: 'monospace' }}>{row.date}</TableCell>
-                                    <TableCell sx={{ ...cellSx, fontWeight: 'bold', color: 'primary.main' }}>{row.ref}</TableCell>
-                                    <TableCell sx={cellSx}>{t(row.method)}</TableCell>
-                                    <TableCell align="right" sx={{ ...cellSx, fontWeight: 'bold' }}>{row.qty.toLocaleString()}</TableCell>
-                                    <TableCell align="center" sx={cellSx}>
+                                <TableRow key={row.id} hover sx={{ '&:last-child td': { border: 0 } }}>
+                                    <TableCell sx={{ py: 2, fontFamily: 'monospace', color: 'text.primary' }}>{row.date}</TableCell>
+                                    <TableCell sx={{ py: 2, fontWeight: '700', color: palette.primary.main, fontFamily: 'monospace' }}>{row.ref}</TableCell>
+                                    <TableCell sx={{ py: 2 }}>
+                                      <Box display="flex" alignItems="center" gap={1}>
+                                        {row.method === 'Truck' && <LocalShipping fontSize="small" color="action" />}
+                                        {row.method === 'Ship' && <DirectionsBoat fontSize="small" color="action" />}
+                                        {row.method === 'Train' && <Train fontSize="small" color="action" />}
+                                        <Typography variant="body2">{t(row.method)}</Typography>
+                                      </Box>
+                                    </TableCell>
+                                    <TableCell align="right" sx={{ py: 2, fontWeight: '800', color: 'text.primary' }}>{row.qty.toLocaleString()}</TableCell>
+                                    <TableCell align="center" sx={{ py: 2 }}>
                                         <Chip 
                                             label={t(row.status)} 
                                             size="small" 
                                             icon={getStatusIcon(row.status)}
-                                            color={getStatusColor(row.status) as any}
-                                            variant="outlined"
-                                            sx={{ borderRadius: 1, fontWeight: 'bold', minWidth: 100 }} 
+                                            sx={{ 
+                                              borderRadius: '6px', 
+                                              fontWeight: '700', 
+                                              minWidth: 110,
+                                              bgcolor: alpha((palette as any)[getStatusColor(row.status)].main, 0.1),
+                                              color: (palette as any)[getStatusColor(row.status)].main,
+                                              border: 'none',
+                                              '& .MuiChip-icon': { color: 'inherit' }
+                                            }} 
                                         />
                                     </TableCell>
-                                    <TableCell align="right" sx={cellSx}>
-                                        <IconButton size="small" onClick={() => {
+                                    <TableCell align="right" sx={{ py: 2 }}>
+                                        <IconButton 
+                                          size="small" 
+                                          sx={{ color: palette.primary.main, bgcolor: alpha(palette.primary.main, 0.05), mr: 1 }}
+                                          onClick={() => {
                                             setEditingShipment(row);
                                             setFormData({
                                                 contract_id: contractId || '',
@@ -275,15 +499,22 @@ const DeliveryForm: React.FC<DeliveryFormProps> = ({ contractId, onSaveSuccess }
                                                 plate_number: '',
                                                 status: row.status
                                             });
-                                        }}><Edit fontSize="small" /></IconButton>
-                                        <IconButton size="small" color="error" onClick={() => {
+                                        }}>
+                                          <Edit fontSize="small" />
+                                        </IconButton>
+                                        <IconButton 
+                                          size="small" 
+                                          sx={{ color: palette.error.main, bgcolor: alpha(palette.error.main, 0.05) }}
+                                          onClick={() => {
                                             setShipments(shipments.filter(s => s.id !== row.id));
                                             setNotification({ open: true, message: t('Shipment Deleted Successfully'), severity: 'success' });
-                                        }}><Delete fontSize="small" /></IconButton>
+                                        }}>
+                                          <Delete fontSize="small" />
+                                        </IconButton>
                                     </TableCell>
                                 </TableRow>
                             )) : (
-                                <TableRow><TableCell colSpan={6} align="center" sx={{ py: 5 }}><Typography color="text.secondary">{t('No shipments recorded yet.')}</Typography></TableCell></TableRow>
+                                <TableRow><TableCell colSpan={6} align="center" sx={{ py: 8 }}><Typography color="text.secondary">{t('No shipments recorded yet.')}</Typography></TableCell></TableRow>
                             )}
                         </TableBody>
                     </Table>
@@ -293,7 +524,21 @@ const DeliveryForm: React.FC<DeliveryFormProps> = ({ contractId, onSaveSuccess }
 
       </Grid>
 
-      <Snackbar open={notification.open} autoHideDuration={4000} onClose={() => setNotification({...notification, open: false})}><Alert severity={notification.severity}>{notification.message}</Alert></Snackbar>
+      <Snackbar 
+        open={notification.open} 
+        autoHideDuration={4000} 
+        onClose={() => setNotification({...notification, open: false})}
+        anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
+      >
+        <Alert 
+          onClose={() => setNotification({...notification, open: false})} 
+          severity={notification.severity} 
+          sx={{ borderRadius: '8px', boxShadow: boxShadows.md, width: '100%' }}
+          variant="filled"
+        >
+          {notification.message}
+        </Alert>
+      </Snackbar>
     </Container>
   );
 };

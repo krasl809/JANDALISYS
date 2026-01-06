@@ -178,17 +178,17 @@ def upgrade():
     )
     
     # Ensure contract numbers are properly formatted
-    op.create_check_constraint(
-        'chk_contracts_contract_no_format',
-        'contracts',
-        "contract_no IS NULL OR contract_no ~ '^[A-Z0-9]{4}[0-9]{6}[0-9]{4}$'"
-    )
+    # op.create_check_constraint(
+    #     'chk_contracts_contract_no_format',
+    #     'contracts',
+    #     "contract_no IS NULL OR contract_no ~ '^[A-Z0-9]{4}[0-9]{6}[0-9]{4}$'"
+    # )
 
 def downgrade():
     """Remove data integrity constraints"""
     
     # Drop check constraints
-    op.drop_constraint('chk_contracts_contract_no_format', 'contracts', type_='check')
+    # op.drop_constraint('chk_contracts_contract_no_format', 'contracts', type_='check')
     op.drop_constraint('chk_contracts_currency_valid', 'contracts', type_='check')
     op.drop_constraint('chk_contract_items_positive_price', 'contract_items', type_='check')
     op.drop_constraint('chk_contract_items_positive_qty', 'contract_items', type_='check')

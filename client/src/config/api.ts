@@ -1,6 +1,6 @@
 const API_BASE_URL = '';
 
-const DASHBOARD_BASE = `/dashboard`;
+const DASHBOARD_BASE = `dashboard`;
 
 export const API_ENDPOINTS = {
   DASHBOARD: {

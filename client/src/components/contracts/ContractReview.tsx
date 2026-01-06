@@ -3,18 +3,19 @@ import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
 import api from '../../services/api';
 import {
-  Container, Paper, Table, TableBody, TableCell, TableContainer, TableHead, TableRow,
+  Container, Table, TableBody, TableCell, TableContainer, TableHead, TableRow,
   Typography, Box, Button, Chip, TextField, Card, CardContent, InputAdornment, 
-  CircularProgress, useTheme, alpha, IconButton, Stack
+  CircularProgress, useTheme, alpha, IconButton
 } from '@mui/material';
 import Grid from '@mui/material/Grid2';
-import { PriceCheck, Visibility, Send, MonetizationOn, Search, FilterList, ArrowForward } from '@mui/icons-material';
+import { PriceCheck, MonetizationOn, Search, FilterList, ArrowForward } from '@mui/icons-material';
 import { ContractPricingReview } from '../../types/contracts';
 
 const ContractReview: React.FC = () => {
   const { t } = useTranslation();
   const navigate = useNavigate();
-  const theme = useTheme(); // 👈 Hook for dynamic theming
+  const theme = useTheme();
+  const { palette, boxShadows }: any = theme;
 
   const [contracts, setContracts] = useState<ContractPricingReview[]>([]);
   const [loading, setLoading] = useState(true);
@@ -26,7 +27,7 @@ const ContractReview: React.FC = () => {
 
   const fetchContracts = async () => {
     try {
-      const response = await api.get('/contracts/pending-pricing');
+      const response = await api.get('contracts/pending-pricing');
       // Sort: Pending first, then by date
       const sorted = response.data.sort((a: ContractPricingReview, b: ContractPricingReview) => {
         if (a.pricing_status === 'pending' && b.pricing_status !== 'pending') return -1;
@@ -47,11 +48,23 @@ const ContractReview: React.FC = () => {
 
   // Helper for soft colored chips
   const getStatusChip = (status: string) => {
-    const config = {
-      pending: { color: theme.palette.warning.main, bg: alpha(theme.palette.warning.main, 0.1), label: 'Pending Action' },
-      in_review: { color: theme.palette.info.main, bg: alpha(theme.palette.info.main, 0.1), label: 'In Review' },
-      approved: { color: theme.palette.success.main, bg: alpha(theme.palette.success.main, 0.1), label: 'Completed' },
-    }[status] || { color: theme.palette.text.secondary, bg: alpha(theme.palette.text.secondary, 0.1), label: status };
+    const s = (status || '').toLowerCase();
+    let config;
+    
+    switch (s) {
+      case 'pending':
+        config = { color: palette.warning.main, bg: alpha(palette.warning.main, 0.1), label: t('contracts.status_pending_action') };
+        break;
+      case 'in_review':
+        config = { color: palette.info.main, bg: alpha(palette.info.main, 0.1), label: t('contracts.status_in_review') };
+        break;
+      case 'approved':
+      case 'completed':
+        config = { color: palette.success.main, bg: alpha(palette.success.main, 0.1), label: t('contracts.status_completed') };
+        break;
+      default:
+        config = { color: palette.text.secondary, bg: alpha(palette.text.secondary, 0.1), label: status };
+    }
 
     return (
       <Chip 
@@ -62,47 +75,46 @@ const ContractReview: React.FC = () => {
             color: config.color, 
             fontWeight: 700, 
             borderRadius: '6px',
-            border: '1px solid transparent' 
+            border: '1px solid transparent',
+            fontSize: '0.65rem',
+            height: 20
         }} 
       />
     );
   };
 
-  // Header Style
-  const tableHeadSx = {
-    backgroundColor: theme.palette.mode === 'dark' ? alpha(theme.palette.common.white, 0.05) : '#F8FAFC',
-    color: theme.palette.text.secondary,
-    fontWeight: 700,
-    fontSize: '0.75rem',
-    textTransform: 'uppercase',
-    letterSpacing: '0.5px',
-    borderBottom: `1px solid ${theme.palette.divider}`,
-    padding: '12px 16px',
-  };
-
-  const tableCellSx = {
-    borderBottom: `1px solid ${theme.palette.divider}`,
-    padding: '12px 16px',
-    color: theme.palette.text.primary,
-  };
-
-  if (loading) return <Box display="flex" justifyContent="center" p={10}><CircularProgress /></Box>;
+  if (loading) return (
+    <Box display="flex" justifyContent="center" alignItems="center" minHeight="60vh">
+      <CircularProgress sx={{ color: palette.primary.main }} />
+    </Box>
+  );
 
   return (
     <Container maxWidth="xl" sx={{ mt: 4, mb: 8 }}>
       
       {/* Header */}
-      <Box sx={{ mb: 4 }}>
-        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, mb: 1 }}>
-          <Box sx={{ p: 1, bgcolor: alpha(theme.palette.primary.main, 0.1), borderRadius: 2, color: 'primary.main' }}>
+      <Box sx={{ mb: 4, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+          <Box 
+            sx={{ 
+              p: 1.5, 
+              background: palette.gradients.primary.main, 
+              borderRadius: '12px', 
+              color: '#fff',
+              boxShadow: boxShadows.colored.primary,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center'
+            }}
+          >
             <PriceCheck fontSize="large" />
           </Box>
           <Box>
-            <Typography variant="h4" fontWeight="800" color="text.primary">
-                {t('contractPricingReview')}
+            <Typography variant="h4" fontWeight="700" color="text.primary" sx={{ letterSpacing: '-0.5px' }}>
+                {t('contracts.contract_pricing_review')}
             </Typography>
-            <Typography variant="body1" color="text.secondary">
-                Review pending contracts and assign final financial values.
+            <Typography variant="body2" color="text.secondary">
+                {t('contracts.pricing_review_desc')}
             </Typography>
           </Box>
         </Box>
@@ -111,46 +123,116 @@ const ContractReview: React.FC = () => {
       {/* KPI Cards */}
       <Grid container spacing={3} sx={{ mb: 4 }}>
         <Grid size={{ xs: 12, md: 4 }}>
-           <Card sx={{ borderLeft: `4px solid ${theme.palette.primary.main}`, boxShadow: 'none', border: `1px solid ${theme.palette.divider}` }}>
-             <CardContent>
-               <Typography variant="subtitle2" fontWeight="700" color="text.secondary" sx={{ textTransform: 'uppercase' }}>Pending Pricing</Typography>
-               <Typography variant="h4" fontWeight="800" sx={{ mt: 1, color: 'text.primary' }}>
-                 {contracts.filter(c => c.pricing_status === 'pending').length}
-               </Typography>
+           <Card 
+             sx={{ 
+               p: 0, 
+               borderRadius: '16px', 
+               boxShadow: boxShadows.md,
+               overflow: 'hidden',
+               border: 'none',
+               position: 'relative'
+             }}
+           >
+             <Box 
+                sx={{ 
+                  position: 'absolute', 
+                  top: 0, 
+                  left: 0, 
+                  width: '4px', 
+                  height: '100%', 
+                  background: palette.gradients.warning.main 
+                }} 
+              />
+             <CardContent sx={{ p: 3 }}>
+               <Stack direction="row" justifyContent="space-between" alignItems="flex-start">
+                 <Box>
+                   <Typography variant="caption" fontWeight="700" color="text.secondary" sx={{ textTransform: 'uppercase', letterSpacing: '1px' }}>
+                     {t('contracts.pending_pricing')}
+                   </Typography>
+                   <Typography variant="h3" fontWeight="700" sx={{ mt: 1, color: palette.text.primary }}>
+                     {contracts.filter(c => c.pricing_status === 'pending').length}
+                   </Typography>
+                 </Box>
+                 <Box 
+                    sx={{ 
+                      p: 1.5, 
+                      borderRadius: '10px', 
+                      bgcolor: alpha(palette.warning.main, 0.1), 
+                      color: palette.warning.main 
+                    }}
+                  >
+                   <MonetizationOn />
+                 </Box>
+               </Stack>
              </CardContent>
            </Card>
         </Grid>
       </Grid>
 
       {/* Table Section */}
-      <Card sx={{ border: `1px solid ${theme.palette.divider}`, boxShadow: 'none' }}>
-        
+      <Card 
+        sx={{ 
+          borderRadius: '16px', 
+          boxShadow: boxShadows.lg,
+          border: 'none',
+          p: 0,
+          overflow: 'hidden'
+        }}
+      >
         {/* Filter Bar */}
-        <Box sx={{ p: 2, borderBottom: `1px solid ${theme.palette.divider}`, display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 2 }}>
+        <Box 
+          sx={{ 
+            p: 2.5, 
+            borderBottom: `1px solid ${palette.divider}`, 
+            display: 'flex', 
+            justifyContent: 'space-between', 
+            alignItems: 'center', 
+            flexWrap: 'wrap', 
+            gap: 2,
+            bgcolor: palette.mode === 'light' ? alpha('#F8FAFC', 0.5) : alpha(palette.background.default, 0.5)
+          }}
+        >
            <TextField 
              size="small" 
-             placeholder="Search Contract No, Buyer..." 
+             placeholder={t('contracts.search_placeholder')} 
              value={searchTerm}
              onChange={(e) => setSearchTerm(e.target.value)}
              InputProps={{ 
-                 startAdornment: <InputAdornment position="start"><Search fontSize="small" color="action" /></InputAdornment>,
-                 sx: { bgcolor: theme.palette.background.default } 
+                 startAdornment: <InputAdornment position="start"><Search fontSize="small" color="disabled" /></InputAdornment>,
+                 sx: { 
+                   borderRadius: '8px',
+                   bgcolor: palette.background.paper,
+                   '& fieldset': { borderColor: `${palette.divider} !important` }
+                 } 
              }}
-             sx={{ width: { xs: '100%', sm: 300 } }}
+             sx={{ width: { xs: '100%', sm: 350 } }}
            />
-           <Button startIcon={<FilterList />} color="inherit">Filter</Button>
+           <Button 
+             variant="outlined"
+             startIcon={<FilterList />} 
+             sx={{ 
+               borderRadius: '8px', 
+               borderColor: palette.divider, 
+               color: 'text.secondary',
+               textTransform: 'none',
+               px: 2,
+               '&:hover': { borderColor: palette.primary.main, bgcolor: alpha(palette.primary.main, 0.05) }
+             }}
+           >
+             {t('common.filters')}
+           </Button>
         </Box>
         
         <TableContainer>
-          <Table>
+          <Table sx={{ minWidth: 800 }}>
             <TableHead>
               <TableRow>
-                <TableCell sx={tableHeadSx}>{t('contractNo')}</TableCell>
-                <TableCell sx={tableHeadSx}>{t('buyer')}</TableCell>
-                <TableCell sx={tableHeadSx}>{t('destination')}</TableCell>
-                <TableCell sx={tableHeadSx}>{t('status')}</TableCell>
-                <TableCell sx={tableHeadSx}>{t('estValue')}</TableCell>
-                <TableCell sx={{...tableHeadSx, textAlign: 'right'}}>{t('actions')}</TableCell>
+                <TableCell sx={{ py: 2, fontWeight: 700, textTransform: 'uppercase', fontSize: '0.7rem', letterSpacing: '0.5px' }}>{t('contracts.contract_no')}</TableCell>
+                <TableCell sx={{ py: 2, fontWeight: 700, textTransform: 'uppercase', fontSize: '0.7rem', letterSpacing: '0.5px' }}>{t('contracts.buyer')}</TableCell>
+                <TableCell sx={{ py: 2, fontWeight: 700, textTransform: 'uppercase', fontSize: '0.7rem', letterSpacing: '0.5px' }}>{t('contracts.destination')}</TableCell>
+                <TableCell sx={{ py: 2, fontWeight: 700, textTransform: 'uppercase', fontSize: '0.7rem', letterSpacing: '0.5px' }}>{t('contracts.status')}</TableCell>
+                <TableCell sx={{ py: 2, fontWeight: 700, textTransform: 'uppercase', fontSize: '0.7rem', letterSpacing: '0.5px' }}>{t('contracts.est_value')}</TableCell>
+                <TableCell align="right" sx={{ py: 2, fontWeight: 700, textTransform: 'uppercase', fontSize: '0.7rem', letterSpacing: '0.5px' }}>{t('common.actions')}</TableCell>
               </TableRow>
             </TableHead>
             <TableBody>
@@ -159,21 +241,48 @@ const ContractReview: React.FC = () => {
                   <TableRow 
                     key={contract.id} 
                     hover 
-                    sx={{ '&:hover': { bgcolor: alpha(theme.palette.primary.main, 0.02) }, cursor: 'pointer' }}
+                    sx={{ 
+                      '&:hover': { bgcolor: alpha(palette.primary.main, 0.02) }, 
+                      cursor: 'pointer',
+                      transition: 'background-color 0.2s'
+                    }}
                     onClick={() => navigate(`/pricing?contract_id=${contract.id}`)}
                   >
-                    <TableCell sx={{ ...tableCellSx, fontWeight: 'bold', color: theme.palette.primary.main }}>
-                      {contract.contract_no}
+                    <TableCell sx={{ py: 2 }}>
+                      <Typography variant="body2" fontWeight="700" color="primary.main">
+                        {contract.contract_no}
+                      </Typography>
                     </TableCell>
-                    <TableCell sx={tableCellSx}>{contract.buyer_name || 'N/A'}</TableCell>
-                    <TableCell sx={tableCellSx}>{contract.destination}</TableCell>
-                    <TableCell sx={tableCellSx}>{getStatusChip(contract.pricing_status)}</TableCell>
-                    <TableCell sx={{...tableCellSx, fontWeight: '600', color: theme.palette.text.primary}}>
-                      {contract.financial_value 
-                        ? `${contract.currency} ${contract.financial_value.toLocaleString()}` 
-                        : <Typography variant="caption" color="text.secondary">Not Set</Typography>}
+                    <TableCell sx={{ py: 2 }}>
+                      <Typography variant="body2" fontWeight="600" color="text.primary">
+                        {contract.buyer_name || t('common.na')}
+                      </Typography>
                     </TableCell>
-                    <TableCell sx={{ ...tableCellSx, textAlign: 'right' }}>
+                    <TableCell sx={{ py: 2 }}>
+                      <Typography variant="body2" color="text.secondary">
+                        {contract.destination}
+                      </Typography>
+                    </TableCell>
+                    <TableCell sx={{ py: 2 }}>
+                      {getStatusChip(contract.pricing_status)}
+                    </TableCell>
+                    <TableCell sx={{ py: 2 }}>
+                      {contract.financial_value ? (
+                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                          <Typography variant="body2" fontWeight="700" color="text.primary">
+                            {contract.financial_value.toLocaleString()}
+                          </Typography>
+                          <Typography variant="caption" fontWeight="600" color="text.secondary">
+                            {contract.currency}
+                          </Typography>
+                        </Box>
+                      ) : (
+                        <Typography variant="caption" sx={{ color: palette.text.secondary, fontStyle: 'italic' }}>
+                          {t('contracts.not_set')}
+                        </Typography>
+                      )}
+                    </TableCell>
+                    <TableCell align="right" sx={{ py: 2 }}>
                       {contract.pricing_status === 'pending' ? (
                         <Button
                           size="small"
@@ -181,16 +290,29 @@ const ContractReview: React.FC = () => {
                           startIcon={<MonetizationOn />}
                           onClick={(e) => { e.stopPropagation(); navigate(`/pricing?contract_id=${contract.id}`); }}
                           sx={{ 
-                            boxShadow: 'none', fontWeight: 600,
-                            bgcolor: alpha(theme.palette.primary.main, 0.1),
-                            color: theme.palette.primary.main,
-                            '&:hover': { bgcolor: alpha(theme.palette.primary.main, 0.2), boxShadow: 'none' }
+                            borderRadius: '8px',
+                            boxShadow: 'none',
+                            fontWeight: 700,
+                            textTransform: 'none',
+                            bgcolor: palette.gradients.primary.main,
+                            '&:hover': { 
+                              bgcolor: palette.gradients.primary.state, 
+                              boxShadow: boxShadows.sm 
+                            }
                           }}
                         >
-                          {t('priceNow')}
+                          {t('contracts.price_now')}
                         </Button>
                       ) : (
-                        <IconButton size="small" onClick={(e) => { e.stopPropagation(); /* view details */ }}>
+                        <IconButton 
+                          size="small" 
+                          sx={{ 
+                            color: palette.primary.main,
+                            bgcolor: alpha(palette.primary.main, 0.05),
+                            '&:hover': { bgcolor: alpha(palette.primary.main, 0.1) }
+                          }}
+                          onClick={(e) => { e.stopPropagation(); /* view details */ }}
+                        >
                             <ArrowForward fontSize="small" />
                         </IconButton>
                       )}
@@ -199,9 +321,20 @@ const ContractReview: React.FC = () => {
                 ))
               ) : (
                 <TableRow>
-                   <TableCell colSpan={6} align="center" sx={{ py: 8 }}>
-                      <Typography color="text.secondary" variant="body1">No contracts found.</Typography>
-                      <Button variant="text" onClick={() => setSearchTerm('')}>Clear Search</Button>
+                   <TableCell colSpan={6} align="center" sx={{ py: 10 }}>
+                      <Box sx={{ textAlign: 'center', opacity: 0.5 }}>
+                        <PriceCheck sx={{ fontSize: 64, mb: 2, color: 'text.disabled' }} />
+                        <Typography variant="h6" color="text.secondary" gutterBottom>
+                          {t('contracts.no_contracts_found')}
+                        </Typography>
+                        <Button 
+                          variant="text" 
+                          onClick={() => setSearchTerm('')}
+                          sx={{ mt: 1, textTransform: 'none', fontWeight: 600 }}
+                        >
+                          {t('common.clear_search')}
+                        </Button>
+                      </Box>
                    </TableCell>
                 </TableRow>
               )}

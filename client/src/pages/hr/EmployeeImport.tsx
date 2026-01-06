@@ -1,15 +1,15 @@
 import React, { useState, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
-  Container, Paper, Box, Typography, Button, IconButton, Stepper, Step, StepLabel,
+  Container, Paper, Box, Typography, Button, Stepper, Step, StepLabel,
   CircularProgress, Snackbar, Alert, AlertColor, Chip, Stack, Card, CardContent,
   Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Checkbox,
-  FormControl, InputLabel, Select, MenuItem, Dialog, DialogTitle, DialogContent,
-  DialogActions, LinearProgress, useTheme, alpha, Divider
+  FormControl, Select, MenuItem,
+  LinearProgress, Divider
 } from '@mui/material';
 import {
-  CloudUpload, CheckCircle, Error, Warning, Info, ArrowBack,
-  Description, TableChart, Settings, PlayArrow, Cancel, Refresh
+  CloudUpload, CheckCircle, Error, Warning, ArrowBack,
+  Description, PlayArrow, Cancel, Refresh
 } from '@mui/icons-material';
 
 import api from '../../services/api';
@@ -42,7 +42,6 @@ interface ImportResult {
 }
 
 const EmployeeImport: React.FC = () => {
-  const theme = useTheme();
   const navigate = useNavigate();
 
   // --- State ---
@@ -107,7 +106,7 @@ const EmployeeImport: React.FC = () => {
       const formData = new FormData();
       formData.append('file', file);
 
-      const response = await api.post('/hr/employees/import/analyze', formData, {
+      const response = await api.post('hr/employees/import/analyze', formData, {
         headers: { 'Content-Type': 'multipart/form-data' }
       });
 
@@ -275,7 +274,7 @@ const EmployeeImport: React.FC = () => {
         }
       };
 
-      const response = await api.post('/hr/employees/import/execute', payload, {
+      const response = await api.post('hr/employees/import/execute', payload, {
         onUploadProgress: (progressEvent) => {
           const percent = Math.round((progressEvent.loaded * 100) / (progressEvent.total || 100));
           setImportProgress(percent);

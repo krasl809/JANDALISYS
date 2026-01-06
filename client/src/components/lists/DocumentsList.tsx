@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import api from '../../services/api';
+import { useConfirm } from '../../context/ConfirmContext';
 import {
   Paper,
   Table,
@@ -38,6 +39,7 @@ interface DocumentType {
 
 const DocumentsList: React.FC = () => {
   const { t } = useTranslation();
+  const { confirm } = useConfirm();
 
   const [documents, setDocuments] = useState<DocumentType[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
@@ -60,7 +62,7 @@ const DocumentsList: React.FC = () => {
   const fetchDocuments = async () => {
     try {
       setLoading(true);
-      const response = await api.get('/document-types/');
+      const response = await api.get('document-types/');
       setDocuments(response.data);
       setError(null);
     } catch (err: any) {
@@ -82,7 +84,7 @@ const DocumentsList: React.FC = () => {
 
     try {
       setError(null);
-      const response = await api.post('/document-types/', newDocument);
+      const response = await api.post('document-types/', newDocument);
       setDocuments([...documents, response.data]);
       setNewDocument({ code: '', name: '', description: '', is_required: false, is_active: true });
       setSuccessMessage(t('documentAddedSuccessfully'));
@@ -110,7 +112,7 @@ const DocumentsList: React.FC = () => {
 
     try {
       setError(null);
-      const response = await api.put(`/document-types/${currentDocument.id}`, currentDocument);
+      const response = await api.put(`document-types/${currentDocument.id}`, currentDocument);
       setDocuments(documents.map(document => 
         document.id === currentDocument.id ? response.data : document
       ));
@@ -127,10 +129,10 @@ const DocumentsList: React.FC = () => {
   };
 
   const handleDeleteDocument = async (id: string) => {
-    if (!window.confirm(t('confirmDelete'))) return;
+    if (!await confirm({ message: t('confirmDelete') })) return;
 
     try {
-      await api.delete(`/document-types/${id}`);
+      await api.delete(`document-types/${id}`);
       setDocuments(documents.filter(d => d.id !== id));
       setSuccessMessage(t('documentDeletedSuccessfully'));
     } catch (err: any) {

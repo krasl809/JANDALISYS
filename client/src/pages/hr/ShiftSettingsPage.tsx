@@ -13,6 +13,7 @@ import {
 } from '@mui/icons-material';
 import api from '../../services/api';
 import { useTranslation } from 'react-i18next';
+import { useConfirm } from '../../context/ConfirmContext';
 import { format } from 'date-fns';
 import { ar, enUS } from 'date-fns/locale';
 
@@ -61,6 +62,7 @@ interface Assignment {
 
 const ShiftSettingsPage: React.FC = () => {
     const { t, i18n } = useTranslation();
+    const { confirm } = useConfirm();
     const isRtl = i18n.language === 'ar';
     const theme = useTheme();
     const [tab, setTab] = useState(0);
@@ -117,8 +119,8 @@ const ShiftSettingsPage: React.FC = () => {
         if (showLoading) setLoading(true);
         try {
             const [shiftsRes, empRes] = await Promise.all([
-                api.get('/hr/shifts'),
-                api.get('/hr/employees')
+                api.get('hr/shifts'),
+                api.get('hr/employees')
             ]);
             
             // Handle shifts data
@@ -206,10 +208,10 @@ const ShiftSettingsPage: React.FC = () => {
             }
             
             if (editingShiftId) {
-                await api.put(`/hr/shifts/${editingShiftId}`, newShift);
+                await api.put(`hr/shifts/${editingShiftId}`, newShift);
                 setFeedback({ type: 'success', msg: t('Shift policy updated successfully') });
             } else {
-                await api.post('/hr/shifts', newShift);
+                await api.post('hr/shifts', newShift);
                 setFeedback({ type: 'success', msg: t('Shift policy created successfully') });
             }
             
@@ -227,11 +229,10 @@ const ShiftSettingsPage: React.FC = () => {
     };
 
     const handleDeleteShift = async (id: number) => {
-        if (!window.confirm(t('Are you sure you want to delete this policy?'))) return;
-        
+        if (!await confirm({ message: t('Are you sure you want to delete this policy?') })) return;
         setSubmitting(true);
         try {
-            await api.delete(`/hr/shifts/${id}`);
+            await api.delete(`hr/shifts/${id}`);
             setFeedback({ type: 'success', msg: t('Shift policy deleted successfully') });
             setSnackbarOpen(true);
             fetchData(false); // Refresh data without showing loading
@@ -302,7 +303,7 @@ const ShiftSettingsPage: React.FC = () => {
                 return;
             }
             
-            await api.post('/hr/employees/assign-shift', newAssignment);
+            await api.post('hr/employees/assign-shift', newAssignment);
             setFeedback({ type: 'success', msg: t('Shift assigned successfully') });
             setSnackbarOpen(true);
             setOpenAssign(false);

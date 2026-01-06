@@ -40,10 +40,10 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
     setLoading(true);
     
     try {
-      const response = await api.get('/notifications/', { signal });
+      const response = await api.get('notifications/', { signal });
       setNotifications(response.data);
       
-      const countResponse = await api.get('/notifications/unread-count', { signal });
+      const countResponse = await api.get('notifications/unread-count', { signal });
       setUnreadCount(countResponse.data.unread_count);
     } catch (error: any) {
       if (axios.isCancel(error) || error.name === 'AbortError' || error.code === 'ERR_CANCELED') {
@@ -62,7 +62,7 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
 
   const markAsRead = async (id: string) => {
     try {
-      await api.put(`/notifications/${id}`);
+      await api.put(`notifications/${id}`);
       setNotifications(prev => 
         prev.map(n => n.id === id ? { ...n, is_read: true } : n)
       );
@@ -74,7 +74,7 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
 
   const markAllAsRead = async () => {
     try {
-      await api.post('/notifications/mark-all-read');
+      await api.post('notifications/mark-all-read');
       setNotifications(prev => prev.map(n => ({ ...n, is_read: true })));
       setUnreadCount(0);
     } catch (error) {
@@ -84,7 +84,7 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
 
   const deleteNotification = async (id: string) => {
     try {
-      await api.delete(`/notifications/${id}`);
+      await api.delete(`notifications/${id}`);
       setNotifications(prev => {
         const notification = prev.find(n => n.id === id);
         if (notification && !notification.is_read) {

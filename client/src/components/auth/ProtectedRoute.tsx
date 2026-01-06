@@ -9,27 +9,37 @@ interface ProtectedRouteProps {
 }
 
 const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ children, requiredPermission }) => {
-  const { hasPermission, isAuthenticated } = useAuth();
+  const { hasPermission, isAuthenticated, user } = useAuth();
   const location = useLocation();
+
+  console.log("🛡️ ProtectedRoute Check:", {
+    path: location.pathname,
+    isAuthenticated,
+    userEmail: user?.email,
+    requiredPermission,
+    routePermission: ROUTE_PERMISSIONS[location.pathname]
+  });
 
   // Check if user is authenticated
   if (!isAuthenticated) {
+    console.warn("🚫 Not authenticated, redirecting to login");
     return <Navigate to="/login" state={{ from: location }} replace />;
   }
 
   // Check if specific permission is required
   if (requiredPermission && !hasPermission(requiredPermission)) {
-    // Redirect to dashboard if user doesn't have required permission
+    console.warn(`🚫 Missing required permission: ${requiredPermission}`);
     return <Navigate to="/" replace />;
   }
 
   // Check route-based permissions
   const routePermission = ROUTE_PERMISSIONS[location.pathname];
   if (routePermission && !hasPermission(routePermission)) {
-    // Redirect to dashboard if user doesn't have route permission
+    console.warn(`🚫 Missing route permission: ${routePermission}`);
     return <Navigate to="/" replace />;
   }
 
+  console.log("✅ ProtectedRoute: Access granted");
   return <>{children}</>;
 };
 

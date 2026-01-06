@@ -1,13 +1,12 @@
 import React from 'react';
 import {
-  Card, CardContent, Grid, TextField, Typography, Box, FormControlLabel,
-  Checkbox, Switch, FormControl, FormLabel, RadioGroup, Radio,
-  Alert, Chip, Divider, List, ListItem, ListItemText, ListItemIcon
+  Card, CardContent, Grid, Switch, Alert, Chip, Paper
 } from '@mui/material';
 import {
-  Security, AdminPanelSettings, Business, Description, Inventory, 
-  AccountBalance, Assessment, Lock, PersonAdd, Visibility, Edit
+  Security, Business, Description, Inventory, 
+  AccountBalance, Assessment, Lock
 } from '@mui/icons-material';
+import { MDBox, MDTypography } from '../common/MDComponents';
 
 interface SystemAccessSectionProps {
   formData: any;
@@ -134,69 +133,99 @@ const SystemAccessSection: React.FC<SystemAccessSectionProps> = ({
     <Grid container spacing={3}>
       {/* System Role Selection */}
       <Grid item xs={12}>
-        <Card elevation={0}>
-          <CardContent>
-            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, mb: 3 }}>
-              <Box sx={{ 
-                color: 'primary.main', 
-                display: 'flex', 
-                p: 0.5, 
-                borderRadius: 1, 
-                bgcolor: 'primary.light', 
-                opacity: 0.1 
-              }}>
-                <AdminPanelSettings />
-              </Box>
-              <Typography variant="h6" fontWeight="bold">
-                System Role & Permissions
-              </Typography>
-            </Box>
-
-            <Alert severity="info" sx={{ mb: 3 }}>
-              <Typography variant="body2">
+        <Card sx={{ overflow: 'visible', mt: 4 }}>
+          <MDBox
+            variant="gradient"
+            bgColor="primary"
+            borderRadius="lg"
+            coloredShadow="primary"
+            mx={2}
+            mt={-3}
+            p={2}
+            mb={1}
+            textAlign="center"
+          >
+            <MDTypography variant="h6" fontWeight="medium" color="white">
+              System Role & Permissions
+            </MDTypography>
+          </MDBox>
+          <CardContent sx={{ pt: 4 }}>
+            <Alert 
+              severity="info" 
+              icon={<Security />}
+              sx={{ 
+                mb: 4, 
+                borderRadius: 1,
+                '& .MuiAlert-message': { width: '100%' }
+              }}
+            >
+              <MDTypography variant="body2" fontWeight="medium" color="info">
                 Select a system role to automatically assign appropriate permissions. You can customize permissions after selecting a role.
-              </Typography>
+              </MDTypography>
             </Alert>
 
             <Grid container spacing={2}>
               {systemRoles.map((role) => (
-                <Grid item xs={12} md={6} key={role.value}>
-                  <Card
-                    variant="outlined"
-                    sx={{
-                      cursor: 'pointer',
-                      border: formData.system_access?.system_role === role.value ? '2px solid' : '1px solid',
-                      borderColor: formData.system_access?.system_role === role.value ? 'primary.main' : 'divider',
-                      bgcolor: formData.system_access?.system_role === role.value ? 'action.selected' : 'background.paper'
-                    }}
+                <Grid item xs={12} md={4} key={role.value}>
+                  <Paper
+                    elevation={0}
                     onClick={() => handleRoleChange(role.value)}
+                    sx={{
+                      p: 2.5,
+                      cursor: 'pointer',
+                      borderRadius: 2,
+                      border: '1px solid',
+                      borderColor: formData.system_access?.system_role === role.value ? 'primary.main' : 'divider',
+                      bgcolor: formData.system_access?.system_role === role.value ? 'primary.light' : 'background.paper',
+                      transition: 'all 0.2s ease',
+                      position: 'relative',
+                      opacity: formData.system_access?.system_role === role.value ? 1 : 0.8,
+                      '&:hover': {
+                        borderColor: 'primary.main',
+                        opacity: 1,
+                        bgcolor: formData.system_access?.system_role === role.value ? 'primary.light' : 'action.hover',
+                        transform: 'translateY(-2px)'
+                      }
+                    }}
                   >
-                    <CardContent>
-                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
-                        <Security color={formData.system_access?.system_role === role.value ? 'primary' : 'inherit'} />
-                        <Typography variant="subtitle1" fontWeight="bold">
-                          {role.label}
-                        </Typography>
-                      </Box>
-                      <Typography variant="body2" color="text.secondary">
-                        {role.description}
-                      </Typography>
-                    </CardContent>
-                  </Card>
+                    {formData.system_access?.system_role === role.value && (
+                      <MDBox sx={{ 
+                        position: 'absolute', 
+                        top: 12, 
+                        right: 12,
+                        color: 'primary.main'
+                      }}>
+                        <Security fontSize="small" />
+                      </MDBox>
+                    )}
+                    <MDTypography 
+                      variant="subtitle2" 
+                      fontWeight="bold" 
+                      color={formData.system_access?.system_role === role.value ? 'primary' : 'dark'} 
+                      sx={{ mb: 0.5 }}
+                    >
+                      {role.label}
+                    </MDTypography>
+                    <MDTypography variant="caption" color="text" sx={{ display: 'block', lineHeight: 1.3 }}>
+                      {role.description}
+                    </MDTypography>
+                  </Paper>
                 </Grid>
               ))}
             </Grid>
 
             {selectedRole && (
-              <Box sx={{ mt: 3 }}>
-                <Divider sx={{ mb: 2 }} />
-                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 2 }}>
-                  <Typography variant="subtitle1" fontWeight="bold">
-                    Selected Role: {selectedRole.label}
-                  </Typography>
-                  <Chip label="Active" color="primary" size="small" />
-                </Box>
-              </Box>
+              <MDBox sx={{ mt: 4, display: 'flex', alignItems: 'center', gap: 1.5 }}>
+                <MDTypography variant="caption" fontWeight="bold" color="text" sx={{ textTransform: 'uppercase' }}>
+                  Currently Active:
+                </MDTypography>
+                <Chip 
+                  label={selectedRole.label} 
+                  color="primary" 
+                  size="small" 
+                  sx={{ fontWeight: 'bold' }}
+                />
+              </MDBox>
             )}
           </CardContent>
         </Card>
@@ -204,154 +233,77 @@ const SystemAccessSection: React.FC<SystemAccessSectionProps> = ({
 
       {/* Module Access */}
       <Grid item xs={12}>
-        <Card elevation={0}>
-          <CardContent>
-            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, mb: 3 }}>
-              <Box sx={{ 
-                color: 'secondary.main', 
-                display: 'flex', 
-                p: 0.5, 
-                borderRadius: 1, 
-                bgcolor: 'secondary.light', 
-                opacity: 0.1 
-              }}>
-                <Business />
-              </Box>
-              <Typography variant="h6" fontWeight="bold">
-                Module Access Control
-              </Typography>
-            </Box>
-
-            <Grid container spacing={3}>
-              <Grid item xs={12} md={6}>
-                <Card variant="outlined" sx={{ height: '100%' }}>
-                  <CardContent>
-                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 2 }}>
-                      <Business color="primary" />
-                      <Typography variant="subtitle1" fontWeight="bold">
-                        HR Management
-                      </Typography>
-                    </Box>
-                    <FormControlLabel
-                      control={
-                        <Switch
-                          checked={formData.system_access?.can_access_hr || false}
-                          onChange={(e) => handleSystemAccessChange('can_access_hr', e.target.checked)}
-                          disabled={!formData.system_access?.system_role}
-                        />
-                      }
-                      label="Allow access to HR module"
-                    />
-                    <Typography variant="caption" color="text.secondary" display="block">
-                      Employee management, attendance, payroll
-                    </Typography>
-                  </CardContent>
-                </Card>
-              </Grid>
-
-              <Grid item xs={12} md={6}>
-                <Card variant="outlined" sx={{ height: '100%' }}>
-                  <CardContent>
-                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 2 }}>
-                      <AccountBalance color="success" />
-                      <Typography variant="subtitle1" fontWeight="bold">
-                        Finance
-                      </Typography>
-                    </Box>
-                    <FormControlLabel
-                      control={
-                        <Switch
-                          checked={formData.system_access?.can_access_finance || false}
-                          onChange={(e) => handleSystemAccessChange('can_access_finance', e.target.checked)}
-                          disabled={!formData.system_access?.system_role}
-                        />
-                      }
-                      label="Allow access to Finance module"
-                    />
-                    <Typography variant="caption" color="text.secondary" display="block">
-                      Financial transactions, payments, pricing
-                    </Typography>
-                  </CardContent>
-                </Card>
-              </Grid>
-
-              <Grid item xs={12} md={6}>
-                <Card variant="outlined" sx={{ height: '100%' }}>
-                  <CardContent>
-                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 2 }}>
-                      <Inventory color="warning" />
-                      <Typography variant="subtitle1" fontWeight="bold">
-                        Inventory
-                      </Typography>
-                    </Box>
-                    <FormControlLabel
-                      control={
-                        <Switch
-                          checked={formData.system_access?.can_access_inventory || false}
-                          onChange={(e) => handleSystemAccessChange('can_access_inventory', e.target.checked)}
-                          disabled={!formData.system_access?.system_role}
-                        />
-                      }
-                      label="Allow access to Inventory module"
-                    />
-                    <Typography variant="caption" color="text.secondary" display="block">
-                      Stock management, warehouses, delivery notes
-                    </Typography>
-                  </CardContent>
-                </Card>
-              </Grid>
-
-              <Grid item xs={12} md={6}>
-                <Card variant="outlined" sx={{ height: '100%' }}>
-                  <CardContent>
-                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 2 }}>
-                      <Description color="info" />
-                      <Typography variant="subtitle1" fontWeight="bold">
-                        Contracts
-                      </Typography>
-                    </Box>
-                    <FormControlLabel
-                      control={
-                        <Switch
-                          checked={formData.system_access?.can_access_contracts || false}
-                          onChange={(e) => handleSystemAccessChange('can_access_contracts', e.target.checked)}
-                          disabled={!formData.system_access?.system_role}
-                        />
-                      }
-                      label="Allow access to Contracts module"
-                    />
-                    <Typography variant="caption" color="text.secondary" display="block">
-                      Contract creation, editing, approval
-                    </Typography>
-                  </CardContent>
-                </Card>
-              </Grid>
-
-              <Grid item xs={12} md={6}>
-                <Card variant="outlined" sx={{ height: '100%' }}>
-                  <CardContent>
-                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 2 }}>
-                      <Assessment color="secondary" />
-                      <Typography variant="subtitle1" fontWeight="bold">
-                        Reports & Analytics
-                      </Typography>
-                    </Box>
-                    <FormControlLabel
-                      control={
-                        <Switch
-                          checked={formData.system_access?.can_access_reports || false}
-                          onChange={(e) => handleSystemAccessChange('can_access_reports', e.target.checked)}
-                          disabled={!formData.system_access?.system_role}
-                        />
-                      }
-                      label="Allow access to Reports module"
-                    />
-                    <Typography variant="caption" color="text.secondary" display="block">
-                      Dashboards, analytics, data export
-                    </Typography>
-                  </CardContent>
-                </Card>
-              </Grid>
+        <Card sx={{ overflow: 'visible', mt: 4 }}>
+          <MDBox
+            variant="gradient"
+            bgColor="secondary"
+            borderRadius="lg"
+            coloredShadow="secondary"
+            mx={2}
+            mt={-3}
+            p={2}
+            mb={1}
+            textAlign="center"
+          >
+            <MDTypography variant="h6" fontWeight="medium" color="white">
+              Module Access Control
+            </MDTypography>
+          </MDBox>
+          <CardContent sx={{ pt: 4 }}>
+            <Grid container spacing={2}>
+              {[
+                { field: 'can_access_hr', label: 'HR Management', icon: <Business />, color: 'primary', desc: 'Employee data, attendance, payroll' },
+                { field: 'can_access_finance', label: 'Finance', icon: <AccountBalance />, color: 'success', desc: 'Financial records, payments, pricing' },
+                { field: 'can_access_inventory', label: 'Inventory', icon: <Inventory />, color: 'warning', desc: 'Stock, warehouses, delivery notes' },
+                { field: 'can_access_contracts', label: 'Contracts', icon: <Description />, color: 'info', desc: 'Creation, editing, approval' },
+                { field: 'can_access_reports', label: 'Reports', icon: <Assessment />, color: 'secondary', desc: 'Dashboards, analytics, data export' }
+              ].map((module) => (
+                <Grid item xs={12} md={6} key={module.field}>
+                  <Paper 
+                    elevation={0}
+                    sx={{ 
+                      p: 2, 
+                      borderRadius: 2,
+                      bgcolor: formData.system_access?.[module.field] ? `${module.color}.light` : 'background.paper',
+                      border: '1px solid',
+                      borderColor: formData.system_access?.[module.field] ? `${module.color}.main` : 'divider',
+                      transition: 'all 0.2s',
+                      opacity: !formData.system_access?.system_role ? 0.5 : 1
+                    }}
+                  >
+                    <MDBox sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                      <MDBox sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+                        <MDBox sx={{ 
+                          color: `${module.color}.main`,
+                          display: 'flex',
+                          p: 1,
+                          borderRadius: 1,
+                          bgcolor: 'background.paper',
+                          border: '1px solid',
+                          borderColor: 'divider'
+                        }}>
+                          {React.cloneElement(module.icon as React.ReactElement, { fontSize: 'small' })}
+                        </MDBox>
+                        <MDBox>
+                          <MDTypography variant="subtitle2" fontWeight="bold">
+                            {module.label}
+                          </MDTypography>
+                          <MDTypography variant="caption" color="text">
+                            {module.desc}
+                          </MDTypography>
+                        </MDBox>
+                      </MDBox>
+                      <Switch
+                        size="small"
+                        checked={formData.system_access?.[module.field] || false}
+                        onChange={(e) => handleSystemAccessChange(module.field, e.target.checked)}
+                        disabled={!formData.system_access?.system_role}
+                        color={module.color as any}
+                      />
+                    </MDBox>
+                  </Paper>
+                </Grid>
+              ))}
             </Grid>
           </CardContent>
         </Card>
@@ -359,98 +311,139 @@ const SystemAccessSection: React.FC<SystemAccessSectionProps> = ({
 
       {/* Detailed Permissions */}
       <Grid item xs={12}>
-        <Card elevation={0}>
-          <CardContent>
-            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, mb: 3 }}>
-              <Box sx={{ 
-                color: 'warning.main', 
-                display: 'flex', 
-                p: 0.5, 
-                borderRadius: 1, 
-                bgcolor: 'warning.light', 
-                opacity: 0.1 
-              }}>
-                <Lock />
-              </Box>
-              <Typography variant="h6" fontWeight="bold">
-                Detailed Permissions
-              </Typography>
-            </Box>
-
+        <Card sx={{ overflow: 'visible', mt: 4 }}>
+          <MDBox
+            variant="gradient"
+            bgColor="warning"
+            borderRadius="lg"
+            coloredShadow="warning"
+            mx={2}
+            mt={-3}
+            p={2}
+            mb={1}
+            textAlign="center"
+          >
+            <MDTypography variant="h6" fontWeight="medium" color="white">
+              Detailed Permissions
+            </MDTypography>
+          </MDBox>
+          <CardContent sx={{ pt: 4 }}>
             {formData.system_access?.permissions ? (
-              <List>
+              <MDBox sx={{ 
+                display: 'flex', 
+                flexWrap: 'wrap', 
+                gap: 1,
+                p: 2,
+                borderRadius: 2,
+                bgcolor: 'background.default',
+                border: '1px solid',
+                borderColor: 'divider'
+              }}>
                 {JSON.parse(formData.system_access.permissions).map((permission: string, index: number) => (
-                  <ListItem key={index}>
-                    <ListItemIcon>
-                      <Lock fontSize="small" color="action" />
-                    </ListItemIcon>
-                    <ListItemText
-                      primary={formatPermissionName(permission)}
-                      secondary={getPermissionDescription(permission)}
-                    />
-                  </ListItem>
+                  <Chip
+                    key={index}
+                    icon={<Lock sx={{ fontSize: '12px !important' }} />}
+                    label={formatPermissionName(permission)}
+                    size="small"
+                    variant="outlined"
+                    sx={{ 
+                      borderRadius: 1,
+                      bgcolor: 'background.paper',
+                      '& .MuiChip-label': { fontSize: '0.7rem', fontWeight: 600 }
+                    }}
+                  />
                 ))}
-              </List>
+              </MDBox>
             ) : (
-              <Alert severity="info">
-                <Typography variant="body2">
-                  Select a system role to view detailed permissions.
-                </Typography>
-              </Alert>
+              <MDBox sx={{ 
+                textAlign: 'center', 
+                py: 4, 
+                bgcolor: 'background.default', 
+                borderRadius: 2,
+                border: '1px dashed',
+                borderColor: 'divider'
+              }}>
+                <Security sx={{ fontSize: 40, color: 'text.disabled', mb: 1, opacity: 0.5 }} />
+                <MDTypography variant="body2" color="text" fontWeight="medium">
+                  No permissions assigned yet
+                </MDTypography>
+                <MDTypography variant="caption" color="text">
+                  Select a system role to view permissions
+                </MDTypography>
+              </MDBox>
             )}
           </CardContent>
         </Card>
       </Grid>
 
-      {/* Additional Security Settings */}
+      {/* Security Settings */}
       <Grid item xs={12}>
-        <Card elevation={0}>
-          <CardContent>
-            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, mb: 3 }}>
-              <Box sx={{ 
-                color: 'error.main', 
-                display: 'flex', 
-                p: 0.5, 
-                borderRadius: 1, 
-                bgcolor: 'error.light', 
-                opacity: 0.1 
-              }}>
-                <PersonAdd />
-              </Box>
-              <Typography variant="h6" fontWeight="bold">
-                Account Security Settings
-              </Typography>
-            </Box>
-
-            <Grid container spacing={3}>
+        <Card sx={{ overflow: 'visible', mt: 4 }}>
+          <MDBox
+            variant="gradient"
+            bgColor="error"
+            borderRadius="lg"
+            coloredShadow="error"
+            mx={2}
+            mt={-3}
+            p={2}
+            mb={1}
+            textAlign="center"
+          >
+            <MDTypography variant="h6" fontWeight="medium" color="white">
+              Account Security
+            </MDTypography>
+          </MDBox>
+          <CardContent sx={{ pt: 4 }}>
+            <Grid container spacing={2}>
               <Grid item xs={12} md={6}>
-                <FormControlLabel
-                  control={
+                <Paper 
+                  elevation={0}
+                  sx={{ 
+                    p: 2, 
+                    borderRadius: 2,
+                    border: '1px solid',
+                    borderColor: 'divider',
+                    bgcolor: 'background.paper'
+                  }}
+                >
+                  <MDBox sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                    <MDBox>
+                      <MDTypography variant="subtitle2" fontWeight="bold">Account Status</MDTypography>
+                      <MDTypography variant="caption" color="text">Enable or disable overall login access</MDTypography>
+                    </MDBox>
                     <Switch
                       checked={formData.is_active !== false}
                       onChange={(e) => onInputChange('is_active', e.target.checked)}
+                      color="success"
                     />
-                  }
-                  label="Account Active"
-                />
-                <Typography variant="caption" color="text.secondary" display="block">
-                  Enable or disable account access
-                </Typography>
+                  </MDBox>
+                </Paper>
               </Grid>
 
               <Grid item xs={12} md={6}>
-                <FormControlLabel
-                  control={
+                <Paper 
+                  elevation={0}
+                  sx={{ 
+                    p: 2, 
+                    borderRadius: 2,
+                    border: '1px solid',
+                    borderColor: 'divider',
+                    bgcolor: 'background.paper'
+                  }}
+                >
+                  <MDBox sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                    <MDBox>
+                      <MDTypography variant="subtitle2" fontWeight="bold">System Access</MDTypography>
+                      <MDTypography variant="caption" color="text">Enable or disable system-specific features</MDTypography>
+                    </MDBox>
                     <Switch
                       checked={formData.system_access?.is_active !== false}
                       onChange={(e) => handleSystemAccessChange('is_active', e.target.checked)}
+                      color="primary"
                     />
-                  }
-                  label="System Access Active"
-                />
-                <Typography variant="caption" color="text.secondary" display="block">
-                  Enable or disable system access for this role
-                </Typography>
+                  </MDBox>
+                </Paper>
               </Grid>
             </Grid>
           </CardContent>
@@ -466,32 +459,6 @@ const formatPermissionName = (permission: string): string => {
     .split('_')
     .map(word => word.charAt(0).toUpperCase() + word.slice(1))
     .join(' ');
-};
-
-const getPermissionDescription = (permission: string): string => {
-  const descriptions: { [key: string]: string } = {
-    'view_dashboard': 'Access to main dashboard and overview',
-    'view_reports': 'View reports and analytics',
-    'view_inventory': 'View inventory and stock information',
-    'view_settings': 'Access to system settings',
-    'view_hr': 'Access to HR module',
-    'read_contracts': 'View and read contracts',
-    'write_contracts': 'Create and edit contracts',
-    'post_contracts': 'Approve and post contracts',
-    'delete_contracts': 'Delete contracts',
-    'manage_users': 'User management and administration',
-    'approve_pricing': 'Approve pricing changes',
-    'manage_draft_status': 'Manage contract draft status',
-    'price_contracts': 'Set contract prices',
-    'read_pricing': 'View pricing information',
-    'read_payments': 'View payment records',
-    'manage_hr': 'Full HR management access',
-    'manage_employees': 'Employee data management',
-    'view_financial_data': 'View financial reports and data',
-    'manage_financial_transactions': 'Manage financial transactions'
-  };
-
-  return descriptions[permission] || 'System permission';
 };
 
 export default SystemAccessSection;

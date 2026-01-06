@@ -32,9 +32,11 @@ const Login: React.FC = () => {
 
     try {
       console.log('Sending request to /auth/login with:', { email });
-      const response = await api.post('/auth/login', {
+      const response = await api.post('auth/login', {
         email,
         password
+      }, {
+        timeout: 15000 // 15 seconds timeout for login
       });
       console.log('Response received from /auth/login:', response.status);
 
@@ -57,7 +59,7 @@ const Login: React.FC = () => {
       // الحصول على معلومات المستخدم الكاملة من الخادم
       try {
         console.log('Fetching user info from /auth/me...');
-        const userResponse = await api.get('/auth/me');
+        const userResponse = await api.get('auth/me');
         console.log('User info response received:', userResponse.status);
         const userData = userResponse.data;
 
@@ -77,19 +79,26 @@ const Login: React.FC = () => {
       }
 
       console.log('Login process complete. Navigating to home...');
-      // الانتقال إلى لوحة التحكم
       navigate('/');
     } catch (err: any) {
       console.error('Login error caught:', err);
-      if (err.response) {
+      
+      let errorDetail = 'Login failed';
+      
+      if (err.code === 'ECONNABORTED' || err.message === 'Network Error') {
+        errorDetail = 'الخادم غير متصل. يرجى التأكد من تشغيل الباك اند.';
+      } else if (err.response) {
         console.error('Error response data:', err.response.data);
         console.error('Error response status:', err.response.status);
+        errorDetail = err.response.data?.detail || err.response.data?.message || 'فشل تسجيل الدخول. يرجى التحقق من البيانات.';
       } else if (err.request) {
         console.error('No response received from server. Request details:', err.request);
+        errorDetail = 'لم يتم استلام رد من الخادم. يرجى المحاولة مرة أخرى.';
       } else {
         console.error('Error message:', err.message);
+        errorDetail = err.message;
       }
-      const errorDetail = err.response?.data?.detail || 'Login failed';
+      
       setError(errorDetail);
     } finally {
       console.log('Login finally block reached. Setting loading to false.');
@@ -114,7 +123,7 @@ const Login: React.FC = () => {
           </Typography>
 
           <Typography variant="body2" color="textSecondary" align="center" sx={{ mb: 2 }}>
-            {t('login.subtitle') || 'قم بتسجيل الدخول للوصول إلى النظام'}
+            {t('loginSubtitle') || 'قم بتسجيل الدخول للوصول إلى النظام'}
           </Typography>
 
           {error && (

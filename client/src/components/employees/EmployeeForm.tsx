@@ -1,17 +1,20 @@
 import React, { useState, useEffect } from 'react';
-import { useNavigate, useParams, useLocation, useSearchParams } from 'react-router-dom';
+import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import {
-  Container, Paper, Box, Typography, Button, IconButton, Tabs, Tab,
+  Container, Paper, Button, Tabs, Tab,
   Stepper, Step, StepLabel, CircularProgress, Snackbar, Alert, AlertColor,
-  Chip, Stack, Tooltip, useTheme, alpha
+  Chip, Stack, useTheme, alpha,
+  Dialog, DialogTitle, DialogContent, DialogActions,
+  Card
 } from '@mui/material';
 import {
-  Person, Work, AccountBalance, Folder, Preview, CheckCircle,
-  Save, Send, ArrowBack, Business, Description
+  Person, Work, Folder, Preview, CheckCircle,
+  Business
 } from '@mui/icons-material';
 
 import api from '../../services/api';
 import BackButton from '../common/BackButton';
+import { MDBox, MDTypography } from '../common/MDComponents';
 
 // Import sub-sections
 import PersonalInfoSection from './PersonalInfoSection';
@@ -19,7 +22,6 @@ import EmploymentInfoSection from './EmploymentInfoSection';
 import DocumentsSection from './DocumentsSection';
 import SystemAccessSection from './SystemAccessSection';
 import PreviewSection from './PreviewSection';
-import SectionHeader from '../common/SectionHeader';
 import SuccessModal from './SuccessModal';
 
 interface EmployeeFormData {
@@ -173,22 +175,20 @@ const TabPanel = (props: { children?: React.ReactNode; index: number; value: num
   const { children, value, index, ...other } = props;
   return (
     <div role="tabpanel" hidden={value !== index} {...other} style={{ width: '100%' }}>
-      {value === index && <Box sx={{ py: 3 }}>{children}</Box>}
+      {value === index && <MDBox sx={{ py: 3 }}>{children}</MDBox>}
     </div>
   );
 };
 
 
 
-const EmployeeForm: React.FC<EmployeeFormProps> = ({ mode: propMode }) => {
+const EmployeeForm: React.FC<EmployeeFormProps> = () => {
   const theme = useTheme();
   const navigate = useNavigate();
   const { id } = useParams<{ id: string }>();
-  const location = useLocation();
   const [searchParams, setSearchParams] = useSearchParams();
 
   // --- Initialization ---
-  const initialMode = propMode || (location.state as any)?.mode || 'create';
   const [activeTab, setActiveTab] = useState(0);
   const [loading, setLoading] = useState(true);
   const [notification, setNotification] = useState<NotificationState>({ open: false, message: '', severity: 'success' });
@@ -208,8 +208,8 @@ const EmployeeForm: React.FC<EmployeeFormProps> = ({ mode: propMode }) => {
   });
 
   const [canEditEmployee, setCanEditEmployee] = useState(true);
-  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [isGeneratingId, setIsGeneratingId] = useState(false);
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
 
   // --- Effects ---
   useEffect(() => {
@@ -221,7 +221,7 @@ const EmployeeForm: React.FC<EmployeeFormProps> = ({ mode: propMode }) => {
 
         if (id) {
           // Load existing employee data
-          const res = await api.get(`/hr/employees/${id}`);
+          const res = await api.get(`hr/employees/${id}`);
           const data = res.data;
 
           setFormData({
@@ -249,7 +249,7 @@ const EmployeeForm: React.FC<EmployeeFormProps> = ({ mode: propMode }) => {
   useEffect(() => {
     const tabParam = searchParams.get('tab');
     if (tabParam && id) {
-      const tabsMap: any = {
+      const tabsMap: Record<string, number> = {
         personal: 0,
         employment: 1,
         system: 2,
@@ -260,24 +260,32 @@ const EmployeeForm: React.FC<EmployeeFormProps> = ({ mode: propMode }) => {
     }
   }, [searchParams, id]);
 
-  const handleTabChange = (_: any, newValue: number) => {
+  const handleTabChange = (_: React.SyntheticEvent, newValue: number) => {
     setActiveTab(newValue);
     const tabs = ['personal', 'employment', 'system', 'documents', 'preview'];
     setSearchParams({ tab: tabs[newValue] });
   };
 
-  const handleInputChange = (field: string, value: any) => {
+  const handleInputChange = (field: string, value: string | number | boolean | any[]) => {
     setFormData(prev => ({ ...prev, [field]: value }));
   };
 
-  const handleNestedInputChange = (parent: string, field: string, value: any) => {
-    setFormData(prev => ({
-      ...prev,
-      [parent]: {
-        ...(prev[parent as keyof EmployeeFormData] as any),
-        [field]: value
-      }
-    }));
+  const handleNestedInputChange = (parent: string, field: string, value: string | number | boolean) => {
+    setFormData(prev => {
+        const parentKey = parent as keyof EmployeeFormData;
+        const parentData = prev[parentKey];
+        
+        if (typeof parentData === 'object' && parentData !== null && !Array.isArray(parentData)) {
+            return {
+                ...prev,
+                [parent]: {
+                    ...parentData,
+                    [field]: value
+                }
+            };
+        }
+        return prev;
+    });
   };
 
   const handleGenerateEmployeeId = async () => {
@@ -347,10 +355,10 @@ const EmployeeForm: React.FC<EmployeeFormProps> = ({ mode: propMode }) => {
       };
 
       if (id) {
-        await api.put(`/hr/employees/${id}`, payload);
+        await api.put(`hr/employees/${id}`, payload);
         setNotification({ open: true, message: 'Employee updated successfully', severity: 'success' });
       } else {
-        const res = await api.post('/hr/employees', payload);
+        const res = await api.post('hr/employees', payload);
         setNotification({ open: true, message: 'Employee created successfully', severity: 'success' });
         setSuccessModalOpen(true);
 
@@ -373,18 +381,6 @@ const EmployeeForm: React.FC<EmployeeFormProps> = ({ mode: propMode }) => {
         msg = Array.isArray(d) ? d.map((e: any) => `${e.loc[e.loc.length - 1]}: ${e.msg}`).join(', ') : d;
       }
       setNotification({ open: true, message: msg, severity: 'error' });
-    }
-  };
-
-  const handleDelete = async () => {
-    if (!id) return;
-
-    try {
-      await api.delete(`/hr/employees/${id}`);
-      setNotification({ open: true, message: 'Employee deleted successfully', severity: 'success' });
-      setTimeout(() => navigate('/employees'), 1000);
-    } catch (err: any) {
-      setNotification({ open: true, message: 'Delete failed', severity: 'error' });
     }
   };
 
@@ -413,7 +409,7 @@ const EmployeeForm: React.FC<EmployeeFormProps> = ({ mode: propMode }) => {
     }));
   };
 
-  const updateEmergencyContact = (index: number, field: string, value: any) => {
+  const updateEmergencyContact = (index: number, field: string, value: string | boolean) => {
     setFormData(prev => ({
       ...prev,
       emergency_contacts: prev.emergency_contacts.map((contact, i) =>
@@ -423,9 +419,9 @@ const EmployeeForm: React.FC<EmployeeFormProps> = ({ mode: propMode }) => {
   };
 
   if (loading) return (
-    <Box display="flex" justifyContent="center" p={10}>
+    <MDBox display="flex" justifyContent="center" p={10}>
       <CircularProgress />
-    </Box>
+    </MDBox>
   );
 
   const steps = ['Personal Info', 'Employment', 'System Access', 'Documents', 'Preview'];
@@ -433,51 +429,64 @@ const EmployeeForm: React.FC<EmployeeFormProps> = ({ mode: propMode }) => {
   return (
     <Container maxWidth="xl" sx={{ mt: 4, mb: 12 }}>
       {/* Header */}
-      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: 3 }}>
-        <Box display="flex" alignItems="center" gap={2}>
+      <MDBox 
+        variant="gradient" 
+        bgColor="info" 
+        borderRadius="lg" 
+        coloredShadow="info"
+        p={3}
+        mb={4}
+        display="flex"
+        justifyContent="space-between"
+        alignItems="center"
+      >
+        <MDBox display="flex" alignItems="center" gap={3}>
           <BackButton />
-          <Box>
-            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
-              <Typography variant="h4" fontWeight="800" color="text.primary">
+          <MDBox>
+            <MDBox sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+              <MDTypography variant="h4" fontWeight="bold" color="white">
                 {id ? formData.name : 'New Employee Registration'}
-              </Typography>
+              </MDTypography>
               <Chip
                 label={formData.status?.toUpperCase() || 'DRAFT'}
                 size="small"
                 sx={{
-                  bgcolor: formData.status === 'active'
-                    ? alpha(theme.palette.success.main, 0.1)
-                    : alpha(theme.palette.warning.main, 0.1),
-                  color: formData.status === 'active'
-                    ? 'success.main'
-                    : 'warning.main',
+                  bgcolor: 'rgba(255, 255, 255, 0.2)',
+                  color: 'white',
+                  border: 'none',
                   fontWeight: 'bold',
-                  borderRadius: '6px'
+                  '& .MuiChip-icon': { color: 'white', fontSize: 16 }
                 }}
                 icon={formData.status === 'active' ? <CheckCircle /> : <Person />}
               />
-            </Box>
-            <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
+            </MDBox>
+            <MDTypography variant="button" color="white" opacity={0.8}>
               Comprehensive Employee Management System
-            </Typography>
-          </Box>
-        </Box>
+            </MDTypography>
+          </MDBox>
+        </MDBox>
 
-        <Box sx={{ display: { xs: 'none', md: 'block' }, minWidth: 350 }}>
-          <Stepper activeStep={activeTab} alternativeLabel>
+        <MDBox sx={{ display: { xs: 'none', md: 'block' }, minWidth: 400 }}>
+          <Stepper activeStep={activeTab} alternativeLabel sx={{ 
+            '& .MuiStepLabel-label': { color: 'rgba(255, 255, 255, 0.7)' },
+            '& .MuiStepLabel-label.Mui-active': { color: 'white', fontWeight: 'bold' },
+            '& .MuiStepLabel-label.Mui-completed': { color: 'white' },
+            '& .MuiStepIcon-root': { color: 'rgba(255, 255, 255, 0.3)' },
+            '& .MuiStepIcon-root.Mui-active': { color: 'white' },
+            '& .MuiStepIcon-root.Mui-completed': { color: 'white' },
+            '& .MuiStepConnector-line': { borderColor: 'rgba(255, 255, 255, 0.3)' }
+          }}>
             {steps.map((label) => <Step key={label}><StepLabel>{label}</StepLabel></Step>)}
           </Stepper>
-        </Box>
-      </Box>
+        </MDBox>
+      </MDBox>
 
       {/* Tabs Header */}
-      <Paper elevation={0} sx={{
-        mb: 3,
-        borderBottom: 1,
-        borderColor: 'divider',
-        bgcolor: 'background.paper',
+      <Card sx={{
+        mb: 0,
         borderRadius: '12px 12px 0 0',
-        overflow: 'hidden'
+        overflow: 'hidden',
+        p: 0
       }}>
         <Tabs
           value={activeTab}
@@ -486,7 +495,14 @@ const EmployeeForm: React.FC<EmployeeFormProps> = ({ mode: propMode }) => {
           scrollButtons="auto"
           textColor="primary"
           indicatorColor="primary"
-          sx={{ '& .MuiTab-root': { minHeight: 60, fontWeight: 700, textTransform: 'none', fontSize: '0.9rem' } }}
+          sx={{ 
+            px: 2,
+            '& .MuiTabs-indicator': {
+              height: 3,
+              borderRadius: '3px 3px 0 0',
+              backgroundColor: theme.palette.primary.main
+            }
+          }}
         >
           <Tab icon={<Person fontSize="small" />} iconPosition="start" label="Personal Information" />
           <Tab icon={<Work fontSize="small" />} iconPosition="start" label="Employment Details" />
@@ -494,50 +510,55 @@ const EmployeeForm: React.FC<EmployeeFormProps> = ({ mode: propMode }) => {
           <Tab icon={<Folder fontSize="small" />} iconPosition="start" label="Documents" />
           <Tab icon={<Preview fontSize="small" />} iconPosition="start" label="Preview & Submit" />
         </Tabs>
-      </Paper>
+      </Card>
 
-      {/* Tab Content */}
-      <TabPanel value={activeTab} index={0}>
-        <PersonalInfoSection
-          formData={formData}
-          onInputChange={handleInputChange}
-          onNestedInputChange={handleNestedInputChange}
-        />
-      </TabPanel>
+      <Card sx={{ 
+        borderRadius: '0 0 12px 12px',
+        borderTop: 'none',
+        p: 3
+      }}>
+        {/* Tab Content */}
+        <TabPanel value={activeTab} index={0}>
+          <PersonalInfoSection
+            formData={formData}
+            onInputChange={handleInputChange}
+            onNestedInputChange={handleNestedInputChange}
+          />
+        </TabPanel>
 
-      <TabPanel value={activeTab} index={1}>
-        <EmploymentInfoSection
-          formData={formData}
-          onInputChange={handleInputChange}
-          onNestedInputChange={handleNestedInputChange}
-          onGenerateEmployeeId={handleGenerateEmployeeId}
-          isGeneratingId={isGeneratingId}
-          emergencyContacts={formData.emergency_contacts}
-          onAddEmergencyContact={addEmergencyContact}
-          onRemoveEmergencyContact={removeEmergencyContact}
-          onUpdateEmergencyContact={updateEmergencyContact}
-        />
-      </TabPanel>
+        <TabPanel value={activeTab} index={1}>
+          <EmploymentInfoSection
+            formData={formData}
+            onInputChange={handleInputChange}
+            onNestedInputChange={handleNestedInputChange}
+            onGenerateEmployeeId={handleGenerateEmployeeId}
+            isGeneratingId={isGeneratingId}
+            emergencyContacts={formData.emergency_contacts}
+            onAddEmergencyContact={addEmergencyContact}
+            onRemoveEmergencyContact={removeEmergencyContact}
+            onUpdateEmergencyContact={updateEmergencyContact}
+          />
+        </TabPanel>
 
-      <TabPanel value={activeTab} index={2}>
-        <SystemAccessSection
-          formData={formData}
-          onInputChange={handleInputChange}
-          onNestedInputChange={handleNestedInputChange}
-        />
-      </TabPanel>
+        <TabPanel value={activeTab} index={2}>
+          <SystemAccessSection
+            formData={formData}
+            onInputChange={handleInputChange}
+            onNestedInputChange={handleNestedInputChange}
+          />
+        </TabPanel>
 
-      <TabPanel value={activeTab} index={3}>
-        <DocumentsSection
-          formData={formData}
-          onInputChange={handleInputChange}
-          onNestedInputChange={handleNestedInputChange}
-        />
-      </TabPanel>
+        <TabPanel value={activeTab} index={3}>
+          <DocumentsSection
+            formData={formData}
+            onInputChange={handleInputChange}
+          />
+        </TabPanel>
 
-      <TabPanel value={activeTab} index={4}>
-        <PreviewSection formData={formData} />
-      </TabPanel>
+        <TabPanel value={activeTab} index={4}>
+          <PreviewSection formData={formData} />
+        </TabPanel>
+      </Card>
 
       {/* Floating Actions */}
       {activeTab < 4 && (
@@ -548,13 +569,12 @@ const EmployeeForm: React.FC<EmployeeFormProps> = ({ mode: propMode }) => {
           right: 0,
           zIndex: 1100,
           py: 2,
-          bgcolor: alpha(theme.palette.background.paper, 0.9),
-          backdropFilter: 'blur(12px)',
+          bgcolor: theme.palette.mode === 'dark' ? alpha(theme.palette.background.paper, 0.95) : theme.palette.background.paper,
           borderTop: `1px solid ${theme.palette.divider}`
         }}>
           <Container maxWidth="xl">
             <Stack direction="row" spacing={2} justifyContent="space-between" alignItems="center">
-              <Box>
+              <MDBox>
                 {id && (
                   <Button
                     color="error"
@@ -563,7 +583,7 @@ const EmployeeForm: React.FC<EmployeeFormProps> = ({ mode: propMode }) => {
                     Delete Employee
                   </Button>
                 )}
-              </Box>
+              </MDBox>
               <Stack direction="row" spacing={2}>
                 <Button
                   variant="outlined"
@@ -592,6 +612,40 @@ const EmployeeForm: React.FC<EmployeeFormProps> = ({ mode: propMode }) => {
         onClose={() => setSuccessModalOpen(false)}
         employeeName={formData.name}
       />
+
+      {/* Delete Confirmation Dialog */}
+      <Dialog
+        open={deleteDialogOpen}
+        onClose={() => setDeleteDialogOpen(false)}
+      >
+        <DialogTitle>Delete Employee</DialogTitle>
+        <DialogContent>
+          <MDTypography>Are you sure you want to delete {formData.name}? This action cannot be undone.</MDTypography>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setDeleteDialogOpen(false)}>Cancel</Button>
+          <Button 
+            color="error" 
+            variant="contained"
+            onClick={async () => {
+              try {
+                await api.delete(`hr/employees/${id}`);
+                setDeleteDialogOpen(false);
+                navigate('/employees');
+              } catch (error) {
+                console.error("Delete failed", error);
+                setNotification({
+                  open: true,
+                  message: 'Failed to delete employee',
+                  severity: 'error'
+                });
+              }
+            }}
+          >
+            Delete
+          </Button>
+        </DialogActions>
+      </Dialog>
 
       {/* Snackbar */}
       <Snackbar

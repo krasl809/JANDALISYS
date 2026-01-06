@@ -1,9 +1,10 @@
-import React, { useEffect, useState, useRef, useMemo } from 'react';
+import React, { useEffect, useState, useRef, useMemo, useCallback } from 'react';
 import { Box, Typography, Button, Paper, Alert, LinearProgress, Chip, Dialog, DialogTitle, DialogContent, DialogActions, TextField } from '@mui/material';
 import { DataGrid, GridColDef, GridToolbar, GridRenderCellParams, GridRowSelectionModel } from '@mui/x-data-grid';
 import { CloudUpload, Refresh, Delete, Edit, Save } from '@mui/icons-material';
 import api from '../../services/api';
 import { useTranslation } from 'react-i18next';
+import { useConfirm } from '../../context/ConfirmContext';
 
 interface Employee {
     id: string;
@@ -22,12 +23,22 @@ interface Employee {
 
 const EmployeeList: React.FC = () => {
     const { t } = useTranslation();
+    const { confirm } = useConfirm();
     const [rows, setRows] = useState<Employee[]>([]);
     const [loading, setLoading] = useState(true);
     const [uploading, setUploading] = useState(false);
     const [feedback, setFeedback] = useState<{ type: 'success' | 'error' | 'info', msg: string } | null>(null);
-    const [selectionModel, setSelectionModel] = useState<GridRowSelectionModel>([]);
+    const [selectionModel, setSelectionModel] = useState<GridRowSelectionModel>([] as unknown as GridRowSelectionModel);
     const [gridKey, setGridKey] = useState(0);
+
+    const selectionCount = useMemo(() => {
+        if (Array.isArray(selectionModel)) return selectionModel.length;
+        // @ts-ignore - handle potential object structure in newer versions
+        if (selectionModel && typeof selectionModel === 'object' && 'ids' in selectionModel) {
+            return (selectionModel as any).ids.length;
+        }
+        return 0;
+    }, [selectionModel]);
 
     // Edit Dialog
     const [editOpen, setEditOpen] = useState(false);
@@ -35,18 +46,27 @@ const EmployeeList: React.FC = () => {
 
     const fileInputRef = useRef<HTMLInputElement>(null);
 
-    const fetchEmployees = async () => {
+    const fetchEmployees = useCallback(async () => {
         setLoading(true);
         try {
             console.log('Fetching employees from API...');
-            const res = await api.get('/hr/employees');
+            const res = await api.get('hr/employees');
             console.log('API Response:', res.data);
+            
+            // Handle both array and object response formats
+            let employeeData = [];
             if (Array.isArray(res.data)) {
-                console.log('Setting rows with data:', res.data);
-                console.log('Sample employee data:', res.data[0]);
-                setRows(res.data);
+                employeeData = res.data;
+            } else if (res.data && Array.isArray(res.data.employees)) {
+                employeeData = res.data.employees;
             } else {
-                console.error("API returned non-array data", res.data);
+                console.error("API returned unexpected data format", res.data);
+            }
+            
+            if (employeeData.length > 0) {
+                console.log('Setting rows with data:', employeeData);
+                setRows(employeeData);
+            } else {
                 setRows([]);
             }
         } catch (error) {
@@ -54,17 +74,17 @@ const EmployeeList: React.FC = () => {
         } finally {
             setLoading(false);
         }
-    };
+    }, []);
 
     useEffect(() => {
         fetchEmployees();
+    }, [fetchEmployees]);
+
+    const handleImportClick = useCallback(() => {
+        fileInputRef.current?.click();
     }, []);
 
-    const handleImportClick = () => {
-        fileInputRef.current?.click();
-    };
-
-    const handleFileChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const handleFileChange = useCallback(async (event: React.ChangeEvent<HTMLInputElement>) => {
         const file = event.target.files?.[0];
         if (!file) return;
 
@@ -75,7 +95,7 @@ const EmployeeList: React.FC = () => {
         setFeedback(null);
 
         try {
-            const res = await api.post('/hr/employees/import', formData, {
+            const res = await api.post('hr/employees/import', formData, {
                 headers: { 'Content-Type': 'multipart/form-data' }
             });
             setFeedback({
@@ -84,87 +104,87 @@ const EmployeeList: React.FC = () => {
                      (res.data.errors.length > 0 ? ` ${t('Errors')}: ${res.data.errors.length}` : '')
             });
             fetchEmployees();
-        } catch (error: unknown) {
-            const apiError = error as { response?: { data?: { detail?: string } } };
+        } catch (error: any) {
             setFeedback({
                 type: 'error',
-                msg: apiError.response?.data?.detail || t("Failed to import file")
+                msg: error.response?.data?.detail || error.message || t('Failed to import employees')
             });
         } finally {
             setUploading(false);
             if (fileInputRef.current) fileInputRef.current.value = '';
         }
-    };
+    }, [fetchEmployees, t]);
 
-    const handleDelete = async () => {
-        if (selectionModel.length === 0) return;
-        if (!window.confirm(t('Are you sure you want to delete ${count} employees?', { count: selectionModel.length }))) return;
+    const handleDelete = useCallback(async () => {
+        if (selectionCount === 0) return;
 
-        try {
-            await api.delete('/hr/employees', { data: selectionModel });
-            setFeedback({ type: 'success', msg: t('Employees deleted successfully') });
-            setSelectionModel([]);
-            setGridKey(prev => prev + 1); // Force reset
-            fetchEmployees();
-        } catch {
-            setFeedback({ type: 'error', msg: t('Failed to delete employees') });
+        const confirmed = await confirm({
+            title: t('Confirm Delete'),
+            message: t('Are you sure you want to delete {{count}} employees?', { count: selectionCount }),
+            confirmText: t('Delete'),
+            type: 'error'
+        });
+
+        if (confirmed) {
+            setLoading(true);
+            try {
+                await api.post('hr/employees/bulk-delete', { ids: selectionModel });
+                setFeedback({ type: 'success', msg: t('Deleted successfully') });
+                setSelectionModel([] as unknown as GridRowSelectionModel);
+                setGridKey(prev => prev + 1);
+                fetchEmployees();
+            } catch (error: any) {
+                setFeedback({ type: 'error', msg: error.response?.data?.detail || t('Delete failed') });
+            } finally {
+                setLoading(false);
+            }
         }
-    };
+    }, [selectionCount, selectionModel, confirm, fetchEmployees, t]);
 
-    const handleEditClick = () => {
-        if (selectionModel.length !== 1) return;
-        const user = rows.find(r => r.id === selectionModel[0]);
+    const handleEditClick = useCallback(() => {
+        if (selectionCount !== 1) return;
+        const selectedId = Array.isArray(selectionModel) ? selectionModel[0] : null;
+        const user = rows.find(r => r.id === selectedId);
         if (user) {
             setEditUser({ ...user });
             setEditOpen(true);
         }
-    };
+    }, [selectionCount, selectionModel, rows]);
 
-    const handleSaveEdit = async () => {
+    const handleSaveEdit = useCallback(async () => {
         if (!editUser) return;
+        setLoading(true);
         try {
-            await api.put(`/hr/employees/${editUser.id}`, editUser);
+            await api.put(`hr/employees/${editUser.id}`, editUser);
             setFeedback({ type: 'success', msg: t('Employee updated successfully') });
             setEditOpen(false);
             fetchEmployees();
-        } catch {
-            setFeedback({ type: 'error', msg: t('Failed to update employee') });
+        } catch (error: any) {
+            setFeedback({ type: 'error', msg: error.response?.data?.detail || t('Failed to update employee') });
+        } finally {
+            setLoading(false);
         }
-    };
+    }, [editUser, fetchEmployees, t]);
 
-    const columns: GridColDef[] = useMemo(() => {
-        console.log('Creating columns with translation function:', t);
-        const cols: GridColDef[] = [
-            { field: 'code', headerName: t('Code'), width: 100 },
-            { field: 'full_name', headerName: t('Full Name'), width: 250, flex: 1 },
-            { field: 'company', headerName: t('Company'), width: 150 },
-            { field: 'department', headerName: t('Department'), width: 150 },
-            { field: 'position', headerName: t('Position'), width: 180 },
-            { field: 'work_email', headerName: t('Work Email'), width: 250 },
-            { field: 'status', headerName: t('Status'), width: 120 },
-            {
-                field: 'has_system_access',
-                headerName: t('System Access'),
-                width: 150,
-                renderCell: (params: GridRenderCellParams) => (
-                    <Chip
-                        label={params.value ? t("Yes") : t("No")}
-                        size="small"
-                        color={params.value ? 'success' : 'default'}
-                    />
-                )
-            },
-        ];
-        console.log('Created columns:', cols);
-        return cols;
-    }, [t]);
-
-    const selectionCount = useMemo(() => {
-        if (selectionModel.ids instanceof Set) return selectionModel.ids.size;
-        if (Array.isArray(selectionModel)) return selectionModel.length;
-        if (selectionModel.ids && Array.isArray(selectionModel.ids)) return selectionModel.ids.length;
-        return 0;
-    }, [selectionModel]);
+    const columns: GridColDef[] = useMemo(() => [
+        { field: 'code', headerName: t('Code'), width: 100 },
+        { field: 'full_name', headerName: t('Full Name'), width: 200 },
+        { field: 'work_email', headerName: t('Email'), width: 200 },
+        { field: 'department', headerName: t('Department'), width: 150 },
+        { field: 'position', headerName: t('Position'), width: 150 },
+        { 
+            field: 'status', 
+            headerName: t('Status'), 
+            width: 120,
+            renderCell: (params: GridRenderCellParams) => (
+                <Chip 
+                    label={params.value} 
+                    color={params.value === 'active' ? 'success' : 'default'} 
+                    size="small" 
+                />
+            )
+        }
+    ], [t]);
 
     return (
         <Box sx={{ p: 3, display: 'flex', flexDirection: 'column', flexGrow: 1, overflowX: 'hidden', boxSizing: 'border-box', width: '100%' }}>

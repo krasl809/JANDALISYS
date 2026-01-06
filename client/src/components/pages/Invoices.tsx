@@ -1,20 +1,21 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
-  Box, Button, Card, CardContent, Typography, List, ListItem, ListItemIcon, ListItemText,
-  IconButton, Divider, Chip, Dialog, DialogTitle, DialogContent, DialogActions,
+  Box, Button, Card, CardContent, Typography,
+  IconButton, Chip, Dialog, DialogTitle, DialogContent, DialogActions,
   TextField, MenuItem, FormControl, InputLabel, Select, Alert, Snackbar,
-  LinearProgress, Tooltip, Grid, Paper, Avatar, Stack, Badge, Checkbox, FormControlLabel,
+  LinearProgress, Tooltip, Grid, Stack,
   Table, TableBody, TableCell, TableContainer, TableHead, TableRow
 } from '@mui/material';
 import Grid2 from '@mui/material/Grid2';
 import {
-  Receipt, Add, CloudUpload, PictureAsPdf, Image, Delete, Download, Edit, CheckCircle,
-  Error, InsertDriveFile, Description, Verified, Schedule, FolderOpen, MoreVert, Print,
-  AttachFile, Link
+  Receipt, Add, CloudUpload, Delete,
+  Print,
+  AttachFile
 } from '@mui/icons-material';
 import { useTheme, alpha } from '@mui/material/styles';
 import api from '../../services/api';
+import { useConfirm } from '../../context/ConfirmContext';
 
 interface InvoicesProps { contractId?: string; }
 
@@ -37,20 +38,10 @@ interface Contract {
   direction: string;
 }
 
-interface Document {
-  id: string;
-  file_name: string;
-  original_name: string;
-  file_size: number;
-  mime_type: string;
-  document_number?: string;
-  description?: string;
-  uploaded_at: string;
-}
-
 const Invoices: React.FC<InvoicesProps> = ({ contractId }) => {
   const { t } = useTranslation();
   const theme = useTheme();
+  const { confirm } = useConfirm();
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const [invoices, setInvoices] = useState<Invoice[]>([]);
@@ -121,7 +112,7 @@ const Invoices: React.FC<InvoicesProps> = ({ contractId }) => {
 
   const loadContracts = async () => {
     try {
-      const response = await api.get('/contracts/');
+      const response = await api.get('contracts/');
       setContracts(response.data);
     } catch (error) {
       console.error('Failed to load contracts:', error);
@@ -225,7 +216,7 @@ const Invoices: React.FC<InvoicesProps> = ({ contractId }) => {
         setUploadProgress(prev => Math.min(prev + 10, 90));
       }, 200);
 
-      const response = await api.post(`/contracts/${selectedInvoice.contract_id}/documents`, uploadFormData, {
+      await api.post(`contracts/${selectedInvoice.contract_id}/documents`, uploadFormData, {
         headers: { 'Content-Type': 'multipart/form-data' }
       });
 
@@ -267,10 +258,9 @@ const Invoices: React.FC<InvoicesProps> = ({ contractId }) => {
   };
 
   const handleDeleteInvoice = async (invoice: Invoice) => {
-    if (!window.confirm(`Are you sure you want to delete invoice "${invoice.reference}"?`)) {
+    if (!await confirm({ message: `Are you sure you want to delete invoice "${invoice.reference}"?` })) {
       return;
     }
-
     try {
       await api.delete(`financial-transactions/${invoice.id}`);
       setInvoices(prev => prev.filter(inv => inv.id !== invoice.id));
@@ -295,12 +285,6 @@ const Invoices: React.FC<InvoicesProps> = ({ contractId }) => {
     const sizes = ['Bytes', 'KB', 'MB', 'GB'];
     const i = Math.floor(Math.log(bytes) / Math.log(k));
     return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
-  };
-
-  const getFileIcon = (mimeType: string) => {
-    if (mimeType === 'application/pdf') return <PictureAsPdf color="error" />;
-    if (mimeType.startsWith('image/')) return <Image color="primary" />;
-    return <InsertDriveFile color="action" />;
   };
 
   const getContractInfo = (contractId: string) => {

@@ -133,6 +133,7 @@ const FieldLabel = ({ label, required }: { label: string, required?: boolean }) 
 const ContractForm: React.FC<ContractFormProps> = ({ mode: propMode }) => {
   const { t } = useTranslation();
   const theme = useTheme();
+  const { palette, boxShadows } = theme as any;
   const navigate = useNavigate();
   const { id } = useParams<{ id: string }>();
   const location = useLocation();
@@ -241,21 +242,22 @@ const ContractForm: React.FC<ContractFormProps> = ({ mode: propMode }) => {
 
   // --- Styles ---
   const headerSx: SxProps<Theme> = {
-    backgroundColor: alpha(theme.palette.primary.main, 0.04),
-    color: theme.palette.text.secondary,
-    fontWeight: '700', fontSize: '0.75rem', textTransform: 'uppercase',
-    borderBottom: `1px solid ${theme.palette.divider}`, paddingInline: '16px', paddingY: '12px',
+    backgroundColor: palette.mode === 'light' ? '#f8f9fa' : alpha(palette.background.default, 0.8),
+    color: 'text.secondary',
+    fontWeight: 600, fontSize: '0.75rem', textTransform: 'uppercase', letterSpacing: 0.5,
+    borderBottom: `1px solid ${palette.divider}`, paddingInline: '16px', paddingY: '12px',
   };
   
   const cellSx: SxProps<Theme> = { 
-    borderBottom: `1px solid ${theme.palette.divider}`, 
+    borderBottom: `1px solid ${palette.divider}`, 
     paddingInline: '12px', paddingY: '8px',
-    color: theme.palette.text.primary 
+    color: 'text.primary',
+    fontSize: '0.875rem'
   };
   
   const inputTableSx: SxProps<Theme> = { 
     '& .MuiInput-underline:before': { borderBottomColor: 'transparent' }, 
-    '& .MuiInput-underline:hover:not(.Mui-disabled):before': { borderBottomColor: theme.palette.divider }, 
+    '& .MuiInput-underline:hover:not(.Mui-disabled):before': { borderBottomColor: palette.divider }, 
     fontSize: '0.9rem' 
   };
 
@@ -264,9 +266,9 @@ const ContractForm: React.FC<ContractFormProps> = ({ mode: propMode }) => {
     const loadData = async () => {
       try {
         const [s, sh, b, br, ag, a, w, c, i] = await Promise.all([
-          api.get('/sellers/'), api.get('/shippers/'), api.get('/buyers/'),
-          api.get('/brokers/'), api.get('/agents/'), api.get('/articles/'),
-          api.get('/inventory/warehouses/'), api.get('/conveyors/'), api.get('/incoterms/')
+          api.get('sellers/'), api.get('shippers/'), api.get('buyers/'),
+          api.get('brokers/'), api.get('agents/'), api.get('articles/'),
+          api.get('inventory/warehouses/'), api.get('conveyors/'), api.get('incoterms/')
         ]);
         
         const articlesList = a.data;
@@ -282,12 +284,12 @@ const ContractForm: React.FC<ContractFormProps> = ({ mode: propMode }) => {
 
         // Use stored values - server will verify permissions
         const role = localStorage.getItem('user_role') || 'admin';
-        setCanEditPricing(['admin', 'pricing_manager', 'finance'].includes(role));
-        setCanEditContract(['admin', 'contract_creator'].includes(role) || !id);
+        setCanEditPricing(['admin', 'pricing_manager', 'finance', 'contracts_admin'].includes(role));
+        setCanEditContract(['admin', 'contract_creator', 'contracts_admin'].includes(role) || !id);
 
         if (id) {
           try {
-            const res = await api.get(`/contracts/${id}`);
+            const res = await api.get(`contracts/${id}`);
             const data = res.data;
           
           // ✅ Sanitization
@@ -395,7 +397,7 @@ const ContractForm: React.FC<ContractFormProps> = ({ mode: propMode }) => {
 
   const fetchLedger = async (contractId: string, contractData?: any) => {
       try {
-          const res = await api.get(`/contracts/${contractId}/ledger`);
+          const res = await api.get(`contracts/${contractId}/ledger`);
           const rawData: FinancialTransaction[] = res.data;
           
           // Use contractData if provided, otherwise use current items
@@ -588,7 +590,7 @@ const ContractForm: React.FC<ContractFormProps> = ({ mode: propMode }) => {
         return;
       }
       
-      await api.put(`/contracts/${id}`, payload);
+      await api.put(`contracts/${id}`, payload);
       setAutoSaveStatus('saved');
       setLastAutoSave(new Date());
       setHasUnsavedChanges(false);
@@ -849,13 +851,13 @@ const ContractForm: React.FC<ContractFormProps> = ({ mode: propMode }) => {
         };
 
         if (id) {
-            await api.put(`/contracts/${id}`, payload);
+            await api.put(`contracts/${id}`, payload);
             setHasUnsavedChanges(false);
             setAutoSaveStatus('saved');
             setLastAutoSave(new Date());
             setNotification({ open: true, message: 'Updated successfully', severity: 'success' });
         } else {
-            const res = await api.post('/contracts/', payload);
+            const res = await api.post('contracts/', payload);
             setHasUnsavedChanges(false);
             // Clear temporary storage on successful save
             localStorage.removeItem(`contract_temp_${mode}_new`);
@@ -884,7 +886,7 @@ const ContractForm: React.FC<ContractFormProps> = ({ mode: propMode }) => {
 
   const handleDelete = async () => {
     try {
-      await api.delete(`/contracts/${id}`);
+      await api.delete(`contracts/${id}`);
       setNotification({ open: true, message: 'Contract deleted', severity: 'success' });
       setTimeout(() => navigate('/contracts'), 1000);
     } catch (err: any) {
@@ -1144,18 +1146,52 @@ const ContractForm: React.FC<ContractFormProps> = ({ mode: propMode }) => {
         </Box>
         
         <Box sx={{ display: { xs: 'none', md: 'block' }, minWidth: 350 }}>
-            <Stepper activeStep={formData.status === 'completed' ? 4 : formData.status === 'posted' ? 3 : 1} alternativeLabel>
+            <Stepper 
+              activeStep={formData.status === 'completed' ? 4 : formData.status === 'posted' ? 3 : 1} 
+              alternativeLabel
+              sx={{
+                '& .MuiStepIcon-root': {
+                  width: 24,
+                  height: 24,
+                  '&.Mui-active': { color: palette.primary.main },
+                  '&.Mui-completed': { color: palette.success.main }
+                },
+                '& .MuiStepLabel-label': {
+                  fontSize: '0.7rem',
+                  fontWeight: 600,
+                  mt: 0.5,
+                  '&.Mui-active': { fontWeight: 700 },
+                }
+              }}
+            >
                 {['Draft', 'Pricing Pending', 'Posted', 'Completed'].map((label) => <Step key={label}><StepLabel>{t(label)}</StepLabel></Step>)}
             </Stepper>
         </Box>
       </Box>
 
       {/* Tabs Header */}
-      <Paper elevation={0} sx={{ mb: 3, borderBottom: 1, borderColor: 'divider', bgcolor: 'background.paper', borderRadius: '12px 12px 0 0', overflow: 'hidden' }}>
+      <Paper elevation={0} sx={{ mb: 3, bgcolor: palette.background.paper, borderRadius: '12px', boxShadow: boxShadows.md, overflow: 'hidden', border: 'none' }}>
         <Tabs 
             value={activeTab} onChange={handleTabChange} 
-            variant="scrollable" scrollButtons="auto" textColor="primary" indicatorColor="primary"
-            sx={{ '& .MuiTab-root': { minHeight: 60, fontWeight: 700, textTransform: 'none', fontSize: '0.9rem' } }}
+            variant="scrollable" scrollButtons="auto"
+            sx={{ 
+              minHeight: 50,
+              '& .MuiTabs-indicator': { 
+                height: 3, 
+                borderRadius: '3px 3px 0 0',
+                bgcolor: palette.primary.main
+              },
+              '& .MuiTab-root': { 
+                minHeight: 50, 
+                fontWeight: 600, 
+                textTransform: 'none', 
+                fontSize: '0.85rem',
+                color: palette.text.secondary,
+                px: 3,
+                '&.Mui-selected': { color: palette.primary.main, fontWeight: 700 },
+                '&:hover': { color: palette.primary.main, bgcolor: alpha(palette.primary.main, 0.04) }
+              } 
+            }}
         >
             <Tab icon={<Description fontSize="small"/>} iconPosition="start" label={t('Contract Details')} />
             <Tab icon={<PriceCheck fontSize="small"/>} iconPosition="start" label={t('Pricing')} disabled={!id} />
@@ -1175,8 +1211,8 @@ const ContractForm: React.FC<ContractFormProps> = ({ mode: propMode }) => {
             <Grid size={{ xs: 12, lg: 8 }}>
                 
                 {/* 1. General Info */}
-                <Card elevation={0} sx={{ mb: 3 }}>
-                    <CardContent>
+                <Card elevation={0} sx={{ mb: 3, borderRadius: '12px', boxShadow: boxShadows.md, border: 'none' }}>
+                    <CardContent sx={{ p: 3 }}>
                     <SectionHeader title={t("General Information")} icon={<Description fontSize="small" />} />
                     <Grid container spacing={3}>
                         <Grid size={{ xs: 12, md: 6 }}>
@@ -1188,7 +1224,7 @@ const ContractForm: React.FC<ContractFormProps> = ({ mode: propMode }) => {
                               disabled={isGeneratingNo} 
                               placeholder={t("Auto-generated")} 
                               InputProps={{ 
-                                sx: { bgcolor: theme.palette.action.hover }, 
+                                sx: { bgcolor: alpha(palette.primary.main, 0.02), borderRadius: '8px' }, 
                                 endAdornment: (
                                   <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                                     {isGeneratingNo && <CircularProgress size={20}/>}
@@ -1197,7 +1233,7 @@ const ContractForm: React.FC<ContractFormProps> = ({ mode: propMode }) => {
                                       variant="outlined" 
                                       disabled={isGeneratingNo || !formData.seller_id || formData.seller_id === 'NA'}
                                       onClick={() => handleGenerateNumber(formData.seller_id)}
-                                      sx={{ minWidth: 'auto', px: 1, py: 0.5 }}
+                                      sx={{ minWidth: 'auto', px: 1.5, py: 0.5, borderRadius: '6px', textTransform: 'none', fontWeight: 600 }}
                                     >
                                       {t("Generate")}
                                     </Button>
@@ -1494,8 +1530,8 @@ const ContractForm: React.FC<ContractFormProps> = ({ mode: propMode }) => {
                         </CardContent>
                     </Card>
                     
-                    <Card elevation={0}>
-                        <CardContent>
+                    <Card elevation={0} sx={{ borderRadius: '12px', boxShadow: boxShadows.md, border: 'none' }}>
+                        <CardContent sx={{ p: 3 }}>
                             <SectionHeader title={t("Commercial Terms")} icon={<AttachMoney fontSize="small" />} />
                             <Grid container spacing={2}>
                                 <Grid size={{ xs: 12 }}><FieldLabel label={t("Payment Terms")} /><TextField fullWidth size="small" value={formData.payment_terms} onChange={e => handleInputChange('payment_terms', e.target.value)} /></Grid>
@@ -1518,15 +1554,15 @@ const ContractForm: React.FC<ContractFormProps> = ({ mode: propMode }) => {
                                     ) : isShipmentDate ? (
                                         <TextField type="date" fullWidth size="small" value={formData.shipment_date || ''} onChange={e => { handleInputChange('shipment_date', e.target.value || null); handleInputChange('shipment_period', ''); }} InputProps={{ endAdornment: (<InputAdornment position="end"><Tooltip title={t("Switch to FTA")}><IconButton size="small" onClick={() => setIsShipmentDate(false)} sx={{ color: 'primary.main' }}><EditCalendar fontSize="small" /></IconButton></Tooltip></InputAdornment>) }} />
                                     ) : (
-                                        <TextField type="text" fullWidth size="small" placeholder={t("e.g. Prompt Shipment")} value={formData.shipment_period || ''} onChange={e => { handleInputChange('shipment_period', e.target.value); handleInputChange('shipment_date', null); }} sx={{ '& .MuiOutlinedInput-root': { bgcolor: alpha(theme.palette.info.main, 0.03) } }} InputProps={{ endAdornment: (<InputAdornment position="end"><Tooltip title={t("Switch to Date")}><IconButton size="small" onClick={() => setIsShipmentDate(true)} sx={{ color: 'primary.main' }}><Event fontSize="small" /></IconButton></Tooltip></InputAdornment>) }} />
+                                        <TextField type="text" fullWidth size="small" placeholder={t("e.g. Prompt Shipment")} value={formData.shipment_period || ''} onChange={e => { handleInputChange('shipment_period', e.target.value); handleInputChange('shipment_date', null); }} sx={{ '& .MuiOutlinedInput-root': { bgcolor: alpha(palette.info.main, 0.03) } }} InputProps={{ endAdornment: (<InputAdornment position="end"><Tooltip title={t("Switch to Date")}><IconButton size="small" onClick={() => setIsShipmentDate(true)} sx={{ color: 'primary.main' }}><Event fontSize="small" /></IconButton></Tooltip></InputAdornment>) }} />
                                     )}
                                 </Grid>
                                 {mode === 'export' ? (
                                     <Grid size={{ xs: 12 }}><FieldLabel label={t("Destination")} /><TextField fullWidth size="small" value={formData.destination} onChange={e => handleInputChange('destination', e.target.value)} /></Grid>
                                 ) : (
                                     <Grid size={{ xs: 12 }}>
-                                        <Box sx={{ mt: 1, mb: 1, p: 2, bgcolor: alpha(theme.palette.info.main, 0.05), borderRadius: 2, border: `1px dashed ${alpha(theme.palette.info.main, 0.3)}` }}>
-                                            <Box display="flex" alignItems="center" gap={1} mb={1}><Map fontSize="small" color="info" /><Typography variant="subtitle2" fontWeight="700" color="info.main">{t("Logistics Route")}</Typography></Box>
+                                        <Box sx={{ mt: 1, mb: 1, p: 2, bgcolor: alpha(palette.info.main, 0.05), borderRadius: '12px', border: `1px dashed ${alpha(palette.info.main, 0.3)}` }}>
+                                            <Box display="flex" alignItems="center" gap={1} mb={2}><Map fontSize="small" color="info" /><Typography variant="subtitle2" fontWeight="700" color="info.main">{t("Logistics Route")}</Typography></Box>
                                             <Grid container spacing={2}>
                                                 <Grid size={{ xs: 12, md: 6 }}><FieldLabel label={t("Port of Loading (POL)")} /><TextField fullWidth size="small" value={formData.port_of_loading} onChange={e => handleInputChange('port_of_loading', e.target.value)} /></Grid>
                                                 <Grid size={{ xs: 12, md: 6 }}><FieldLabel label={t("Port of Discharge (POD)")} /><TextField fullWidth size="small" value={formData.destination} onChange={e => handleInputChange('destination', e.target.value)} /></Grid>
@@ -1543,14 +1579,14 @@ const ContractForm: React.FC<ContractFormProps> = ({ mode: propMode }) => {
                     
                     {/* Audit Info */}
                     {id && (
-                        <Card elevation={0} sx={{ bgcolor: alpha(theme.palette.info.main, 0.03), border: `1px solid ${alpha(theme.palette.info.main, 0.2)}` }}>
-                            <CardContent>
+                        <Card elevation={0} sx={{ bgcolor: alpha(palette.info.main, 0.03), border: `1px solid ${alpha(palette.info.main, 0.2)}`, borderRadius: '12px' }}>
+                            <CardContent sx={{ p: 3 }}>
                                 <SectionHeader title={t("Contract Info")} icon={<Description fontSize="small" />} />
                                 <Stack spacing={1.5}>
-                                    <Box><Typography variant="caption" color="text.secondary" fontWeight="bold">{t("Posted by:")}</Typography><Typography variant="body2">{formData.posted_by || t('N/A')}</Typography></Box>
-                                    <Box><Typography variant="caption" color="text.secondary" fontWeight="bold">{t("Finance Notified by:")}</Typography><Typography variant="body2">{formData.finance_notified_by || t('N/A')}</Typography></Box>
-                                    <Box><Typography variant="caption" color="text.secondary" fontWeight="bold">{t("Posted Date:")}</Typography><Typography variant="body2">{formData.posted_date || t('N/A')}</Typography></Box>
-                                    <Box><Typography variant="caption" color="text.secondary" fontWeight="bold">{t("Modified Date:")}</Typography><Typography variant="body2">{formData.modified_date || t('N/A')}</Typography></Box>
+                                    <Box><Typography variant="caption" color="text.secondary" fontWeight="700">{t("Posted by:")}</Typography><Typography variant="body2" fontWeight={500}>{formData.posted_by || t('N/A')}</Typography></Box>
+                                    <Box><Typography variant="caption" color="text.secondary" fontWeight="700">{t("Finance Notified by:")}</Typography><Typography variant="body2" fontWeight={500}>{formData.finance_notified_by || t('N/A')}</Typography></Box>
+                                    <Box><Typography variant="caption" color="text.secondary" fontWeight="700">{t("Posted Date:")}</Typography><Typography variant="body2" fontWeight={500}>{formData.posted_date || t('N/A')}</Typography></Box>
+                                    <Box><Typography variant="caption" color="text.secondary" fontWeight="700">{t("Modified Date:")}</Typography><Typography variant="body2" fontWeight={500}>{formData.modified_date || t('N/A')}</Typography></Box>
                                 </Stack>
                             </CardContent>
                         </Card>
@@ -1702,7 +1738,7 @@ const ContractForm: React.FC<ContractFormProps> = ({ mode: propMode }) => {
                           <Grid container spacing={3}>
                               {/* Contract Info */}
                               <Grid size={{ xs: 12, md: 6 }}>
-                                  <Box sx={{ p: 2, bgcolor: alpha(theme.palette.background.paper, 0.8), borderRadius: 2, border: `1px solid ${theme.palette.divider}` }}>
+                                  <Box sx={{ p: 3, bgcolor: alpha(palette.background.paper, 0.8), borderRadius: '12px', border: `1px solid ${palette.divider}` }}>
                                       <Typography variant="subtitle2" fontWeight="700" color="text.secondary" sx={{ mb: 2, textTransform: 'uppercase', letterSpacing: 1 }}>
                                           {t("Contract Information")}
                                       </Typography>
@@ -1727,7 +1763,7 @@ const ContractForm: React.FC<ContractFormProps> = ({ mode: propMode }) => {
 
                               {/* Accounting Summary */}
                               <Grid size={{ xs: 12, md: 6 }}>
-                                  <Box sx={{ p: 2, bgcolor: alpha(theme.palette.background.paper, 0.8), borderRadius: 2, border: `1px solid ${theme.palette.divider}` }}>
+                                  <Box sx={{ p: 3, bgcolor: alpha(palette.background.paper, 0.8), borderRadius: '12px', border: `1px solid ${palette.divider}` }}>
                                       <Typography variant="subtitle2" fontWeight="700" color="text.secondary" sx={{ mb: 2, textTransform: 'uppercase', letterSpacing: 1 }}>
                                           {t("Accounting Summary")}
                                       </Typography>
@@ -1782,14 +1818,14 @@ const ContractForm: React.FC<ContractFormProps> = ({ mode: propMode }) => {
 
               {/* Detailed Ledger Table */}
               <Grid size={{ xs: 12 }}>
-                  <Card elevation={0} sx={{ border: `1px solid ${theme.palette.divider}`, borderRadius: 3, overflow: 'hidden' }}>
-                      <Box sx={{ p: 2.5, bgcolor: alpha(theme.palette.primary.main, 0.03), borderBottom: `1px solid ${theme.palette.divider}`, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <Card elevation={0} sx={{ border: `1px solid ${palette.divider}`, borderRadius: '12px', overflow: 'hidden', boxShadow: boxShadows.md }}>
+                      <Box sx={{ p: 2.5, bgcolor: alpha(palette.primary.main, 0.03), borderBottom: `1px solid ${palette.divider}`, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                           <Box display="flex" alignItems="center" gap={1.5}>
-                              <Box p={0.8} borderRadius={1.5} bgcolor={alpha(theme.palette.primary.main, 0.1)} color="primary.main">
+                              <Box p={0.8} borderRadius={1.5} bgcolor={alpha(palette.primary.main, 0.1)} color="primary.main">
                                   <ReceiptLong fontSize="small" />
                               </Box>
                               <Box>
-                                  <Typography variant="h6" fontWeight="bold" color="text.primary">{t("Detailed Transaction Ledger")}</Typography>
+                                  <Typography variant="h6" fontWeight="700" color="text.primary">{t("Detailed Transaction Ledger")}</Typography>
                                   <Typography variant="caption" color="text.secondary">
                                       {mode === 'import' ? t('Buyer Accounting: Debits = amounts owed, Credits = payments made') : t('Seller Accounting: Debits = amounts receivable, Credits = payments received')}
                                   </Typography>
@@ -1906,7 +1942,7 @@ const ContractForm: React.FC<ContractFormProps> = ({ mode: propMode }) => {
 
       {/* Floating Actions */}
       {activeTab === 0 && (
-        <Paper elevation={4} sx={{ position: 'fixed', bottom: 0, left: 0, right: 0, zIndex: 1100, py: 2, bgcolor: alpha(theme.palette.background.paper, 0.9), backdropFilter: 'blur(12px)', borderTop: `1px solid ${theme.palette.divider}` }}>
+        <Paper elevation={4} sx={{ position: 'fixed', bottom: 0, left: 0, right: 0, zIndex: 1100, py: 2, bgcolor: theme.palette.mode === 'dark' ? alpha(theme.palette.background.paper, 0.95) : theme.palette.background.paper, borderTop: `1px solid ${theme.palette.divider}` }}>
             <Container maxWidth="xl">
                 <Stack direction="row" spacing={2} justifyContent="space-between" alignItems="center">
                     <Box>{id && (<Button startIcon={<Delete />} color="error" onClick={() => setDeleteDialogOpen(true)}>{t("Delete Contract")}</Button>)}</Box>

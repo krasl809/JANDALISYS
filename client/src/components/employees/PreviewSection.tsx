@@ -1,13 +1,13 @@
 import React from 'react';
 import {
-  Card, CardContent, Grid, Typography, Box, Avatar, Chip, Divider,
-  List, ListItem, ListItemText, ListItemIcon, Alert, Button,
-  Table, TableBody, TableCell, TableContainer, TableHead, TableRow,
-  Paper, IconButton
+  Card, CardContent, Grid, Avatar, Chip, Divider,
+  Alert,
+  Table, TableBody, TableCell, TableContainer, TableRow,
+  Paper, List, ListItem, ListItemIcon, ListItemText
 } from '@mui/material';
+import { MDBox, MDTypography } from '../common/MDComponents';
 import {
-  Person, Work, AccountBalance, Phone, Email, LocationOn, Business,
-  Security, Folder, Edit, CheckCircle, Warning, Info
+  Phone, Email, Folder
 } from '@mui/icons-material';
 
 interface PreviewSectionProps {
@@ -109,33 +109,32 @@ const PreviewSection: React.FC<PreviewSectionProps> = ({ formData }) => {
     <Grid container spacing={3}>
       {/* Form Validation Status */}
       <Grid item xs={12}>
-        <Card elevation={0}>
-          <CardContent>
-            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, mb: 3 }}>
-              <Box sx={{ 
-                color: errors.length > 0 ? 'error.main' : warnings.length > 0 ? 'warning.main' : 'success.main', 
-                display: 'flex', 
-                p: 0.5, 
-                borderRadius: 1, 
-                bgcolor: errors.length > 0 ? 'error.light' : warnings.length > 0 ? 'warning.light' : 'success.light', 
-                opacity: 0.1 
-              }}>
-                {errors.length > 0 ? <Warning /> : warnings.length > 0 ? <Info /> : <CheckCircle />}
-              </Box>
-              <Typography variant="h6" fontWeight="bold">
-                Form Validation Status
-              </Typography>
-            </Box>
-
+        <Card sx={{ overflow: 'visible' }}>
+          <MDBox
+            variant="gradient"
+            bgColor={errors.length > 0 ? "error" : warnings.length > 0 ? "warning" : "success"}
+            borderRadius="lg"
+            coloredShadow={errors.length > 0 ? "error" : warnings.length > 0 ? "warning" : "success"}
+            mx={2}
+            mt={-3}
+            p={2}
+            mb={1}
+            textAlign="center"
+          >
+            <MDTypography variant="h6" fontWeight="medium" color="white">
+              Form Validation Status
+            </MDTypography>
+          </MDBox>
+          <CardContent sx={{ pt: 2 }}>
             {errors.length > 0 && (
               <Alert severity="error" sx={{ mb: 2 }}>
-                <Typography variant="subtitle2" fontWeight="bold" gutterBottom>
+                <MDTypography variant="subtitle2" fontWeight="bold" gutterBottom color="error">
                   Please fix the following errors before submitting:
-                </Typography>
+                </MDTypography>
                 <ul style={{ margin: 0, paddingLeft: 20 }}>
                   {errors.map((error, index) => (
                     <li key={index}>
-                      <Typography variant="body2">{error}</Typography>
+                      <MDTypography variant="body2">{error}</MDTypography>
                     </li>
                   ))}
                 </ul>
@@ -144,13 +143,13 @@ const PreviewSection: React.FC<PreviewSectionProps> = ({ formData }) => {
 
             {warnings.length > 0 && (
               <Alert severity="warning" sx={{ mb: 2 }}>
-                <Typography variant="subtitle2" fontWeight="bold" gutterBottom>
+                <MDTypography variant="subtitle2" fontWeight="bold" gutterBottom color="warning">
                   Recommendations:
-                </Typography>
+                </MDTypography>
                 <ul style={{ margin: 0, paddingLeft: 20 }}>
                   {warnings.map((warning, index) => (
                     <li key={index}>
-                      <Typography variant="body2">{warning}</Typography>
+                      <MDTypography variant="body2">{warning}</MDTypography>
                     </li>
                   ))}
                 </ul>
@@ -159,9 +158,9 @@ const PreviewSection: React.FC<PreviewSectionProps> = ({ formData }) => {
 
             {errors.length === 0 && warnings.length === 0 && (
               <Alert severity="success">
-                <Typography variant="body2">
+                <MDTypography variant="body2" color="success">
                   All required fields are completed and validated. The form is ready for submission.
-                </Typography>
+                </MDTypography>
               </Alert>
             )}
           </CardContent>
@@ -170,27 +169,41 @@ const PreviewSection: React.FC<PreviewSectionProps> = ({ formData }) => {
 
       {/* Employee Profile Summary */}
       <Grid item xs={12} md={4}>
-        <Card elevation={0}>
-          <CardContent sx={{ textAlign: 'center' }}>
+        <Card sx={{ overflow: 'visible', height: '100%' }}>
+          <MDBox
+            variant="gradient"
+            bgColor="primary"
+            borderRadius="lg"
+            coloredShadow="primary"
+            mx={2}
+            mt={-3}
+            p={2}
+            mb={1}
+            textAlign="center"
+          >
             <Avatar
               sx={{ 
-                width: 120, 
-                height: 120, 
+                width: 80, 
+                height: 80, 
                 mx: 'auto', 
-                mb: 2,
-                bgcolor: 'primary.main',
-                fontSize: '3rem'
+                bgcolor: 'white',
+                color: 'primary.main',
+                fontSize: '2rem',
+                border: '4px solid white',
+                boxShadow: (theme: any) => theme.shadows[3]
               }}
             >
               {formData.name?.charAt(0)?.toUpperCase() || 'E'}
             </Avatar>
-            <Typography variant="h5" fontWeight="bold" gutterBottom>
+          </MDBox>
+          <CardContent sx={{ textAlign: 'center', pt: 2 }}>
+            <MDTypography variant="h5" fontWeight="bold" gutterBottom>
               {formData.name || 'Employee Name'}
-            </Typography>
-            <Typography variant="body2" color="text.secondary" gutterBottom>
+            </MDTypography>
+            <MDTypography variant="body2" color="text" gutterBottom>
               {formData.employee_id || 'Employee ID not set'}
-            </Typography>
-            <Box sx={{ display: 'flex', justifyContent: 'center', gap: 1, mb: 2 }}>
+            </MDTypography>
+            <MDBox sx={{ display: 'flex', justifyContent: 'center', gap: 1, mb: 2 }}>
               <Chip 
                 label={formData.status?.toUpperCase() || 'STATUS'} 
                 color={getStatusColor(formData.status)} 
@@ -201,76 +214,75 @@ const PreviewSection: React.FC<PreviewSectionProps> = ({ formData }) => {
                 color={getEmploymentTypeColor(formData.employment_type)} 
                 size="small"
               />
-            </Box>
+            </MDBox>
             <Divider sx={{ my: 2 }} />
-            <Typography variant="body2" color="text.secondary">
+            <MDTypography variant="body2" color="text">
               <Email sx={{ fontSize: 16, mr: 1, verticalAlign: 'middle' }} />
               {formData.email || 'Email not provided'}
-            </Typography>
-            <Typography variant="body2" color="text.secondary">
+            </MDTypography>
+            <MDTypography variant="body2" color="text">
               <Phone sx={{ fontSize: 16, mr: 1, verticalAlign: 'middle' }} />
               {formData.phone || 'Phone not provided'}
-            </Typography>
+            </MDTypography>
           </CardContent>
         </Card>
       </Grid>
 
       {/* Basic Information */}
       <Grid item xs={12} md={8}>
-        <Card elevation={0}>
-          <CardContent>
-            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, mb: 3 }}>
-              <Box sx={{ 
-                color: 'primary.main', 
-                display: 'flex', 
-                p: 0.5, 
-                borderRadius: 1, 
-                bgcolor: 'primary.light', 
-                opacity: 0.1 
-              }}>
-                <Person />
-              </Box>
-              <Typography variant="h6" fontWeight="bold">
-                Basic Information
-              </Typography>
-            </Box>
-
+        <Card sx={{ overflow: 'visible', height: '100%' }}>
+          <MDBox
+            variant="gradient"
+            bgColor="info"
+            borderRadius="lg"
+            coloredShadow="info"
+            mx={2}
+            mt={-3}
+            p={2}
+            mb={1}
+            textAlign="center"
+          >
+            <MDTypography variant="h6" fontWeight="medium" color="white">
+              Employment Details
+            </MDTypography>
+          </MDBox>
+          <CardContent sx={{ pt: 4 }}>
             <Grid container spacing={2}>
               <Grid item xs={12} sm={6}>
-                <Typography variant="caption" color="text.secondary">Department</Typography>
-                <Typography variant="body1" fontWeight="medium">
+                <MDTypography variant="caption" color="text" fontWeight="bold" sx={{ textTransform: 'uppercase' }}>Department</MDTypography>
+                <MDTypography variant="body1" fontWeight="medium">
                   {formData.department || 'Not specified'}
-                </Typography>
+                </MDTypography>
               </Grid>
               <Grid item xs={12} sm={6}>
-                <Typography variant="caption" color="text.secondary">Position</Typography>
-                <Typography variant="body1" fontWeight="medium">
+                <MDTypography variant="caption" color="text" fontWeight="bold" sx={{ textTransform: 'uppercase' }}>Position</MDTypography>
+                <MDTypography variant="body1" fontWeight="medium">
                   {formData.position || 'Not specified'}
-                </Typography>
+                </MDTypography>
               </Grid>
               <Grid item xs={12} sm={6}>
-                <Typography variant="caption" color="text.secondary">Job Title</Typography>
-                <Typography variant="body1" fontWeight="medium">
+                <MDTypography variant="caption" color="text" fontWeight="bold" sx={{ textTransform: 'uppercase' }}>Job Title</MDTypography>
+                <MDTypography variant="body1" fontWeight="medium">
                   {formData.job_title || 'Not specified'}
-                </Typography>
+                </MDTypography>
               </Grid>
               <Grid item xs={12} sm={6}>
-                <Typography variant="caption" color="text.secondary">Hire Date</Typography>
-                <Typography variant="body1" fontWeight="medium">
+                <MDTypography variant="caption" color="text" fontWeight="bold" sx={{ textTransform: 'uppercase' }}>Hire Date</MDTypography>
+                <MDTypography variant="body1" fontWeight="medium">
                   {formData.hire_date ? new Date(formData.hire_date).toLocaleDateString() : 'Not specified'}
-                </Typography>
+                </MDTypography>
               </Grid>
               <Grid item xs={12} sm={6}>
-                <Typography variant="caption" color="text.secondary">Work Location</Typography>
-                <Typography variant="body1" fontWeight="medium">
+                <MDTypography variant="caption" color="text" fontWeight="bold" sx={{ textTransform: 'uppercase' }}>Work Location</MDTypography>
+                <MDTypography variant="body1" fontWeight="medium">
                   {formData.work_location || 'Not specified'}
-                </Typography>
+                </MDTypography>
               </Grid>
               <Grid item xs={12} sm={6}>
-                <Typography variant="caption" color="text.secondary">Reporting To</Typography>
-                <Typography variant="body1" fontWeight="medium">
+                <MDTypography variant="caption" color="text" fontWeight="bold" sx={{ textTransform: 'uppercase' }}>Reporting To</MDTypography>
+                <MDTypography variant="body1" fontWeight="medium">
                   {formData.reporting_to || 'Not specified'}
-                </Typography>
+                </MDTypography>
               </Grid>
             </Grid>
           </CardContent>
@@ -279,69 +291,89 @@ const PreviewSection: React.FC<PreviewSectionProps> = ({ formData }) => {
 
       {/* Salary Information */}
       <Grid item xs={12} md={6}>
-        <Card elevation={0}>
-          <CardContent>
-            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, mb: 3 }}>
-              <Box sx={{ 
-                color: 'success.main', 
-                display: 'flex', 
-                p: 0.5, 
-                borderRadius: 1, 
-                bgcolor: 'success.light', 
-                opacity: 0.1 
-              }}>
-                <AccountBalance />
-              </Box>
-              <Typography variant="h6" fontWeight="bold">
-                Salary Information
-              </Typography>
-            </Box>
-
+        <Card sx={{ overflow: 'visible', height: '100%' }}>
+          <MDBox
+            variant="gradient"
+            bgColor="success"
+            borderRadius="lg"
+            coloredShadow="success"
+            mx={2}
+            mt={-3}
+            p={2}
+            mb={1}
+            textAlign="center"
+          >
+            <MDTypography variant="h6" fontWeight="medium" color="white">
+              Salary Details
+            </MDTypography>
+          </MDBox>
+          <CardContent sx={{ pt: 4 }}>
             {formData.salary_info ? (
-              <TableContainer>
+              <TableContainer component={Paper} elevation={0} sx={{ bgcolor: 'transparent' }}>
                 <Table size="small">
                   <TableBody>
                     <TableRow>
-                      <TableCell><Typography variant="caption" fontWeight="bold">Basic Salary</Typography></TableCell>
-                      <TableCell align="right">
-                        <Typography variant="body1" fontWeight="bold">
+                      <TableCell sx={{ border: 'none', py: 1 }}>
+                        <MDTypography variant="caption" fontWeight="bold" color="text" sx={{ textTransform: 'uppercase' }}>Basic Salary</MDTypography>
+                      </TableCell>
+                      <TableCell align="right" sx={{ border: 'none', py: 1 }}>
+                        <MDTypography variant="body1" fontWeight="bold">
                           {formData.salary_info.currency || 'USD'} {formData.salary_info.basic_salary?.toLocaleString() || '0'}
-                        </Typography>
+                        </MDTypography>
                       </TableCell>
                     </TableRow>
                     {(formData.salary_info.housing_allowance > 0) && (
                       <TableRow>
-                        <TableCell><Typography variant="caption">Housing Allowance</Typography></TableCell>
-                        <TableCell align="right">{formData.salary_info.currency} {formData.salary_info.housing_allowance?.toLocaleString()}</TableCell>
+                        <TableCell sx={{ border: 'none', py: 0.5 }}>
+                          <MDTypography variant="caption" color="text">Housing Allowance</MDTypography>
+                        </TableCell>
+                        <TableCell align="right" sx={{ border: 'none', py: 0.5 }}>
+                          <MDTypography variant="body2">{formData.salary_info.currency} {formData.salary_info.housing_allowance?.toLocaleString()}</MDTypography>
+                        </TableCell>
                       </TableRow>
                     )}
                     {(formData.salary_info.transport_allowance > 0) && (
                       <TableRow>
-                        <TableCell><Typography variant="caption">Transport Allowance</Typography></TableCell>
-                        <TableCell align="right">{formData.salary_info.currency} {formData.salary_info.transport_allowance?.toLocaleString()}</TableCell>
+                        <TableCell sx={{ border: 'none', py: 0.5 }}>
+                          <MDTypography variant="caption" color="text">Transport Allowance</MDTypography>
+                        </TableCell>
+                        <TableCell align="right" sx={{ border: 'none', py: 0.5 }}>
+                          <MDTypography variant="body2">{formData.salary_info.currency} {formData.salary_info.transport_allowance?.toLocaleString()}</MDTypography>
+                        </TableCell>
                       </TableRow>
                     )}
                     {(formData.salary_info.food_allowance > 0) && (
                       <TableRow>
-                        <TableCell><Typography variant="caption">Food Allowance</Typography></TableCell>
-                        <TableCell align="right">{formData.salary_info.currency} {formData.salary_info.food_allowance?.toLocaleString()}</TableCell>
+                        <TableCell sx={{ border: 'none', py: 0.5 }}>
+                          <MDTypography variant="caption" color="text">Food Allowance</MDTypography>
+                        </TableCell>
+                        <TableCell align="right" sx={{ border: 'none', py: 0.5 }}>
+                          <MDTypography variant="body2">{formData.salary_info.currency} {formData.salary_info.food_allowance?.toLocaleString()}</MDTypography>
+                        </TableCell>
                       </TableRow>
                     )}
-                    <TableRow sx={{ bgcolor: 'action.hover' }}>
-                      <TableCell><Typography variant="subtitle2" fontWeight="bold">Net Salary</Typography></TableCell>
-                      <TableCell align="right">
-                        <Typography variant="h6" fontWeight="bold" color="success.main">
+                    <TableRow>
+                      <TableCell colSpan={2} sx={{ py: 1 }}>
+                        <Divider sx={{ my: 1 }} />
+                      </TableCell>
+                    </TableRow>
+                    <TableRow>
+                      <TableCell sx={{ border: 'none', py: 1 }}>
+                        <MDTypography variant="subtitle2" fontWeight="bold">Net Salary</MDTypography>
+                      </TableCell>
+                      <TableCell align="right" sx={{ border: 'none', py: 1 }}>
+                        <MDTypography variant="h6" fontWeight="bold" color="success">
                           {formData.salary_info.currency} {calculateTotalSalary().toLocaleString()}
-                        </Typography>
+                        </MDTypography>
                       </TableCell>
                     </TableRow>
                   </TableBody>
                 </Table>
               </TableContainer>
             ) : (
-              <Typography variant="body2" color="text.secondary">
+              <MDTypography variant="body2" color="text">
                 No salary information provided
-              </Typography>
+              </MDTypography>
             )}
           </CardContent>
         </Card>
@@ -349,69 +381,52 @@ const PreviewSection: React.FC<PreviewSectionProps> = ({ formData }) => {
 
       {/* System Access */}
       <Grid item xs={12} md={6}>
-        <Card elevation={0}>
-          <CardContent>
-            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, mb: 3 }}>
-              <Box sx={{ 
-                color: 'secondary.main', 
-                display: 'flex', 
-                p: 0.5, 
-                borderRadius: 1, 
-                bgcolor: 'secondary.light', 
-                opacity: 0.1 
-              }}>
-                <Security />
-              </Box>
-              <Typography variant="h6" fontWeight="bold">
-                System Access
-              </Typography>
-            </Box>
-
+        <Card sx={{ overflow: 'visible', height: '100%' }}>
+          <MDBox
+            variant="gradient"
+            bgColor="warning"
+            borderRadius="lg"
+            coloredShadow="warning"
+            mx={2}
+            mt={-3}
+            p={2}
+            mb={1}
+            textAlign="center"
+          >
+            <MDTypography variant="h6" fontWeight="medium" color="white">
+              System Access
+            </MDTypography>
+          </MDBox>
+          <CardContent sx={{ pt: 4 }}>
             {formData.system_access ? (
-              <Box>
-                <Typography variant="subtitle2" fontWeight="bold" gutterBottom>
+              <MDBox>
+                <MDTypography variant="subtitle2" fontWeight="bold" gutterBottom>
                   Role: {formData.system_access.system_role?.replace('_', ' ').toUpperCase() || 'Not assigned'}
-                </Typography>
+                </MDTypography>
                 
-                <Grid container spacing={1}>
-                  <Grid item xs={6}>
-                    <Chip 
-                      label="HR Access" 
-                      color={formData.system_access.can_access_hr ? 'success' : 'default'} 
-                      size="small"
-                      variant={formData.system_access.can_access_hr ? 'filled' : 'outlined'}
-                    />
-                  </Grid>
-                  <Grid item xs={6}>
-                    <Chip 
-                      label="Finance Access" 
-                      color={formData.system_access.can_access_finance ? 'success' : 'default'} 
-                      size="small"
-                      variant={formData.system_access.can_access_finance ? 'filled' : 'outlined'}
-                    />
-                  </Grid>
-                  <Grid item xs={6}>
-                    <Chip 
-                      label="Inventory Access" 
-                      color={formData.system_access.can_access_inventory ? 'success' : 'default'} 
-                      size="small"
-                      variant={formData.system_access.can_access_inventory ? 'filled' : 'outlined'}
-                    />
-                  </Grid>
-                  <Grid item xs={6}>
-                    <Chip 
-                      label="Contracts Access" 
-                      color={formData.system_access.can_access_contracts ? 'success' : 'default'} 
-                      size="small"
-                      variant={formData.system_access.can_access_contracts ? 'filled' : 'outlined'}
-                    />
-                  </Grid>
+                <Grid container spacing={1} sx={{ mt: 1 }}>
+                  {[
+                    { label: 'HR Access', active: formData.system_access.can_access_hr },
+                    { label: 'Finance Access', active: formData.system_access.can_access_finance },
+                    { label: 'Inventory Access', active: formData.system_access.can_access_inventory },
+                    { label: 'Contracts Access', active: formData.system_access.can_access_contracts }
+                  ].map((access, idx) => (
+                    <Grid item xs={6} key={idx}>
+                      <Chip 
+                        label={access.label} 
+                        color={access.active ? 'success' : 'default'} 
+                        size="small"
+                        variant={access.active ? 'filled' : 'outlined'}
+                        sx={{ width: '100%', justifyContent: 'flex-start', px: 1 }}
+                      />
+                    </Grid>
+                  ))}
                 </Grid>
-              </Box>
+              </MDBox>
             ) : (
-              <Typography variant="body2" color="text.secondary">
+              <MDTypography variant="body2" color="text">
                 No system access configured
-              </Typography>
+              </MDTypography>
             )}
           </CardContent>
         </Card>
@@ -419,83 +434,82 @@ const PreviewSection: React.FC<PreviewSectionProps> = ({ formData }) => {
 
       {/* Personal Information */}
       <Grid item xs={12}>
-        <Card elevation={0}>
-          <CardContent>
-            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, mb: 3 }}>
-              <Box sx={{ 
-                color: 'info.main', 
-                display: 'flex', 
-                p: 0.5, 
-                borderRadius: 1, 
-                bgcolor: 'info.light', 
-                opacity: 0.1 
-              }}>
-                <Person />
-              </Box>
-              <Typography variant="h6" fontWeight="bold">
-                Personal Information
-              </Typography>
-            </Box>
-
+        <Card sx={{ overflow: 'visible' }}>
+          <MDBox
+            variant="gradient"
+            bgColor="secondary"
+            borderRadius="lg"
+            coloredShadow="secondary"
+            mx={2}
+            mt={-3}
+            p={2}
+            mb={1}
+            textAlign="center"
+          >
+            <MDTypography variant="h6" fontWeight="medium" color="white">
+              Personal Information
+            </MDTypography>
+          </MDBox>
+          <CardContent sx={{ pt: 4 }}>
             <Grid container spacing={3}>
               <Grid item xs={12} md={6}>
-                <Typography variant="subtitle2" fontWeight="bold" gutterBottom>
+                <MDTypography variant="subtitle2" fontWeight="bold" gutterBottom>
                   Arabic Names
-                </Typography>
-                <Typography variant="body2">
+                </MDTypography>
+                <MDTypography variant="body2">
                   {formData.personal_info?.full_name_arabic || 'Not provided'}
-                </Typography>
+                </MDTypography>
                 {formData.personal_info?.national_id && (
-                  <Typography variant="caption" color="text.secondary">
+                  <MDTypography variant="caption" color="text">
                     National ID: {formData.personal_info.national_id}
-                  </Typography>
+                  </MDTypography>
                 )}
               </Grid>
               
               <Grid item xs={12} md={6}>
-                <Typography variant="subtitle2" fontWeight="bold" gutterBottom>
+                <MDTypography variant="subtitle2" fontWeight="bold" gutterBottom>
                   English Names
-                </Typography>
-                <Typography variant="body2">
+                </MDTypography>
+                <MDTypography variant="body2">
                   {formData.personal_info?.full_name_english || 'Not provided'}
-                </Typography>
+                </MDTypography>
                 {formData.personal_info?.passport_number && (
-                  <Typography variant="caption" color="text.secondary">
+                  <MDTypography variant="caption" color="text">
                     Passport: {formData.personal_info.passport_number}
-                  </Typography>
+                  </MDTypography>
                 )}
               </Grid>
 
               <Grid item xs={12} md={4}>
-                <Typography variant="caption" color="text.secondary">Date of Birth</Typography>
-                <Typography variant="body2">
+                <MDTypography variant="caption" color="text" fontWeight="bold" sx={{ textTransform: 'uppercase' }}>Date of Birth</MDTypography>
+                <MDTypography variant="body2">
                   {formData.personal_info?.date_of_birth 
                     ? new Date(formData.personal_info.date_of_birth).toLocaleDateString()
                     : 'Not provided'}
-                </Typography>
+                </MDTypography>
               </Grid>
 
               <Grid item xs={12} md={4}>
-                <Typography variant="caption" color="text.secondary">Gender</Typography>
-                <Typography variant="body2">
+                <MDTypography variant="caption" color="text" fontWeight="bold" sx={{ textTransform: 'uppercase' }}>Gender</MDTypography>
+                <MDTypography variant="body2">
                   {formData.personal_info?.gender || 'Not specified'}
-                </Typography>
+                </MDTypography>
               </Grid>
 
               <Grid item xs={12} md={4}>
-                <Typography variant="caption" color="text.secondary">Nationality</Typography>
-                <Typography variant="body2">
+                <MDTypography variant="caption" color="text" fontWeight="bold" sx={{ textTransform: 'uppercase' }}>Nationality</MDTypography>
+                <MDTypography variant="body2">
                   {formData.personal_info?.nationality || 'Not specified'}
-                </Typography>
+                </MDTypography>
               </Grid>
 
               <Grid item xs={12}>
-                <Typography variant="caption" color="text.secondary">Address</Typography>
-                <Typography variant="body2">
+                <MDTypography variant="caption" color="text" fontWeight="bold" sx={{ textTransform: 'uppercase' }}>Address</MDTypography>
+                <MDTypography variant="body2">
                   {formData.personal_info?.address_line1 || 'Not provided'}
                   {formData.personal_info?.city && `, ${formData.personal_info.city}`}
                   {formData.personal_info?.country && `, ${formData.personal_info.country}`}
-                </Typography>
+                </MDTypography>
               </Grid>
             </Grid>
           </CardContent>
@@ -504,55 +518,66 @@ const PreviewSection: React.FC<PreviewSectionProps> = ({ formData }) => {
 
       {/* Emergency Contacts */}
       <Grid item xs={12} md={6}>
-        <Card elevation={0}>
-          <CardContent>
-            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, mb: 3 }}>
-              <Box sx={{ 
-                color: 'warning.main', 
-                display: 'flex', 
-                p: 0.5, 
-                borderRadius: 1, 
-                bgcolor: 'warning.light', 
-                opacity: 0.1 
-              }}>
-                <Phone />
-              </Box>
-              <Typography variant="h6" fontWeight="bold">
-                Emergency Contacts
-              </Typography>
-            </Box>
-
-            {formData.emergency_contacts && formData.emergency_contacts.length > 0 ? (
-              <List dense>
+        <Card sx={{ overflow: 'visible', height: '100%' }}>
+          <MDBox
+            variant="gradient"
+            bgColor="error"
+            borderRadius="lg"
+            coloredShadow="error"
+            mx={2}
+            mt={-3}
+            p={2}
+            mb={1}
+            textAlign="center"
+          >
+            <MDTypography variant="h6" fontWeight="medium" color="white">
+              Emergency Contacts
+            </MDTypography>
+          </MDBox>
+          <CardContent sx={{ pt: 4 }}>
+            {formData.emergency_contacts?.length > 0 ? (
+              <List sx={{ p: 0 }}>
                 {formData.emergency_contacts.map((contact: any, index: number) => (
-                  <ListItem key={index} sx={{ px: 0 }}>
-                    <ListItemIcon>
-                      <Person />
-                    </ListItemIcon>
-                    <ListItemText
-                      primary={
-                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                          <Typography variant="subtitle2">
-                            {contact.full_name || 'Unnamed Contact'}
-                          </Typography>
-                          {contact.primary_contact && (
-                            <Chip label="Primary" size="small" color="primary" />
-                          )}
-                        </Box>
-                      }
-                      secondary={
-                        <Typography variant="caption" color="text.secondary">
-                          {contact.relationship} • {contact.phone_primary}
-                        </Typography>
-                      }
-                    />
-                  </ListItem>
+                  <React.Fragment key={index}>
+                    <ListItem sx={{ px: 0, py: 1 }}>
+                      <ListItemIcon sx={{ minWidth: 40 }}>
+                        <MDBox sx={{ 
+                          color: 'error.main', 
+                          display: 'flex', 
+                          p: 1, 
+                          borderRadius: 1, 
+                          bgcolor: 'error.light', 
+                          opacity: 0.2 
+                        }}>
+                          <Phone fontSize="small" />
+                        </MDBox>
+                      </ListItemIcon>
+                      <ListItemText
+                        primary={
+                          <MDBox sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                            <MDTypography variant="subtitle2" fontWeight="bold">
+                              {contact.full_name || 'Unnamed Contact'}
+                            </MDTypography>
+                            {contact.primary_contact && (
+                              <Chip label="Primary" size="small" color="primary" />
+                            )}
+                          </MDBox>
+                        }
+                        secondary={
+                          <MDTypography variant="body2" color="text">
+                            {contact.relationship} • {contact.phone_primary}
+                          </MDTypography>
+                        }
+                      />
+                    </ListItem>
+                    {index < formData.emergency_contacts.length - 1 && <Divider component="li" />}
+                  </React.Fragment>
                 ))}
               </List>
             ) : (
-              <Typography variant="body2" color="text.secondary">
+              <MDTypography variant="body2" color="text">
                 No emergency contacts added
-              </Typography>
+              </MDTypography>
             )}
           </CardContent>
         </Card>
@@ -560,57 +585,67 @@ const PreviewSection: React.FC<PreviewSectionProps> = ({ formData }) => {
 
       {/* Documents */}
       <Grid item xs={12} md={6}>
-        <Card elevation={0}>
-          <CardContent>
-            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, mb: 3 }}>
-              <Box sx={{ 
-                color: 'primary.main', 
-                display: 'flex', 
-                p: 0.5, 
-                borderRadius: 1, 
-                bgcolor: 'primary.light', 
-                opacity: 0.1 
-              }}>
-                <Folder />
-              </Box>
-              <Typography variant="h6" fontWeight="bold">
-                Documents
-              </Typography>
-            </Box>
-
-            {formData.documents && formData.documents.length > 0 ? (
-              <List dense>
+        <Card sx={{ overflow: 'visible', height: '100%' }}>
+          <MDBox
+            variant="gradient"
+            bgColor="dark"
+            borderRadius="lg"
+            coloredShadow="dark"
+            mx={2}
+            mt={-3}
+            p={2}
+            mb={1}
+            textAlign="center"
+          >
+            <MDTypography variant="h6" fontWeight="medium" color="white">
+              Uploaded Documents
+            </MDTypography>
+          </MDBox>
+          <CardContent sx={{ pt: 4 }}>
+            {formData.documents?.length > 0 ? (
+              <List sx={{ p: 0 }}>
                 {formData.documents.map((doc: any, index: number) => (
-                  <ListItem key={index} sx={{ px: 0 }}>
-                    <ListItemIcon>
-                      <Folder />
-                    </ListItemIcon>
-                    <ListItemText
-                      primary={
-                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                          <Typography variant="subtitle2">
-                            {doc.document_name}
-                          </Typography>
-                          <Chip 
-                            label={doc.document_type?.replace('_', ' ')} 
-                            size="small" 
-                            variant="outlined"
-                          />
-                        </Box>
-                      }
-                      secondary={
-                        <Typography variant="caption" color="text.secondary">
-                          {doc.file_size ? `${(doc.file_size / 1024 / 1024).toFixed(2)} MB` : 'Size unknown'}
-                        </Typography>
-                      }
-                    />
-                  </ListItem>
+                  <React.Fragment key={index}>
+                    <ListItem sx={{ px: 0, py: 1 }}>
+                      <ListItemIcon sx={{ minWidth: 40 }}>
+                        <MDBox sx={{ 
+                          color: 'dark.main', 
+                          display: 'flex', 
+                          p: 1, 
+                          borderRadius: 1, 
+                          bgcolor: 'grey.200'
+                        }}>
+                          <Folder fontSize="small" />
+                        </MDBox>
+                      </ListItemIcon>
+                      <ListItemText
+                        primary={
+                          <MDBox sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                            <MDTypography variant="subtitle2" fontWeight="bold">
+                              {doc.document_name}
+                            </MDTypography>
+                            <Chip 
+                              label={doc.document_type?.replace('_', ' ')} 
+                              size="small" 
+                              variant="outlined"
+                            />
+                          </MDBox>
+                        }
+                        secondary={
+                          <MDTypography variant="caption" color="text">
+                            {doc.file_size ? `${(doc.file_size / 1024 / 1024).toFixed(2)} MB` : 'Size unknown'}
+                          </MDTypography>
+                        }
+                      />
+                    </ListItem>
+                    {index < formData.documents.length - 1 && <Divider component="li" />}
+                  </React.Fragment>
                 ))}
               </List>
             ) : (
-              <Typography variant="body2" color="text.secondary">
+              <MDTypography variant="body2" color="text">
                 No documents uploaded
-              </Typography>
+              </MDTypography>
             )}
           </CardContent>
         </Card>
@@ -619,11 +654,11 @@ const PreviewSection: React.FC<PreviewSectionProps> = ({ formData }) => {
       {/* Submission Notice */}
       <Grid item xs={12}>
         <Alert severity="info">
-          <Typography variant="body2">
+          <MDTypography variant="body2">
             <strong>Ready for Submission:</strong> Please review all information above before submitting. 
             You can go back to previous tabs to make any necessary changes. Once submitted, the employee 
             account will be created and system access will be configured according to the selected role.
-          </Typography>
+          </MDTypography>
         </Alert>
       </Grid>
     </Grid>

@@ -1,19 +1,20 @@
 import React, { useState, useEffect, useRef } from 'react';
 import {
-  Box, Button, Card, CardContent, Typography, List, ListItem, ListItemIcon, ListItemText,
-  IconButton, Divider, Chip, Dialog, DialogTitle, DialogContent, DialogActions,
+  Box, Button, Card, CardContent, Typography,
+  IconButton, Chip, Dialog, DialogTitle, DialogContent, DialogActions,
   TextField, MenuItem, FormControl, InputLabel, Select, Alert, Snackbar,
-  LinearProgress, Tooltip, Grid, Paper, Avatar, Stack, Badge, Checkbox, FormControlLabel,
+  LinearProgress, Tooltip, Stack, Badge, Checkbox, FormControlLabel,
   CardMedia, CardActions
 } from '@mui/material';
 import {
   CloudUpload, PictureAsPdf, Image, Delete, Download, Edit, CheckCircle,
-  Error, InsertDriveFile, Description, Verified, Schedule, FolderOpen, OpenInNew, Compress
+  Error, InsertDriveFile, Verified, FolderOpen, OpenInNew, Compress
 } from '@mui/icons-material';
 import { useTheme, alpha } from '@mui/material/styles';
 import Grid2 from '@mui/material/Grid2';
 import * as pdfjsLib from 'pdfjs-dist';
 import api from '../../services/api';
+import { useConfirm } from '../../context/ConfirmContext';
 
 // Set PDF.js worker
 pdfjsLib.GlobalWorkerOptions.workerSrc = `//cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/pdf.worker.min.js`;
@@ -50,6 +51,7 @@ interface DocumentType {
 
 const Documents: React.FC<DocumentsProps> = ({ contractId }) => {
   const theme = useTheme();
+  const { confirm } = useConfirm();
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const [documents, setDocuments] = useState<Document[]>([]);
@@ -94,7 +96,7 @@ const Documents: React.FC<DocumentsProps> = ({ contractId }) => {
 
     try {
       setLoading(true);
-      const response = await api.get(`/contracts/${contractId}/documents`);
+      const response = await api.get(`contracts/${contractId}/documents`);
       setDocuments(response.data);
       // Generate thumbnails after loading documents
       generateThumbnails(response.data);
@@ -117,14 +119,14 @@ const Documents: React.FC<DocumentsProps> = ({ contractId }) => {
       try {
         if (doc.mime_type.startsWith('image/')) {
           // For images, use the download URL as thumbnail
-          const response = await api.get(`/documents/${doc.id}/download`, {
+          const response = await api.get(`documents/${doc.id}/download`, {
             responseType: 'blob'
           });
           const url = URL.createObjectURL(response.data);
           newThumbnails[doc.id] = url;
         } else if (doc.mime_type === 'application/pdf') {
           // For PDFs, generate thumbnail from first page
-          const response = await api.get(`/documents/${doc.id}/download`, {
+          const response = await api.get(`documents/${doc.id}/download`, {
             responseType: 'arraybuffer'
           });
           const pdf = await pdfjsLib.getDocument({ data: response.data }).promise;
@@ -150,7 +152,7 @@ const Documents: React.FC<DocumentsProps> = ({ contractId }) => {
 
   const loadDocumentTypes = async () => {
     try {
-      const response = await api.get('/document-types');
+      const response = await api.get('document-types');
       setDocumentTypes(response.data);
     } catch (error) {
       console.error('Failed to load document types:', error);
@@ -206,7 +208,7 @@ const Documents: React.FC<DocumentsProps> = ({ contractId }) => {
         setUploadProgress(prev => Math.min(prev + 10, 90));
       }, 200);
 
-      const response = await api.post(`/contracts/${contractId}/documents`, uploadFormData, {
+      const response = await api.post(`contracts/${contractId}/documents`, uploadFormData, {
         headers: { 'Content-Type': 'multipart/form-data' }
       });
 
@@ -250,7 +252,7 @@ const Documents: React.FC<DocumentsProps> = ({ contractId }) => {
 
   const handleDownload = async (doc: Document) => {
     try {
-      const response = await api.get(`/documents/${doc.id}/download`, {
+      const response = await api.get(`documents/${doc.id}/download`, {
         responseType: 'blob'
       });
 
@@ -278,7 +280,7 @@ const Documents: React.FC<DocumentsProps> = ({ contractId }) => {
     try {
       // For viewable files (images, PDFs), open in new tab
       if (doc.mime_type.startsWith('image/') || doc.mime_type === 'application/pdf') {
-        const response = await api.get(`/documents/${doc.id}/download`, {
+        const response = await api.get(`documents/${doc.id}/download`, {
           responseType: 'blob'
         });
 
@@ -305,7 +307,7 @@ const Documents: React.FC<DocumentsProps> = ({ contractId }) => {
     // If it's an image, we could compress it client-side
     if (doc.mime_type.startsWith('image/')) {
       try {
-        const response = await api.get(`/documents/${doc.id}/download`, {
+        const response = await api.get(`documents/${doc.id}/download`, {
           responseType: 'blob'
         });
 
@@ -344,13 +346,13 @@ const Documents: React.FC<DocumentsProps> = ({ contractId }) => {
   };
 
   const handleDelete = async (document: Document) => {
-    if (!window.confirm(`Are you sure you want to delete "${document.original_name}"?`)) {
+    if (!await confirm({ message: `Are you sure you want to delete "${document.original_name}"?` })) {
       return;
     }
 
     try {
-      await api.delete(`/documents/${document.id}`);
-      setDocuments(prev => prev.filter(d => d.id !== document.id));
+      await api.delete(`documents/${document.id}`);
+      setDocuments(documents.filter(d => d.id !== document.id));
       setNotification({
         open: true,
         message: 'Document deleted successfully',
@@ -368,7 +370,7 @@ const Documents: React.FC<DocumentsProps> = ({ contractId }) => {
 
   const handleVerify = async (document: Document) => {
     try {
-      await api.put(`/documents/${document.id}/verify`);
+      await api.put(`documents/${document.id}/verify`);
       setDocuments(prev => prev.map(d =>
         d.id === document.id
           ? { ...d, is_verified: true, verified_at: new Date().toISOString() }
@@ -405,7 +407,7 @@ const Documents: React.FC<DocumentsProps> = ({ contractId }) => {
     if (!selectedDocument) return;
 
     try {
-      const response = await api.put(`/documents/${selectedDocument.id}`, formData);
+      const response = await api.put(`documents/${selectedDocument.id}`, formData);
       setDocuments(prev => prev.map(d =>
         d.id === selectedDocument.id ? response.data : d
       ));

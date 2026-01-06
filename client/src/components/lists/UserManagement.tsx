@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
+import { useConfirm } from '../../context/ConfirmContext';
 import api from '../../services/api';
 import {
-  Paper,
   Typography,
   Box,
   Button,
@@ -30,7 +30,7 @@ import {
   Avatar,
   Tabs,
   Tab,
-  Divider
+  SelectChangeEvent
 } from '@mui/material';
 import {
   Add,
@@ -39,10 +39,6 @@ import {
   Person,
   Business,
   Work,
-  Email,
-  Phone,
-  LocationOn,
-  CalendarToday,
   Badge
 } from '@mui/icons-material';
 
@@ -101,12 +97,14 @@ interface Position {
   level?: string;
 }
 
+const roles = ['admin', 'manager', 'finance', 'user', 'viewer'];
+
 const UserManagement: React.FC = () => {
   const { t } = useTranslation();
+  const { confirm } = useConfirm();
   const [users, setUsers] = useState<User[]>([]);
   const [departments, setDepartments] = useState<Department[]>([]);
   const [positions, setPositions] = useState<Position[]>([]);
-  const [roles, setRoles] = useState<string[]>(['admin', 'manager', 'finance', 'user', 'viewer']);
   const [openDialog, setOpenDialog] = useState(false);
   const [editingUser, setEditingUser] = useState<User | null>(null);
   const [newUser, setNewUser] = useState({
@@ -130,13 +128,13 @@ const UserManagement: React.FC = () => {
 
   const fetchData = async () => {
     try {
-      const [usersRes, deptsRes, posRes] = await Promise.all([
-        api.get('/hr/employees'),
-        api.get('/departments'),
-        api.get('/positions')
-      ]);
-      setUsers(usersRes.data);
-      setDepartments(deptsRes.data || []);
+        const [empRes, depRes, posRes] = await Promise.all([
+          api.get('hr/employees'),
+          api.get('departments'),
+          api.get('positions')
+        ]);
+      setUsers(empRes.data);
+      setDepartments(depRes.data || []);
       setPositions(posRes.data || []);
     } catch (err: any) {
       setError(err.response?.data?.detail || t('errorLoadingData'));
@@ -149,7 +147,7 @@ const UserManagement: React.FC = () => {
       return;
     }
     try {
-      const response = await api.post('/auth/register', newUser);
+      const response = await api.post('auth/register', newUser);
       setUsers([...users, response.data]);
       setOpenDialog(false);
       resetForm();
@@ -162,7 +160,7 @@ const UserManagement: React.FC = () => {
   const handleUpdateUser = async () => {
     if (!editingUser) return;
     try {
-      const response = await api.put(`/hr/employees/${editingUser.id}`, editingUser);
+      const response = await api.put(`hr/employees/${editingUser.id}`, editingUser);
       setUsers(users.map(u => u.id === editingUser.id ? response.data : u));
       setOpenDialog(false);
       setEditingUser(null);
@@ -173,9 +171,9 @@ const UserManagement: React.FC = () => {
   };
 
   const handleDeleteUser = async (userId: string) => {
-    if (!confirm(t('confirmDeleteUser'))) return;
+    if (!await confirm({ message: t('confirmDeleteUser') })) return;
     try {
-      await api.delete(`/hr/employees`, { data: [userId] });
+      await api.delete(`hr/employees`, { data: [userId] });
       setUsers(users.filter(u => u.id !== userId));
     } catch (err: any) {
       setError(err.response?.data?.detail || t('errorDeletingUser'));
@@ -223,7 +221,7 @@ const UserManagement: React.FC = () => {
       </Typography>
 
       <Box sx={{ borderBottom: 1, borderColor: 'divider', mb: 3 }}>
-        <Tabs value={tabValue} onChange={(_, newValue) => setTabValue(newValue)}>
+        <Tabs value={tabValue} onChange={(_: React.SyntheticEvent, newValue: number) => setTabValue(newValue)}>
           <Tab label={t('allUsers')} />
           <Tab label={t('byDepartment')} />
           <Tab label={t('byRole')} />
@@ -329,7 +327,7 @@ const UserManagement: React.FC = () => {
               <TextField
                 label={t('fullName')}
                 value={editingUser?.name || newUser.name}
-                onChange={(e) => editingUser
+                onChange={(e: React.ChangeEvent<HTMLInputElement>) => editingUser
                   ? setEditingUser({...editingUser, name: e.target.value})
                   : setNewUser({...newUser, name: e.target.value})
                 }
@@ -342,7 +340,7 @@ const UserManagement: React.FC = () => {
                 label={t('email')}
                 type="email"
                 value={editingUser?.email || newUser.email}
-                onChange={(e) => editingUser
+                onChange={(e: React.ChangeEvent<HTMLInputElement>) => editingUser
                   ? setEditingUser({...editingUser, email: e.target.value})
                   : setNewUser({...newUser, email: e.target.value})
                 }
@@ -356,7 +354,7 @@ const UserManagement: React.FC = () => {
                   label={t('password')}
                   type="password"
                   value={newUser.password}
-                  onChange={(e) => setNewUser({...newUser, password: e.target.value})}
+                  onChange={(e: React.ChangeEvent<HTMLInputElement>) => setNewUser({...newUser, password: e.target.value})}
                   fullWidth
                   required
                 />
@@ -368,7 +366,7 @@ const UserManagement: React.FC = () => {
                 <Select
                   value={editingUser?.role || newUser.role}
                   label={t('role')}
-                  onChange={(e) => editingUser
+                  onChange={(e: SelectChangeEvent<string>) => editingUser
                     ? setEditingUser({...editingUser, role: e.target.value})
                     : setNewUser({...newUser, role: e.target.value})
                   }
@@ -387,7 +385,7 @@ const UserManagement: React.FC = () => {
                 <Select
                   value={editingUser?.department || newUser.department}
                   label={t('department')}
-                  onChange={(e) => editingUser
+                  onChange={(e: SelectChangeEvent<string>) => editingUser
                     ? setEditingUser({...editingUser, department: e.target.value})
                     : setNewUser({...newUser, department: e.target.value})
                   }
@@ -407,7 +405,7 @@ const UserManagement: React.FC = () => {
                 <Select
                   value={editingUser?.position || newUser.position}
                   label={t('position')}
-                  onChange={(e) => editingUser
+                  onChange={(e: SelectChangeEvent<string>) => editingUser
                     ? setEditingUser({...editingUser, position: e.target.value})
                     : setNewUser({...newUser, position: e.target.value})
                   }
@@ -425,7 +423,7 @@ const UserManagement: React.FC = () => {
               <TextField
                 label={t('employeeId')}
                 value={editingUser?.employee_id || newUser.employee_id}
-                onChange={(e) => editingUser
+                onChange={(e: React.ChangeEvent<HTMLInputElement>) => editingUser
                   ? setEditingUser({...editingUser, employee_id: e.target.value})
                   : setNewUser({...newUser, employee_id: e.target.value})
                 }
@@ -437,7 +435,7 @@ const UserManagement: React.FC = () => {
                 label={t('hireDate')}
                 type="date"
                 value={editingUser?.hire_date || newUser.hire_date}
-                onChange={(e) => editingUser
+                onChange={(e: React.ChangeEvent<HTMLInputElement>) => editingUser
                   ? setEditingUser({...editingUser, hire_date: e.target.value})
                   : setNewUser({...newUser, hire_date: e.target.value})
                 }
@@ -449,7 +447,7 @@ const UserManagement: React.FC = () => {
               <TextField
                 label={t('phone')}
                 value={editingUser?.phone || newUser.phone}
-                onChange={(e) => editingUser
+                onChange={(e: React.ChangeEvent<HTMLInputElement>) => editingUser
                   ? setEditingUser({...editingUser, phone: e.target.value})
                   : setNewUser({...newUser, phone: e.target.value})
                 }
@@ -460,7 +458,7 @@ const UserManagement: React.FC = () => {
               <TextField
                 label={t('address')}
                 value={editingUser?.address || newUser.address}
-                onChange={(e) => editingUser
+                onChange={(e: React.ChangeEvent<HTMLInputElement>) => editingUser
                   ? setEditingUser({...editingUser, address: e.target.value})
                   : setNewUser({...newUser, address: e.target.value})
                 }

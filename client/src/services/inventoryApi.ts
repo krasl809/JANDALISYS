@@ -14,10 +14,10 @@ export const inventoryApi = {
   // ============================================================
   // 1. Warehouses Management (المستودعات)
   // ============================================================
-  getWarehouses: () => api.get<Warehouse[]>('/inventory/warehouses'),
+  getWarehouses: () => api.get<Warehouse[]>('inventory/warehouses'),
   
   createWarehouse: (data: { name: string; location: string; manager_id?: string }) => 
-    api.post('/inventory/warehouses', data),
+    api.post('inventory/warehouses', data),
 
   // ============================================================
   // 2. Stock & Inventory Levels (المخزون)
@@ -25,27 +25,27 @@ export const inventoryApi = {
   
   // جلب مخزون مستودع محدد
   getStockByWarehouse: (warehouseId: string) => 
-    api.get(`/inventory/stock/${warehouseId}`),
+    api.get(`inventory/stock/${warehouseId}`),
 
   // جلب حركة مادة معينة (Stock Card / Traceability)
   getStockCard: (articleId: string, warehouseId?: string) => 
-    api.get(`/inventory/stock-card/${articleId}?warehouse_id=${warehouseId || ''}`),
+    api.get(`inventory/stock-card/${articleId}?warehouse_id=${warehouseId || ''}`),
 
   // ============================================================
   // 3. Movements & Delivery Notes (الحركات والمذكرات)
   // ============================================================
   
   // جلب قائمة الحركات (يمكن إضافة فلاتر لاحقاً عبر الـ query params)
-  getMovements: () => api.get('/inventory/delivery-notes'),
+  getMovements: () => api.get('inventory/delivery-notes'),
   
   // جلب تفاصيل حركة واحدة
-  getMovementById: (id: string) => api.get(`/inventory/delivery-notes/${id}`),
+  getMovementById: (id: string) => api.get(`inventory/delivery-notes/${id}`),
   
   // إنشاء حركة جديدة (إدخال، إخراج، مناقلة)
-  createMovement: (data: any) => api.post('/inventory/delivery-notes', data),
+  createMovement: (data: any) => api.post('inventory/delivery-notes', data),
   
   // اعتماد الحركة (تحويل المخزون فعلياً)
-  approveMovement: (id: string) => api.post(`/inventory/delivery-notes/${id}/approve`),
+  approveMovement: (id: string) => api.post(`inventory/delivery-notes/${id}/approve`),
 
   // ============================================================
   // 4. Dashboard Statistics (إحصائيات لوحة التحكم)
@@ -58,7 +58,7 @@ export const inventoryApi = {
     try {
         // 1. محاولة الاتصال بالباك إند الحقيقي
         // ملاحظة: يجب إنشاء هذا المسار في الباك إند لاحقاً
-        const response = await api.get('/inventory/stats'); 
+        const response = await api.get('inventory/stats'); 
         return response.data;
     } catch {
         console.warn("Dashboard stats endpoint not ready yet. Serving mock data for UI.");

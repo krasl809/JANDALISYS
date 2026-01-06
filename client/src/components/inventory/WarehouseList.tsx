@@ -1,15 +1,14 @@
-import React, { useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Container, Paper, Typography, Box, Button, Table, TableBody, TableCell, TableHead, TableRow, Chip } from '@mui/material';
 import { Add, Warehouse } from '@mui/icons-material';
 import { useTranslation } from 'react-i18next';
-import api from '../../services/api';
 
 const WarehouseList = () => {
   const { t } = useTranslation();
   const [warehouses, setWarehouses] = useState([]);
 
   useEffect(() => {
-    // api.get('/inventory/warehouses').then(res => setWarehouses(res.data));
+    // api.get('inventory/warehouses').then(res => setWarehouses(res.data));
     // بيانات وهمية للتجربة حالياً
     setWarehouses([
         { id: 1, name: 'Main Warehouse', location: 'Damascus', is_active: true },

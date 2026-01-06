@@ -6,6 +6,7 @@ interface User {
   email: string;
   role: string;
   permissions: string[];
+  avatar?: string;
 }
 
 interface AuthContextProps {
@@ -73,19 +74,21 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     loadUserFromStorage();
   }, []);
 
-  const refreshUser = () => {
-    console.log('Refreshing user data from localStorage...');
+  const refreshUser = React.useCallback(() => {
+    if (import.meta.env.DEV) {
+      console.log('Refreshing user data from localStorage...');
+    }
     loadUserFromStorage();
-  };
+  }, []);
 
-  const login = async (email: string, password: string): Promise<boolean> => {
+  const login = React.useCallback(async (_email: string, _password: string): Promise<boolean> => {
     // Note: Actual login logic is in Login.tsx component using api.post
     // This context mainly holds the state after login is successful
     console.warn("Context login function called - normally handled in Login component");
     return false;
-  };
+  }, []);
 
-  const logout = () => {
+  const logout = React.useCallback(() => {
     setUser(null);
     setIsAuthenticated(false);
 
@@ -96,30 +99,30 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     localStorage.removeItem('user_permissions');
     localStorage.removeItem('user_email');
     localStorage.removeItem('user_name');
-  };
+  }, []);
 
-  const hasPermission = (permission: string): boolean => {
+  const hasPermission = React.useCallback((permission: string): boolean => {
     if (!user) {
-      if (import.meta.env.DEV) {
-        console.log('No user found for permission check:', permission);
-      }
       return false;
     }
     if (user.role === 'admin') {
-      if (import.meta.env.DEV) {
-        console.log('Admin user has permission:', permission);
-      }
       return true; // Admin always has access
     }
-    const hasPerm = user.permissions.includes(permission);
-    if (import.meta.env.DEV) {
-      console.log('Permission check:', { user: user.email, permission, hasPerm, userPermissions: user.permissions });
-    }
-    return hasPerm;
-  };
+    return user.permissions.includes(permission);
+  }, [user]);
+
+  const value = React.useMemo(() => ({
+    user,
+    login,
+    logout,
+    refreshUser,
+    isAuthenticated,
+    isLoading,
+    hasPermission
+  }), [user, login, logout, refreshUser, isAuthenticated, isLoading, hasPermission]);
 
   return (
-    <AuthContext.Provider value={{ user, login, logout, refreshUser, isAuthenticated, isLoading, hasPermission }}>
+    <AuthContext.Provider value={value}>
       {children}
     </AuthContext.Provider>
   );

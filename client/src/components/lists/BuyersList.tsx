@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import api from '../../services/api';
+import { useConfirm } from '../../context/ConfirmContext';
 import {
   Container,
   Paper,
@@ -36,6 +37,7 @@ interface Buyer {
 
 const BuyersList: React.FC = () => {
   const { t } = useTranslation();
+  const { confirm } = useConfirm();
 
   const [buyers, setBuyers] = useState<Buyer[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
@@ -56,8 +58,9 @@ const BuyersList: React.FC = () => {
   }, []);
 
   const fetchBuyers = async () => {
+    setLoading(true);
     try {
-      const response = await api.get('/buyers/');
+      const response = await api.get('buyers/');
       setBuyers(response.data);
     } catch (err: any) {
       console.error('Error fetching buyers:', err);
@@ -74,7 +77,7 @@ const BuyersList: React.FC = () => {
     }
 
     try {
-      const response = await api.post('/buyers/', newBuyer);
+      const response = await api.post('buyers/', newBuyer);
       setBuyers([...buyers, response.data]);
       setNewBuyer({ contact_name: '', address: '', post_box: '', tel: '', fax: '', email: '' });
       setError(null);
@@ -93,7 +96,7 @@ const BuyersList: React.FC = () => {
     if (!currentBuyer) return;
 
     try {
-      const response = await api.put(`/buyers/${currentBuyer.id}`, currentBuyer);
+      const response = await api.put(`buyers/${currentBuyer.id}`, currentBuyer);
       setBuyers(buyers.map(buyer => 
         buyer.id === currentBuyer.id ? response.data : buyer
       ));
@@ -106,10 +109,10 @@ const BuyersList: React.FC = () => {
   };
 
   const handleDeleteBuyer = async (id: string) => {
-    if (!window.confirm(t('confirmDelete'))) return;
+    if (!await confirm({ message: t('confirmDelete') })) return;
 
     try {
-      await api.delete(`/buyers/${id}`);
+      await api.delete(`buyers/${id}`);
       setBuyers(buyers.filter(b => b.id !== id));
     } catch (err: any) {
       console.error('Error deleting buyer:', err);

@@ -1,4 +1,4 @@
-import React, { createContext, useState, useMemo, useContext, useEffect } from 'react';
+import React, { createContext, useState, useMemo, useContext } from 'react';
 import { ThemeProvider, createTheme, CssBaseline } from '@mui/material';
 import { prefixer } from 'stylis';
 import rtlPlugin from 'stylis-plugin-rtl';
@@ -46,264 +46,412 @@ export const AppThemeProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     mode,
   }), [mode]);
 
-  // إعدادات الألوان المخصصة (Enterprise Palette)
+  // إعدادات الألوان المخصصة (Material Dashboard 2 Pro Palette)
   const palette = useMemo(() => ({
     mode,
     primary: {
-      main: mode === 'light' ? '#0F172A' : '#38BDF8', // كحلي للفاتح، سماوي للداكن
-      light: mode === 'light' ? '#1E293B' : '#60A5FA',
-      dark: mode === 'light' ? '#0A0F1C' : '#0284C7',
+      main: '#5E72E4',
+      light: '#825EE4',
+      dark: '#324CBB',
+      contrastText: '#FFFFFF',
     },
     secondary: {
-      main: mode === 'light' ? '#334155' : '#94A3B8',
+      main: '#8392AB',
+      light: '#A8B8D8',
+      dark: '#596C88',
+      contrastText: '#FFFFFF',
     },
     success: {
-      main: '#10B981', // Professional green for positive metrics
-      light: '#34D399',
-      dark: '#059669',
+      main: '#2DCE89',
+      light: '#62EAB1',
+      dark: '#1E9D68',
+      contrastText: '#FFFFFF',
     },
     warning: {
-      main: '#F59E0B', // Amber for alerts
-      light: '#FCD34D',
-      dark: '#D97706',
+      main: '#FB6340',
+      light: '#FD947D',
+      dark: '#D13E1B',
+      contrastText: '#FFFFFF',
     },
     error: {
-      main: '#EF4444', // Red for critical issues
-      light: '#F87171',
-      dark: '#DC2626',
+      main: '#F5365C',
+      light: '#F8738E',
+      dark: '#B81938',
+      contrastText: '#FFFFFF',
     },
     info: {
-      main: '#3B82F6', // Blue for neutral information
-      light: '#60A5FA',
-      dark: '#2563EB',
-    },
-    // Financial dashboard specific colors
-    financial: {
-      positive: '#10B981', // Success green
-      negative: '#EF4444', // Error red
-      neutral: '#6B7280', // Gray for neutral
-      accent: '#6366F1', // Indigo accent
-      chart: {
-        primary: '#0F172A',
-        secondary: '#38BDF8',
-        tertiary: '#8B5CF6',
-        quaternary: '#F59E0B',
-      }
+      main: '#11CDEF',
+      light: '#48DDF4',
+      dark: '#0B93AC',
+      contrastText: '#FFFFFF',
     },
     background: {
-      default: mode === 'light' ? '#F3F4F6' : '#0B1120', // خلفية الصفحة (داكنة جداً في الليلي)
-      paper: mode === 'light' ? '#FFFFFF' : '#1E293B',   // خلفية البطاقات (أفتح قليلاً)
+      default: mode === 'light' ? '#F8F9FA' : '#1a2035',
+      paper: mode === 'light' ? '#FFFFFF' : '#1f283e',
     },
     text: {
-      primary: mode === 'light' ? '#1E293B' : '#F8FAFC', // نص أبيض في الليلي
-      secondary: mode === 'light' ? '#64748B' : '#CBD5E1', // نص رمادي فاتح في الليلي
+      primary: mode === 'light' ? '#344767' : '#FFFFFF',
+      secondary: mode === 'light' ? '#8392AB' : 'rgba(255, 255, 255, 0.7)',
+      disabled: mode === 'light' ? '#E9ECEF' : 'rgba(255, 255, 255, 0.5)',
     },
-    divider: mode === 'light' ? 'rgba(0, 0, 0, 0.12)' : 'rgba(255, 255, 255, 0.12)',
+    divider: mode === 'light' ? '#E9ECEF' : 'rgba(255, 255, 255, 0.12)',
+    // Material Dashboard Pro Custom Colors
+    gradients: {
+      primary: { main: '#5E72E4', state: '#825EE4' },
+      secondary: { main: '#8392AB', state: '#596C88' },
+      info: { main: '#11CDEF', state: '#1171EF' },
+      success: { main: '#2DCE89', state: '#2DCE89' },
+      warning: { main: '#FB6340', state: '#FD947D' },
+      error: { main: '#F5365C', state: '#F8738E' },
+      light: { main: '#EBEFF4', state: '#CED4DA' },
+      dark: { main: '#344767', state: '#191919' },
+    },
+    coloredShadows: {
+      primary: '#5E72E4',
+      secondary: '#8392AB',
+      info: '#11CDEF',
+      success: '#2DCE89',
+      warning: '#FB6340',
+      error: '#F5365C',
+      light: '#E9ECEF',
+      dark: '#344767',
+    },
+    financial: {
+      chart: {
+        primary: '#5E72E4',
+        secondary: '#11CDEF',
+        tertiary: '#2DCE89',
+        quaternary: '#FB6340',
+      }
+    }
   }), [mode]);
+
+  const functions = useMemo(() => ({
+    linearGradient: (color: string, colorState: string, angle = 195) => {
+      return `linear-gradient(${angle}deg, ${color}, ${colorState})`;
+    },
+    pxToRem: (number: number, baseNumber = 16) => {
+      return `${number / baseNumber}rem`;
+    },
+    rgba: (color: string, opacity: number) => {
+      return `rgba(${color}, ${opacity})`;
+    },
+    boxShadow: (offset: number[], radius: number[], color: string, opacity: number, inset = "") => {
+      const [x, y] = offset;
+      const [blur, spread] = radius;
+      return `${inset} ${x}px ${y}px ${blur}px ${spread}px rgba(${color}, ${opacity})`;
+    },
+  }), []);
 
   const theme = useMemo(() => createTheme({
     direction: isRTL ? 'rtl' : 'ltr',
     palette,
+    shape: {
+      borderRadius: 12,
+    },
+    // Use any to bypass MUI theme type restrictions for custom properties
+    ...({
+      boxShadows: {
+        xs: '0 1px 5px rgba(0, 0, 0, 0.05)',
+        sm: '0 3px 8px rgba(0, 0, 0, 0.08)',
+        md: '0 7px 14px rgba(50, 50, 93, 0.1)',
+        lg: '0 15px 35px rgba(50, 50, 93, 0.1)',
+        colored: {
+          primary: '0 4px 20px 0 rgba(94, 114, 228, 0.4)',
+          info: '0 4px 20px 0 rgba(17, 205, 239, 0.4)',
+          success: '0 4px 20px 0 rgba(45, 206, 137, 0.4)',
+          warning: '0 4px 20px 0 rgba(251, 99, 64, 0.4)',
+          error: '0 4px 20px 0 rgba(245, 54, 92, 0.4)',
+          dark: '0 4px 20px 0 rgba(52, 71, 103, 0.4)',
+        }
+      },
+      functions,
+    } as any),
+    shadows: [
+      'none',
+      '0rem 0.125rem 0.5625rem -0.3125rem rgba(0, 0, 0, 0.15)',
+      '0rem 0.25rem 0.375rem -0.0625rem rgba(0, 0, 0, 0.1), 0rem 0.125rem 0.25rem -0.0625rem rgba(0, 0, 0, 0.06)',
+      '0rem 0.3125rem 0.625rem 0rem rgba(0, 0, 0, 0.12)',
+      '0rem 0.5rem 1rem 0rem rgba(0, 0, 0, 0.14), 0rem 0.1875rem 0.25rem -0.125rem rgba(0, 0, 0, 0.2), 0rem 0.0625rem 0.625rem 0rem rgba(0, 0, 0, 0.12)',
+      '0rem 0.625rem 1.5625rem -0.3125rem rgba(0, 0, 0, 0.2)',
+      '0rem 1.25rem 1.5625rem 0rem rgba(0, 0, 0, 0.14), 0rem 0.5rem 0.625rem -0.3125rem rgba(0, 0, 0, 0.2), 0rem 0.1875rem 0.75rem 0rem rgba(0, 0, 0, 0.12)',
+      ...Array(18).fill('none'),
+    ] as any,
     typography: {
-      fontFamily: '"Inter", "Cairo", "Roboto", "Helvetica", "Arial", sans-serif',
-      h1: {
-        fontSize: '2.5rem',
-        fontWeight: 700,
-        lineHeight: 1.2,
-        letterSpacing: '-0.02em',
-      },
-      h2: {
-        fontSize: '2rem',
-        fontWeight: 600,
-        lineHeight: 1.3,
-        letterSpacing: '-0.01em',
-      },
-      h3: {
-        fontSize: '1.5rem',
-        fontWeight: 600,
-        lineHeight: 1.4,
-        letterSpacing: '0em',
-      },
-      h4: {
-        fontSize: '1.25rem',
-        fontWeight: 600,
-        lineHeight: 1.4,
-        letterSpacing: '0em',
-      },
-      h5: {
-        fontSize: '1.125rem',
-        fontWeight: 600,
-        lineHeight: 1.5,
-        letterSpacing: '0em',
-      },
-      h6: {
-        fontSize: '1rem',
-        fontWeight: 600,
-        lineHeight: 1.5,
-        letterSpacing: '0em',
-      },
-      body1: {
-        fontSize: '1rem',
-        fontWeight: 400,
-        lineHeight: 1.6,
-        letterSpacing: '0em',
-      },
-      body2: {
-        fontSize: '0.875rem',
-        fontWeight: 400,
-        lineHeight: 1.5,
-        letterSpacing: '0em',
-      },
-      caption: {
-        fontSize: '0.75rem',
-        fontWeight: 500,
-        lineHeight: 1.4,
-        letterSpacing: '0.01em',
-      },
-      button: {
-        fontSize: '0.875rem',
-        fontWeight: 600,
-        lineHeight: 1.5,
-        letterSpacing: '0.01em',
-        textTransform: 'none',
-      },
+      fontFamily: '"Roboto", "Cairo", "Helvetica", "Arial", sans-serif',
+      h1: { fontSize: '3rem', fontWeight: 600, lineHeight: 1.25, color: mode === 'light' ? '#344767' : '#FFFFFF' },
+      h2: { fontSize: '2.25rem', fontWeight: 600, lineHeight: 1.3, color: mode === 'light' ? '#344767' : '#FFFFFF' },
+      h3: { fontSize: '1.875rem', fontWeight: 600, lineHeight: 1.375, color: mode === 'light' ? '#344767' : '#FFFFFF' },
+      h4: { fontSize: '1.5rem', fontWeight: 600, lineHeight: 1.375, color: mode === 'light' ? '#344767' : '#FFFFFF' },
+      h5: { fontSize: '1.25rem', fontWeight: 600, lineHeight: 1.375, color: mode === 'light' ? '#344767' : '#FFFFFF' },
+      h6: { fontSize: '1rem', fontWeight: 600, lineHeight: 1.625, color: mode === 'light' ? '#344767' : '#FFFFFF' },
+      subtitle1: { fontSize: '1.25rem', fontWeight: 300, lineHeight: 1.625 },
+      subtitle2: { fontSize: '1rem', fontWeight: 300, lineHeight: 1.6 },
+      body1: { fontSize: '1rem', fontWeight: 400, lineHeight: 1.625 },
+      body2: { fontSize: '0.875rem', fontWeight: 300, lineHeight: 1.6 },
+      caption: { fontSize: '0.75rem', fontWeight: 300, lineHeight: 1.25 },
+      button: { textTransform: 'uppercase', fontWeight: 600, fontSize: '0.75rem' },
     },
     components: {
-      // 1. تخصيص حقول الإدخال (Text Fields)
-      MuiOutlinedInput: {
+      MuiCssBaseline: {
         styleOverrides: {
-          root: {
-            backgroundColor: mode === 'dark' ? 'rgba(0, 0, 0, 0.2)' : '#FFFFFF', // خلفية الحقل
-            '& .MuiOutlinedInput-notchedOutline': {
-              borderColor: mode === 'dark' ? 'rgba(255, 255, 255, 0.2)' : 'rgba(0, 0, 0, 0.23)', // لون الإطار
-            },
-            '&:hover .MuiOutlinedInput-notchedOutline': {
-              borderColor: mode === 'dark' ? '#94A3B8' : '#334155', // لون الإطار عند التحويم
-            },
-            '&.Mui-focused .MuiOutlinedInput-notchedOutline': {
-              borderColor: palette.primary.main, // لون الإطار عند الكتابة
-            },
-            color: palette.text.primary, // لون النص المكتوب
-          },
-          input: {
-            '&::placeholder': {
-              color: mode === 'dark' ? '#94A3B8' : '#64748B',
-              opacity: 0.7
-            }
-          }
-        },
-      },
-      // 2. تخصيص عناوين الحقول (Labels)
-      MuiInputLabel: {
-        styleOverrides: {
-          root: {
-            color: palette.text.secondary,
-            '&.Mui-focused': {
-              color: palette.primary.main,
+          body: {
+            backgroundColor: mode === 'light' ? '#f0f2f5' : '#1a2035',
+            color: mode === 'light' ? '#344767' : '#FFFFFF',
+            scrollbarWidth: 'thin',
+            '&::-webkit-scrollbar': { width: '8px', height: '8px' },
+            '&::-webkit-scrollbar-track': { background: 'transparent' },
+            '&::-webkit-scrollbar-thumb': {
+              background: mode === 'light' ? '#d2d6da' : '#333333',
+              borderRadius: '10px',
+              '&:hover': { background: mode === 'light' ? '#adb5bd' : '#444444' },
             },
           },
         },
       },
-      // 3. تخصيص القوائم المنسدلة (Dropdowns/Select)
-      MuiMenu: {
+      MuiPaper: {
         styleOverrides: {
-          paper: {
-            backgroundColor: palette.background.paper, // لون خلفية القائمة المنسدلة
+          root: {
             backgroundImage: 'none',
-            border: `1px solid ${palette.divider}`,
+            boxShadow: '0rem 0.25rem 0.375rem -0.0625rem rgba(0, 0, 0, 0.1), 0rem 0.125rem 0.25rem -0.0625rem rgba(0, 0, 0, 0.06)',
+            borderRadius: 12,
           },
         },
       },
-      // 4. تخصيص البطاقات (Cards)
       MuiCard: {
         styleOverrides: {
           root: {
-            backgroundColor: palette.background.paper,
-            backgroundImage: 'none',
             borderRadius: 12,
-            border: `1px solid ${palette.divider}`,
-            boxShadow: mode === 'light'
-              ? '0 1px 3px rgba(0,0,0,0.1), 0 1px 2px rgba(0,0,0,0.06)'
-              : '0 1px 3px rgba(0,0,0,0.3), 0 1px 2px rgba(0,0,0,0.2)',
-            transition: 'box-shadow 0.2s ease-in-out, transform 0.2s ease-in-out',
-            '&:hover': {
-              boxShadow: mode === 'light'
-                ? '0 4px 6px rgba(0,0,0,0.1), 0 2px 4px rgba(0,0,0,0.06)'
-                : '0 4px 6px rgba(0,0,0,0.3), 0 2px 4px rgba(0,0,0,0.2)',
-              transform: 'translateY(-2px)',
-            },
-          }
-        }
+            backgroundImage: 'none',
+            boxShadow: '0rem 0.25rem 0.375rem -0.0625rem rgba(0, 0, 0, 0.1), 0rem 0.125rem 0.25rem -0.0625rem rgba(0, 0, 0, 0.06)',
+            padding: '1rem',
+          },
+        },
       },
-      // 5. تخصيص الأزرار
       MuiButton: {
         styleOverrides: {
           root: {
-            textTransform: 'none',
-            fontWeight: 600,
             borderRadius: 8,
-            padding: '8px 16px',
-            boxShadow: 'none',
-            '&:hover': {
-              boxShadow: mode === 'light'
-                ? '0 2px 4px rgba(0,0,0,0.1)'
-                : '0 2px 4px rgba(0,0,0,0.3)',
-            },
+            padding: '0.625rem 1.5rem',
+            fontSize: '0.75rem',
+            fontWeight: 700,
+            transition: 'all 0.15s ease-in-out',
+            '&:active': { transform: 'scale(0.98)' },
           },
           contained: {
-            boxShadow: mode === 'light'
-              ? '0 1px 3px rgba(0,0,0,0.2)'
-              : '0 1px 3px rgba(0,0,0,0.4)',
+            boxShadow: '0rem 0.1875rem 0.1875rem 0rem rgba(0, 0, 0, 0.1), 0rem 0.1875rem 0.0625rem -0.125rem rgba(0, 0, 0, 0.12), 0rem 0.0625rem 0.3125rem 0rem rgba(0, 0, 0, 0.2)',
             '&:hover': {
-              boxShadow: mode === 'light'
-                ? '0 2px 6px rgba(0,0,0,0.2)'
-                : '0 2px 6px rgba(0,0,0,0.4)',
+              boxShadow: '0rem 0.1875rem 0.1875rem 0rem rgba(0, 0, 0, 0.1), 0rem 0.1875rem 0.0625rem -0.125rem rgba(0, 0, 0, 0.12), 0rem 0.0625rem 0.3125rem 0rem rgba(0, 0, 0, 0.2)',
             },
           },
         },
       },
-      // 6. الهيدر (App Bar)
+      MuiTextField: {
+        styleOverrides: {
+          root: {
+            '& .MuiOutlinedInput-root': {
+              borderRadius: 8,
+              '& fieldset': {
+                borderColor: '#d2d6da',
+              },
+              '&:hover fieldset': {
+                borderColor: '#d2d6da',
+              },
+              '&.Mui-focused fieldset': {
+                borderColor: '#e91e63',
+                borderWidth: 2,
+              },
+            },
+          },
+        },
+      },
       MuiAppBar: {
         styleOverrides: {
           root: {
-            backgroundColor: mode === 'light' ? 'rgba(255, 255, 255, 0.8)' : 'rgba(15, 23, 42, 0.8)',
-            borderBottom: `1px solid ${palette.divider}`,
-            color: palette.text.secondary
-          }
-        }
+            backgroundColor: 'transparent',
+            boxShadow: 'none',
+            color: mode === 'light' ? '#344767' : '#FFFFFF',
+          },
+        },
       },
-      
-      // 7. تخصيص الرقائق (Chips)
+      MuiTableCell: {
+        styleOverrides: {
+          head: {
+            fontWeight: 700,
+            fontSize: '0.75rem',
+            textTransform: 'uppercase',
+            opacity: 0.7,
+            borderBottom: `0.0625rem solid ${mode === 'light' ? '#f0f2f5' : 'rgba(255, 255, 255, 0.12)'}`,
+          },
+          root: {
+            fontSize: '0.875rem',
+            borderBottom: `0.0625rem solid ${mode === 'light' ? '#f0f2f5' : 'rgba(255, 255, 255, 0.12)'}`,
+          },
+        },
+      },
       MuiChip: {
         styleOverrides: {
           root: {
-            borderRadius: 6,
-            fontWeight: 500,
-            height: 28,
+            borderRadius: 4,
+            fontWeight: 700,
+            height: 24,
+            fontSize: '0.65rem',
+            textTransform: 'uppercase',
+            letterSpacing: '0.05em',
           },
-          filled: {
-            backgroundColor: palette.primary.main,
-            color: '#fff',
+          label: {
+            padding: '0 8px',
+          },
+        },
+      },
+      MuiTabs: {
+        styleOverrides: {
+          root: {
+            minHeight: 48,
+            borderBottom: mode === 'light' ? '1px solid #E6E9EF' : '1px solid #333333',
+          },
+          indicator: {
+            height: 2,
+            backgroundColor: '#0073EA',
+          },
+        },
+      },
+      MuiTab: {
+        styleOverrides: {
+          root: {
+            textTransform: 'none',
+            minHeight: 48,
+            fontWeight: 400,
+            fontSize: '0.875rem',
+            padding: '6px 20px',
+            color: mode === 'light' ? '#676879' : '#B1B1B1',
+            transition: 'all 0.2s',
+            '&.Mui-selected': {
+              fontWeight: 600,
+              color: '#0073EA',
+            },
             '&:hover': {
-              backgroundColor: palette.primary.dark,
+              color: '#0073EA',
+              backgroundColor: 'rgba(0, 115, 234, 0.05)',
             },
           },
         },
       },
-      
-      // 8. تخصيص الصور الرمزية (Avatars)
-      MuiAvatar: {
+      MuiAlert: {
         styleOverrides: {
           root: {
-            borderRadius: 8,
+            borderRadius: 4,
+            border: '1px solid',
           },
-          rounded: {
-            borderRadius: 8,
+          standardSuccess: {
+            backgroundColor: '#E6FFF2',
+            borderColor: '#00C875',
+            color: '#007F4A',
+          },
+          standardError: {
+            backgroundColor: '#FFEBEF',
+            borderColor: '#DF2F4A',
+            color: '#B01E34',
           },
         },
-      }
+      },
+      MuiTooltip: {
+        styleOverrides: {
+          tooltip: {
+            backgroundColor: '#323338',
+            color: '#FFFFFF',
+            fontSize: '0.75rem',
+            padding: '8px 12px',
+            borderRadius: 4,
+          },
+          arrow: {
+            color: '#323338',
+          },
+        },
+      },
+      MuiSelect: {
+        styleOverrides: {
+          root: {
+            borderRadius: 4,
+            '&.Mui-focused .MuiOutlinedInput-notchedOutline': {
+              borderWidth: 1,
+              borderColor: '#0073EA',
+              boxShadow: '0 0 0 3px rgba(0, 115, 234, 0.2)',
+            },
+          },
+        },
+      },
+      MuiMenu: {
+        styleOverrides: {
+          paper: {
+            borderRadius: 8,
+            marginTop: 4,
+            boxShadow: '0 4px 15px rgba(0,0,0,0.1)',
+            border: mode === 'light' ? '1px solid #E6E9EF' : '1px solid #333333',
+          },
+        },
+      },
+      MuiMenuItem: {
+        styleOverrides: {
+          root: {
+            fontSize: '0.875rem',
+            padding: '8px 16px',
+            '&:hover': {
+              backgroundColor: mode === 'light' ? 'rgba(0, 115, 234, 0.05)' : 'rgba(0, 115, 234, 0.1)',
+            },
+          },
+        },
+      },
+      MuiStepper: {
+        styleOverrides: {
+          root: {
+            backgroundColor: 'transparent',
+            padding: 0,
+          },
+        },
+      },
+      MuiStepConnector: {
+        styleOverrides: {
+          line: {
+            borderColor: mode === 'light' ? '#E6E9EF' : '#333333',
+          },
+        },
+      },
+      MuiStepIcon: {
+        styleOverrides: {
+          root: {
+            color: mode === 'light' ? '#E6E9EF' : '#333333',
+            '&.Mui-active': {
+              color: '#0073EA',
+            },
+            '&.Mui-completed': {
+              color: '#00C875',
+            },
+          },
+          text: {
+            fill: '#FFFFFF',
+            fontWeight: 600,
+          },
+        },
+      },
+      MuiStepLabel: {
+        styleOverrides: {
+          label: {
+            fontSize: '0.75rem',
+            fontWeight: 500,
+            color: mode === 'light' ? '#676879' : '#B1B1B1',
+            '&.Mui-active': {
+              color: '#323338',
+              fontWeight: 600,
+            },
+            '&.Mui-completed': {
+              color: '#00C875',
+            },
+          },
+        },
+      },
     },
-  }), [mode, palette]);
+  }), [mode, palette, isRTL, functions]);
 
   return (
     <ColorModeContext.Provider value={colorMode}>

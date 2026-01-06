@@ -1,40 +1,44 @@
 import React, { useEffect, useState, useMemo, useCallback } from 'react';
 import {
-    Box, Typography, Paper, Chip, Button, Grid, Card, CardContent,
-    TextField, MenuItem, FormControl, InputLabel, Select, Divider,
-    Badge, Avatar, Tooltip, IconButton, Switch, FormControlLabel,
+    Box, Typography, Paper, Chip, Button, Grid, Card,
+    MenuItem, FormControl, InputLabel, Select, Divider,
+    Avatar, Tooltip, IconButton,
     ToggleButton, ToggleButtonGroup, useTheme, TablePagination,
-    Stack, LinearProgress, AppBar, Toolbar, Menu, ListItemIcon, ListItemText
+    Stack, LinearProgress, Menu, ListItemIcon, ListItemText,
+    Dialog, DialogTitle, DialogContent, List, ListItem, ListItemAvatar,
+    CircularProgress
 } from '@mui/material';
 import { DataGrid, GridColDef, GridToolbar, GridRenderCellParams } from '@mui/x-data-grid';
 import {
-    Refresh, Check, Warning, Error as ErrorIcon, AccessTime,
-    Person, Schedule, Timer, Group, ViewList, TableChart,
-    CalendarToday, ChevronLeft, ChevronRight, Today, Event, GetApp,
-    FilterList, Save, TrendingUp, Settings, MoreVert, ExpandMore,
-    FiberManualRecord
+    Refresh, Warning, Error as ErrorIcon, AccessTime,
+    Schedule, Group, ViewList, TableChart,
+    CalendarToday, Today, Event, GetApp,
+    TrendingUp, MoreVert, ExpandMore,
+    FiberManualRecord, Delete, CheckCircle, Alarm, Cancel, Print,
+    Close, PersonPinCircle
 } from '@mui/icons-material';
 import api from '../../services/api';
 import { useTranslation } from 'react-i18next';
+import { useConfirm } from '../../context/ConfirmContext';
 import AttendanceTimeline from '../../components/hr/AttendanceTimeline';
 import AttendanceAnalytics from '../../components/hr/AttendanceAnalytics';
 import MonthView from './MonthView';
 import CalendarView from './CalendarView';
-import { format, parseISO, startOfMonth, endOfMonth, startOfWeek, endOfWeek, eachDayOfInterval, isSameDay, isToday, isWeekend, subMonths, addMonths, isAfter, differenceInDays, addDays, endOfDay, differenceInMinutes } from 'date-fns';
+import { format, parseISO, startOfMonth, endOfMonth, startOfWeek, endOfWeek, isSameDay, isToday, isAfter, differenceInDays, addDays } from 'date-fns';
 import { AdapterDateFns } from '@mui/x-date-pickers/AdapterDateFns';
-import { LocalizationProvider, DatePicker, DateCalendar, PickersDay, PickersDayProps } from '@mui/x-date-pickers';
-import { styled } from '@mui/material/styles';
+import { LocalizationProvider, DatePicker } from '@mui/x-date-pickers';
+import { alpha } from '@mui/material/styles';
 
-// Colors inspired by the reference image
+// Colors inspired by professional enterprise systems (Zoho, etc.)
 export const ATTENDANCE_COLORS = {
-    present: '#10B981', // Emerald 500 - for normal attendance
-    late: '#EF4444',    // Red 500 - for late arrival
-    earlyLeave: '#F59E0B', // Amber 500 - for early leave
-    absent: '#6B7280',  // Gray 500 - for absent
-    holiday: '#8B5CF6', // Violet 500 - for paid holiday
-    ongoing: '#3B82F6', // Blue 500 - for ongoing work
-    overtime: '#8B5CF6', // Violet 500 - for overtime
-    partial: '#F97316'  // Orange 500 - for partial work
+    present: '#059669',     // Emerald 600
+    late: '#DC2626',        // Red 600
+    earlyLeave: '#D97706',  // Amber 600
+    absent: '#475569',      // Slate 600
+    holiday: '#7C3AED',     // Violet 600
+    ongoing: '#2563EB',     // Blue 600
+    overtime: '#7C3AED',    // Violet 600
+    partial: '#EA580C'      // Orange 600
 };
 
 const round = (val: number, precision: number) => Math.round(val * Math.pow(10, precision)) / Math.pow(10, precision);
@@ -87,8 +91,11 @@ const useAttendanceData = (filters: any) => {
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
 
-    const fetchLogs = useCallback(async () => {
-        setLoading(true);
+    const { alert: showAlert } = useConfirm();
+    const { t } = useTranslation();
+
+    const fetchLogs = useCallback(async (silent = false) => {
+        if (!silent) setLoading(true);
         setError(null);
         try {
             const params = new URLSearchParams();
@@ -98,8 +105,8 @@ const useAttendanceData = (filters: any) => {
                 params.append('start_date', format(monthStart, 'yyyy-MM-dd'));
                 params.append('end_date', format(monthEnd, 'yyyy-MM-dd'));
             } else if (filters.viewMode === 'month') {
-                const monthStart = startOfMonth(new Date());
-                const monthEnd = endOfMonth(new Date());
+                const monthStart = startOfMonth(filters.currentMonth || new Date());
+                const monthEnd = endOfMonth(filters.currentMonth || new Date());
                 params.append('start_date', format(monthStart, 'yyyy-MM-dd'));
                 params.append('end_date', format(monthEnd, 'yyyy-MM-dd'));
             } else {
@@ -111,15 +118,17 @@ const useAttendanceData = (filters: any) => {
             if (filters.selectedDepartment) params.append('department', filters.selectedDepartment);
             if (filters.rawView) params.append('raw', 'true');
 
-            const res = await api.get(`/hr/attendance?${params}`);
+            const res = await api.get(`hr/attendance?${params}`);
             setRows(res.data as AttendanceRecord[]);
-        } catch (error) {
+        } catch (error: any) {
             console.error('Error fetching attendance:', error);
-            setError('Failed to load attendance data');
+            const errorMessage = error.response?.data?.detail || error.message || 'فشل في تحميل بيانات الحضور';
+            setError(errorMessage);
+            if (!silent) showAlert(`فشل في تحميل بيانات الحضور: ${errorMessage}`, t('Error'), 'error');
         } finally {
-            setLoading(false);
+            if (!silent) setLoading(false);
         }
-    }, [filters.viewMode, filters.currentMonth, filters.startDate, filters.endDate, filters.selectedEmployee, filters.selectedDepartment, filters.rawView]);
+    }, [filters.viewMode, filters.currentMonth, filters.startDate, filters.endDate, filters.selectedEmployee, filters.selectedDepartment, filters.rawView, showAlert, t]);
 
     useEffect(() => {
         fetchLogs();
@@ -211,83 +220,321 @@ const useAttendanceFilters = () => {
     };
 };
 
+// Add RecentActivitySidebar component
+const RecentActivitySidebar = () => {
+    const { t } = useTranslation();
+    const theme = useTheme();
+    const [recentLogs, setRecentLogs] = useState<any[]>([]);
+    const [loading, setLoading] = useState(true);
+
+    const fetchRecentActivity = useCallback(async () => {
+        try {
+            const res = await api.get('hr/recent-activity');
+            setRecentLogs(res.data);
+        } catch (error) {
+            console.error('Failed to fetch recent activity:', error);
+        } finally {
+            setLoading(false);
+        }
+    }, []);
+
+    useEffect(() => {
+        fetchRecentActivity();
+        const interval = setInterval(fetchRecentActivity, 30000); // Update every 30 seconds
+        return () => clearInterval(interval);
+    }, [fetchRecentActivity]);
+
+    if (loading && recentLogs.length === 0) return <LinearProgress />;
+    if (recentLogs.length === 0) return null;
+
+    return (
+        <Paper sx={{ p: 2, borderRadius: 2, border: `1px solid ${theme.palette.divider}`, height: '100%', maxHeight: '800px', overflowY: 'auto' }}>
+            <Typography variant="subtitle1" fontWeight="700" sx={{ mb: 2, display: 'flex', alignItems: 'center', gap: 1 }}>
+                <AccessTime fontSize="small" color="primary" />
+                {t('Live Activity')}
+            </Typography>
+            <Stack spacing={2}>
+                {recentLogs.map((log, idx) => (
+                    <Box key={log.id || idx} sx={{ display: 'flex', gap: 1.5, alignItems: 'flex-start' }}>
+                        <Avatar sx={{ width: 32, height: 32, bgcolor: log.type === 'check_in' ? ATTENDANCE_COLORS.present : ATTENDANCE_COLORS.earlyLeave, fontSize: '0.8rem' }}>
+                            {log.employee_name?.[0]}
+                        </Avatar>
+                        <Box sx={{ flex: 1, minWidth: 0 }}>
+                            <Typography variant="body2" fontWeight="600" noWrap title={log.employee_name}>
+                                {log.employee_name}
+                            </Typography>
+                            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                <Typography variant="caption" color="text.secondary">
+                                    {log.type === 'check_in' ? t('Checked In') : t('Checked Out')}
+                                </Typography>
+                                <Typography variant="caption" fontWeight="700" color="primary.main">
+                                    {format(parseISO(log.timestamp), 'HH:mm')}
+                                </Typography>
+                            </Box>
+                            <Typography variant="caption" color="text.disabled" sx={{ fontSize: '0.65rem' }}>
+                                {log.device}
+                            </Typography>
+                        </Box>
+                    </Box>
+                ))}
+            </Stack>
+        </Paper>
+    );
+};
+
+// Add DeviceStatusWidget component
+const DeviceStatusWidget = () => {
+    const [devices, setDevices] = useState<any[]>([]);
+    const [loading, setLoading] = useState(true);
+
+    const fetchDevices = async () => {
+        try {
+            const res = await api.get('hr/devices');
+            setDevices(res.data);
+        } catch (error) {
+            console.error('Failed to fetch devices:', error);
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    useEffect(() => {
+        fetchDevices();
+        const interval = setInterval(fetchDevices, 60000); // Update every minute
+        return () => clearInterval(interval);
+    }, []);
+
+    if (loading) return <LinearProgress sx={{ width: 100 }} />;
+
+    return (
+        <Box sx={{ display: 'flex', gap: 1, alignItems: 'center' }}>
+            {devices.map((device) => (
+                <Tooltip key={device.id} title={`${device.name} (${device.ip_address})`}>
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                        <FiberManualRecord 
+                            sx={{ 
+                                fontSize: 12, 
+                                color: device.status === 'online' ? ATTENDANCE_COLORS.present : ATTENDANCE_COLORS.late 
+                            }} 
+                        />
+                        <Typography variant="caption" fontWeight="600" color="text.secondary">
+                            {device.name}
+                        </Typography>
+                    </Box>
+                </Tooltip>
+            ))}
+        </Box>
+    );
+};
+
+// Add DigitalClock component
+const DigitalClock = () => {
+    const [time, setTime] = useState(new Date());
+    const theme = useTheme();
+
+    useEffect(() => {
+        const timer = setInterval(() => setTime(new Date()), 1000);
+        return () => clearInterval(timer);
+    }, []);
+
+    return (
+        <Box sx={{ 
+            display: 'flex', 
+            flexDirection: 'column', 
+            alignItems: 'flex-end',
+            px: 2,
+            py: 0.5,
+            borderRadius: 2,
+            bgcolor: alpha(theme.palette.primary.main, 0.05),
+            border: `1px solid ${alpha(theme.palette.primary.main, 0.1)}`
+        }}>
+            <Typography variant="h6" fontWeight="800" sx={{ color: 'primary.main', lineHeight: 1, mb: 0.5 }}>
+                {format(time, 'HH:mm:ss')}
+            </Typography>
+            <Typography variant="caption" fontWeight="500" color="text.secondary">
+                {format(time, 'EEEE, dd MMMM yyyy')}
+            </Typography>
+        </Box>
+    );
+};
+
+// Add SyncDevicesButton component
+const SyncDevicesButton = ({ onSyncSuccess }: { onSyncSuccess: () => void }) => {
+    const { t } = useTranslation();
+    const [syncing, setSyncing] = useState(false);
+    const { alert: showAlert } = useConfirm();
+
+    const handleSync = async () => {
+        setSyncing(true);
+        try {
+            const res = await api.post('hr/devices/sync-multiple', {});
+            const total = res.data.total_new_logs;
+            showAlert(t('Synced successfully! Found {{count}} new logs.', { count: total }), t('Sync Success'), 'success');
+            onSyncSuccess();
+        } catch (error) {
+            console.error('Sync failed:', error);
+            showAlert(t('Failed to sync devices. Please check connection.'), t('Error'), 'error');
+        } finally {
+            setSyncing(false);
+        }
+    };
+
+    return (
+        <Button
+            variant="contained"
+            color="primary"
+            startIcon={syncing ? <CircularProgress size={20} color="inherit" /> : <Refresh />}
+            onClick={handleSync}
+            disabled={syncing}
+            sx={{ 
+                borderRadius: 2, 
+                textTransform: 'none',
+                fontWeight: 600,
+                boxShadow: 2
+            }}
+        >
+            {syncing ? t('Syncing...') : t('Sync Devices')}
+        </Button>
+    );
+};
+
 // Consolidated Summary Cards Component
 const AttendanceSummaryCards = React.memo(({
     summary,
-    theme
+    theme,
+    onCardClick
 }: {
     summary: AttendanceSummary;
     theme: any;
+    onCardClick?: (type: string) => void;
 }) => {
     const { t } = useTranslation();
 
     const cards = useMemo(() => [
         {
+            id: 'total',
             title: t('Total Employees'),
             value: summary.total_employees,
             icon: <Group sx={{ fontSize: 28 }} />,
             color: theme.palette.primary.main
         },
         {
+            id: 'present',
             title: t('Present Today'),
             value: summary.present_today,
-            icon: <Check sx={{ fontSize: 28 }} />,
+            icon: <CheckCircle sx={{ fontSize: 28 }} />,
             color: ATTENDANCE_COLORS.present
         },
         {
+            id: 'late',
             title: t('Late Today'),
             value: summary.late_today,
-            icon: <Warning sx={{ fontSize: 28 }} />,
+            icon: <Alarm sx={{ fontSize: 28 }} />,
             color: ATTENDANCE_COLORS.late
         },
         {
-            title: t('Absent Today'),
-            value: summary.absent_today,
-            icon: <ErrorIcon sx={{ fontSize: 28 }} />,
-            color: ATTENDANCE_COLORS.absent
-        },
-        {
+            id: 'currently_in',
             title: t('Currently In'),
             value: summary.currently_in,
-            icon: <FiberManualRecord sx={{ fontSize: 16, color: ATTENDANCE_COLORS.present, animation: 'pulse 2s infinite' }} />,
+            icon: <PersonPinCircle sx={{ fontSize: 28 }} />,
             color: ATTENDANCE_COLORS.ongoing
+        },
+        {
+            id: 'absent',
+            title: t('Absent Today'),
+            value: summary.absent_today,
+            icon: <Cancel sx={{ fontSize: 28 }} />,
+            color: ATTENDANCE_COLORS.absent
         }
     ], [summary, theme.palette.primary.main, t]);
 
     return (
-        <Grid container spacing={2} sx={{ mb: 2, overflowX: 'hidden', width: '100%', marginInlineStart: 0 }}>
-            <style>
-                {`
-                    @keyframes pulse {
-                        0% { opacity: 1; transform: scale(1); }
-                        50% { opacity: 0.5; transform: scale(1.2); }
-                        100% { opacity: 1; transform: scale(1); }
-                    }
-                `}
-            </style>
-            {cards.map((card, index) => (
-                <Grid item xs={12} sm={6} md={2.4} key={index}>
-                    <Card sx={{
-                        height: '100%',
-                        border: `1px solid ${theme.palette.divider}`,
-                        borderRadius: 1,
-                        transition: 'all 0.2s ease',
-                        '&:hover': {
-                            borderColor: card.color,
-                            opacity: 0.8
-                        }
-                    }}>
-                        <CardContent sx={{ textAlign: 'center', py: 1.5 }}>
-                            <Box sx={{ color: card.color, mb: 0.5 }}>
+        <Grid container spacing={2} sx={{ mb: 4 }}>
+            {cards.map((card) => (
+                <Grid item xs={12} sm={6} md={2.4} key={card.id}>
+                    <Card 
+                        sx={{ 
+                            p: 2.5, 
+                            display: 'flex', 
+                            flexDirection: 'column', 
+                            height: '100%',
+                            position: 'relative',
+                            overflow: 'hidden',
+                            borderRadius: 4,
+                            border: `1px solid ${alpha(card.color, 0.1)}`,
+                            background: theme.palette.mode === 'light'
+                                ? `linear-gradient(135deg, ${alpha(card.color, 0.02)} 0%, #FFFFFF 100%)`
+                                : `linear-gradient(135deg, ${alpha(card.color, 0.05)} 0%, ${theme.palette.background.paper} 100%)`,
+                            cursor: onCardClick ? 'pointer' : 'default',
+                            transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+                            '&:hover': onCardClick ? {
+                                transform: 'translateY(-6px)',
+                                boxShadow: theme.palette.mode === 'light'
+                                    ? `0 12px 24px ${alpha(card.color, 0.12)}`
+                                    : `0 12px 24px ${alpha(card.color, 0.3)}`,
+                                border: `1px solid ${alpha(card.color, 0.3)}`,
+                            } : {}
+                        }}
+                        onClick={() => onCardClick?.(card.id)}
+                    >
+                        <Box sx={{ 
+                            display: 'flex', 
+                            alignItems: 'center', 
+                            justifyContent: 'space-between',
+                            mb: 2,
+                            zIndex: 1
+                        }}>
+                            <Box sx={{ 
+                                p: 1.2, 
+                                borderRadius: 2.5, 
+                                background: `linear-gradient(135deg, ${card.color} 0%, ${alpha(card.color, 0.8)} 100%)`,
+                                color: '#FFFFFF',
+                                display: 'flex',
+                                boxShadow: `0 4px 12px ${alpha(card.color, 0.25)}`
+                            }}>
                                 {card.icon}
                             </Box>
-                            <Typography variant="h4" fontWeight="600" color={card.color}>
+                            <Typography variant="h4" fontWeight="900" sx={{ color: 'text.primary', letterSpacing: '-0.02em' }}>
                                 {card.value}
                             </Typography>
-                            <Typography variant="body2" color="text.secondary" fontWeight="500">
-                                {card.title}
-                            </Typography>
-                        </CardContent>
+                        </Box>
+                        <Typography variant="subtitle2" color="text.secondary" fontWeight="700" sx={{ zIndex: 1 }}>
+                            {card.title}
+                        </Typography>
+                        
+                        {/* Decorative background element */}
+                        <Box sx={{ 
+                            position: 'absolute', 
+                            right: -15, 
+                            bottom: -15, 
+                            opacity: theme.palette.mode === 'light' ? 0.06 : 0.1, 
+                            transform: 'rotate(-10deg)',
+                            color: card.color,
+                            transition: 'all 0.3s ease',
+                            '.MuiCard-root:hover &': {
+                                transform: 'rotate(0deg) scale(1.1)',
+                                opacity: 0.12
+                            }
+                        }}>
+                            {React.cloneElement(card.icon as React.ReactElement, { sx: { fontSize: 100 } })}
+                        </Box>
+
+                        {/* Progress line at bottom */}
+                        <Box sx={{
+                            position: 'absolute',
+                            bottom: 0,
+                            left: 0,
+                            width: '100%',
+                            height: 4,
+                            background: alpha(card.color, 0.1)
+                        }}>
+                            <Box sx={{
+                                width: '40%', // Decorative width
+                                height: '100%',
+                                background: card.color,
+                                borderRadius: '0 4px 4px 0'
+                            }} />
+                        </Box>
                     </Card>
                 </Grid>
             ))}
@@ -394,7 +641,8 @@ const QuickViewMenu = React.memo(({
 });
 
 // Action Menu Component
-const ActionMenu = React.memo(({
+// Add AttendanceMoreActions component
+const AttendanceMoreActions = React.memo(({
     filters,
     onRefresh,
     loading,
@@ -408,6 +656,7 @@ const ActionMenu = React.memo(({
     rows: any[];
 }) => {
     const { t, i18n } = useTranslation();
+    const { confirm, alert: showAlert } = useConfirm();
     const isRtl = i18n.language === 'ar';
     const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null);
     const open = Boolean(anchorEl);
@@ -434,9 +683,11 @@ const ActionMenu = React.memo(({
     const handleExport = () => {
         if (!rows || rows.length === 0) return;
 
+        // Add BOM for Excel UTF-8 support (Arabic characters)
+        const BOM = '\uFEFF';
         const headers = filters.rawView 
-            ? ['ID', 'Employee ID', 'Name', 'Timestamp', 'Type', 'Status', 'Device']
-            : ['Employee ID', 'Name', 'Date', 'Check In', 'Check Out', 'Work Hours', 'Status'];
+            ? [t('ID'), t('Employee ID'), t('Name'), t('Timestamp'), t('Type'), t('Status'), t('Device')]
+            : [t('Employee ID'), t('Name'), t('Date'), t('Check In'), t('Check Out'), t('Work Hours'), t('Status')];
 
         const csvContent = [
             headers.join(','),
@@ -465,7 +716,7 @@ const ActionMenu = React.memo(({
             })
         ].join('\n');
 
-        const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+        const blob = new Blob([BOM + csvContent], { type: 'text/csv;charset=utf-8;' });
         const link = document.createElement('a');
         const url = URL.createObjectURL(blob);
         link.setAttribute('href', url);
@@ -474,6 +725,11 @@ const ActionMenu = React.memo(({
         document.body.appendChild(link);
         link.click();
         document.body.removeChild(link);
+        handleClose();
+    };
+
+    const handlePrint = () => {
+        window.print();
         handleClose();
     };
 
@@ -528,11 +784,46 @@ const ActionMenu = React.memo(({
                     </ListItemIcon>
                     <ListItemText>{t('Export CSV')}</ListItemText>
                 </MenuItem>
+                <MenuItem onClick={handlePrint}>
+                    <ListItemIcon>
+                        <Print fontSize="small" />
+                    </ListItemIcon>
+                    <ListItemText>{t('Print Report')}</ListItemText>
+                </MenuItem>
                 <MenuItem onClick={handleRefresh} disabled={loading}>
                     <ListItemIcon>
                         <Refresh fontSize="small" />
                     </ListItemIcon>
                     <ListItemText>{t('Refresh Data')}</ListItemText>
+                </MenuItem>
+                <Divider />
+                <MenuItem 
+                    onClick={async () => {
+                        handleClose();
+                        const confirmed = await confirm({
+                            title: t('Clear Attendance Data'),
+                            message: t('Are you sure you want to delete all attendance logs? This action cannot be undone.'),
+                            confirmText: t('Clear'),
+                            cancelText: t('Cancel'),
+                            type: 'error'
+                        });
+                        if (confirmed) {
+                            try {
+                                await api.delete('hr/attendance/clear');
+                                showAlert(t('Attendance data cleared successfully'));
+                                onRefresh();
+                            } catch (error) {
+                                console.error('Failed to clear attendance:', error);
+                                showAlert(t('Failed to clear attendance data'));
+                            }
+                        }
+                    }}
+                    sx={{ color: 'error.main' }}
+                >
+                    <ListItemIcon>
+                        <Delete fontSize="small" color="error" />
+                    </ListItemIcon>
+                    <ListItemText>{t('Clear All Logs')}</ListItemText>
                 </MenuItem>
             </Menu>
         </>
@@ -628,12 +919,15 @@ const AttendanceControls = React.memo(({
                     <Typography variant="subtitle2" fontWeight="600" sx={{ whiteSpace: 'nowrap' }}>
                         {t('Quick View')}:
                     </Typography>
-                    <QuickViewMenu filters={filters} theme={theme} />
+                    <QuickViewMenu 
+                    filters={filters} 
+                    theme={theme} 
+                />
                 </Box>
 
                 {/* Action Menu */}
                 <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, marginInlineStart: 'auto' }}>
-                    <ActionMenu 
+                    <AttendanceMoreActions 
                         filters={filters} 
                         onRefresh={onRefresh} 
                         loading={loading} 
@@ -867,6 +1161,7 @@ const MatrixView = React.memo(({
 const AttendancePage: React.FC = () => {
     const theme = useTheme();
     const { t } = useTranslation();
+    const { alert: showAlert } = useConfirm();
 
     // Custom hooks
     const filters = useAttendanceFilters();
@@ -895,6 +1190,91 @@ const AttendancePage: React.FC = () => {
     const [page, setPage] = useState(0);
     const [rowsPerPage, setRowsPerPage] = useState(10);
     const [totalEmployees, setTotalEmployees] = useState(0);
+    const [summaryLoading, setSummaryLoading] = useState(false);
+
+    const fetchSummary = useCallback(async () => {
+        setSummaryLoading(true);
+        try {
+            const params = new URLSearchParams();
+            if (filters.selectedDepartment) params.append('department', filters.selectedDepartment);
+            const res = await api.get(`hr/dashboard?${params}`);
+            setSummary(res.data);
+        } catch (error) {
+            console.error('Error fetching summary:', error);
+        } finally {
+            setSummaryLoading(false);
+        }
+    }, [filters.selectedDepartment]);
+
+    const handleRefresh = useCallback(async (silent = false) => {
+        await Promise.all([refetch(silent), fetchSummary()]);
+    }, [refetch, fetchSummary]);
+
+    // Auto-refresh data periodically (silent)
+    useEffect(() => {
+        // Only auto-refresh if we are viewing the current month or today's data
+        const isCurrentView = filters.viewMode === 'month' ? 
+            format(filters.currentMonth, 'yyyy-MM') === format(new Date(), 'yyyy-MM') :
+            (filters.startDate && isToday(filters.startDate)) || (filters.endDate && isToday(filters.endDate));
+
+        if (!isCurrentView) return;
+
+        const interval = setInterval(() => {
+            handleRefresh(true);
+        }, 60000); // Refresh every minute
+
+        return () => clearInterval(interval);
+    }, [handleRefresh, filters.viewMode, filters.currentMonth, filters.startDate, filters.endDate]);
+
+    // Detail Dialog State
+    const [detailDialog, setDetailDialog] = useState<{ open: boolean; type: string; title: string; data: any[] }>({
+        open: false,
+        type: '',
+        title: '',
+        data: []
+    });
+
+    const handleCardClick = useCallback(async (type: string) => {
+        let title = '';
+        let filteredData = [];
+        const todayStr = format(new Date(), 'yyyy-MM-dd');
+
+        switch (type) {
+            case 'late':
+                title = t('Late Employees Today');
+                filteredData = rows.filter((r: any) => r.check_in_date === todayStr && r.status === 'late');
+                break;
+            case 'currently_in':
+                title = t('Employees Currently In');
+                filteredData = rows.filter((r: any) => r.check_in_date === todayStr && !r.check_out);
+                break;
+            case 'present':
+                title = t('Employees Present Today');
+                filteredData = rows.filter((r: any) => r.check_in_date === todayStr);
+                break;
+            case 'absent':
+                title = t('Employees Absent Today');
+                try {
+                    const params = new URLSearchParams();
+                    if (filters.selectedDepartment) params.append('department', filters.selectedDepartment);
+                    const res = await api.get(`hr/absent-employees?${params}`);
+                    filteredData = res.data;
+                } catch (error) {
+                    console.error('Failed to fetch absent employees:', error);
+                    filteredData = [];
+                }
+                break;
+            default:
+                return;
+        }
+
+        setDetailDialog({
+            open: true,
+            type,
+            title,
+            data: filteredData
+        });
+    }, [rows, t, filters.selectedDepartment]);
 
     // Optimized data fetching
     const fetchEmployees = useCallback(async () => {
@@ -904,7 +1284,7 @@ const AttendancePage: React.FC = () => {
             params.append('limit', rowsPerPage.toString());
             if (filters.selectedDepartment) params.append('department', filters.selectedDepartment);
 
-            const res = await api.get(`/hr/employees?${params}`);
+            const res = await api.get(`hr/employees?${params}`);
             setEmployees(res.data.employees || []);
             setTotalEmployees(res.data.total || 0);
         } catch (error) {
@@ -914,7 +1294,7 @@ const AttendancePage: React.FC = () => {
 
     const fetchDepartments = useCallback(async () => {
         try {
-            const res = await api.get('/departments');
+            const res = await api.get('departments');
             setDepartments(res.data);
         } catch (error) {
             console.error('Error fetching departments:', error);
@@ -953,15 +1333,22 @@ const AttendancePage: React.FC = () => {
         };
     }, [filters.rawView, filters.startDate, filters.endDate, totalEmployees, rows]);
 
-    // Update summary when calculated summary changes
+    // Update summary when calculated summary changes (only if not today)
     useEffect(() => {
-        setSummary(calculatedSummary);
-    }, [calculatedSummary]);
+        const todayStr = format(new Date(), 'yyyy-MM-dd');
+        const isTodayRange = filters.startDate && format(filters.startDate, 'yyyy-MM-dd') === todayStr && 
+                           filters.endDate && format(filters.endDate, 'yyyy-MM-dd') === todayStr;
+        
+        if (!isTodayRange || filters.rawView) {
+            setSummary(calculatedSummary);
+        }
+    }, [calculatedSummary, filters.startDate, filters.endDate, filters.rawView]);
 
     // Effects
     useEffect(() => {
         fetchDepartments();
-    }, [fetchDepartments]);
+        fetchSummary();
+    }, [fetchDepartments, fetchSummary]);
 
     useEffect(() => {
         fetchEmployees();
@@ -1070,7 +1457,7 @@ const AttendancePage: React.FC = () => {
                                     color: ATTENDANCE_COLORS.earlyLeave,
                                     cursor: 'pointer'
                                 }}
-                                onClick={() => alert(`${t('Under Capacity')}: ${round(params.row.capacity - params.row.actual_work, 1)}h ${t('remaining')}`)}
+                                onClick={() => showAlert(`${t('Under Capacity')}: ${round(params.row.capacity - params.row.actual_work, 1)}h ${t('remaining')}`, t('Warning'), 'warning')}
                                 title={`${t('Under Capacity')}: ${round(params.row.capacity - params.row.actual_work, 1)}h ${t('remaining')}`}
                             >
                                 <Warning sx={{ fontSize: 14 }} />
@@ -1155,7 +1542,7 @@ const AttendancePage: React.FC = () => {
                 }
             }
         ];
-    }, [filters.rawView, t]);
+    }, [filters.rawView, t, showAlert]);
 
     // Optimized handlers
     const handleFilterChange = useCallback((key: string, value: any) => {
@@ -1181,7 +1568,7 @@ const AttendancePage: React.FC = () => {
         }
     }, [filters]);
 
-    const handlePageChange = useCallback((event: React.MouseEvent<HTMLButtonElement> | null, newPage: number) => {
+    const handlePageChange = useCallback((_: React.MouseEvent<HTMLButtonElement> | null, newPage: number) => {
         setPage(newPage);
     }, []);
 
@@ -1201,7 +1588,7 @@ const AttendancePage: React.FC = () => {
                     <Typography variant="body2" color="text.secondary" mb={2}>
                         {error}
                     </Typography>
-                    <Button variant="contained" onClick={refetch} startIcon={<Refresh />}>
+                    <Button variant="contained" onClick={() => refetch()} startIcon={<Refresh />}>
                         {t('Retry')}
                     </Button>
                 </Card>
@@ -1211,92 +1598,185 @@ const AttendancePage: React.FC = () => {
 
     return (
         <LocalizationProvider dateAdapter={AdapterDateFns}>
-            <Box sx={{ p: 2, overflowX: 'hidden', boxSizing: 'border-box', width: '100%' }}>
+            <Box sx={{ 
+                p: 2, 
+                overflowX: 'hidden', 
+                boxSizing: 'border-box', 
+                width: '100%',
+                '@media print': {
+                    p: 0,
+                    '& .no-print': { display: 'none' },
+                    '& .MuiPaper-root': { border: 'none', boxShadow: 'none' }
+                }
+            }}>
                 {/* Header */}
-                <Box sx={{ mb: 3, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <Typography variant="h5" fontWeight="600">
-                        {t('Attendance Management')}
-                    </Typography>
+                <Box className="no-print" sx={{ mb: 3, display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 2 }}>
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+                        <Typography variant="h4" fontWeight="800" color="text.primary">
+                            {t('Attendance Management')}
+                        </Typography>
+                        <SyncDevicesButton onSyncSuccess={handleRefresh} />
+                        <Divider orientation="vertical" flexItem sx={{ mx: 1 }} />
+                        <DeviceStatusWidget />
+                    </Box>
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 3 }}>
+                        <DigitalClock />
+                        <AttendanceMoreActions onRefresh={handleRefresh} rows={rows} filters={filters} theme={theme} />
+                    </Box>
                 </Box>
+
+                {/* Loading Indicator */}
+                {(loading || summaryLoading) && (
+                    <Box className="no-print" sx={{ width: '100%', mb: 2 }}>
+                        <LinearProgress />
+                    </Box>
+                )}
 
                 {/* Summary Cards */}
                 {!filters.rawView && (
-                    <AttendanceSummaryCards summary={summary} theme={theme} />
+                    <AttendanceSummaryCards summary={summary} theme={theme} onCardClick={handleCardClick} />
                 )}
+
+                {/* Detail Dialog */}
+                <Dialog 
+                    className="no-print"
+                    open={detailDialog.open} 
+                    onClose={() => setDetailDialog(prev => ({ ...prev, open: false }))}
+                    maxWidth="md"
+                    fullWidth
+                >
+                    <DialogTitle sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <Typography variant="h6" fontWeight="700">{detailDialog.title}</Typography>
+                        <IconButton onClick={() => setDetailDialog(prev => ({ ...prev, open: false }))}>
+                            <Close />
+                        </IconButton>
+                    </DialogTitle>
+                    <DialogContent dividers>
+                        {detailDialog.data.length > 0 ? (
+                            <List>
+                                {detailDialog.data.map((item, idx) => (
+                                    <ListItem key={idx} divider={idx < detailDialog.data.length - 1}>
+                                        <ListItemAvatar>
+                                            <Avatar sx={{ bgcolor: alpha(theme.palette.primary.main, 0.1), color: theme.palette.primary.main }}>
+                                                {item.employee_name?.[0]}
+                                            </Avatar>
+                                        </ListItemAvatar>
+                                        <ListItemText 
+                                            primary={item.employee_name}
+                                            secondary={
+                                                detailDialog.type === 'absent' 
+                                                ? `${t('ID')}: ${item.employee_id} | ${t('Department')}: ${item.department || t('N/A')}`
+                                                : `${t('ID')}: ${item.employee_id} | ${t('Check In')}: ${item.check_in ? format(parseISO(item.check_in), 'HH:mm') : '-'}`
+                                            }
+                                        />
+                                        <Chip 
+                                            label={t(item.status)} 
+                                            size="small"
+                                            sx={{ 
+                                                bgcolor: item.status === 'absent' ? ATTENDANCE_COLORS.absent : (item.status === 'late' ? ATTENDANCE_COLORS.late : ATTENDANCE_COLORS.present),
+                                                color: 'white'
+                                            }}
+                                        />
+                                    </ListItem>
+                                ))}
+                            </List>
+                        ) : (
+                            <Box sx={{ p: 4, textAlign: 'center' }}>
+                                <Typography color="text.secondary">{t('No data found for today.')}</Typography>
+                            </Box>
+                        )}
+                    </DialogContent>
+                </Dialog>
 
                 {/* Consolidated Controls */}
-                <AttendanceControls
-                    filters={filters}
-                    employees={employees}
-                    departments={departments}
-                    onFilterChange={handleFilterChange}
-                    onApplyFilters={refetch}
-                    onRefresh={refetch}
-                    loading={loading}
-                    rows={rows}
-                />
+                <Box className="no-print">
+                    <AttendanceControls
+                        filters={filters}
+                        employees={employees}
+                        departments={departments}
+                        onFilterChange={handleFilterChange}
+                        onApplyFilters={handleRefresh}
+                        onRefresh={handleRefresh}
+                        loading={loading}
+                        rows={rows}
+                    />
+                </Box>
 
                 {/* Content Area */}
-                {filters.viewMode === 'analytics' && (
-                    <AttendanceAnalytics 
-                        data={rows} 
-                        employees={employees} 
-                        startDate={filters.startDate || new Date()} 
-                        endDate={filters.endDate || new Date()} 
-                    />
-                )}
+                <Grid container spacing={2}>
+                    <Grid item xs={12} md={filters.viewMode === 'analytics' ? 12 : 9} sx={{ overflow: 'visible' }}>
+                        {filters.viewMode === 'analytics' && (
+                            <AttendanceAnalytics 
+                                data={rows} 
+                                employees={employees} 
+                                startDate={filters.startDate || new Date()} 
+                                endDate={filters.endDate || new Date()} 
+                            />
+                        )}
 
-                {filters.viewMode === 'matrix' && (
-                    <MatrixView
-                        rows={rows}
-                        employees={employees}
-                        loading={loading}
-                        filters={filters}
-                        totalEmployees={totalEmployees}
-                        page={page}
-                        rowsPerPage={rowsPerPage}
-                        handlePageChange={handlePageChange}
-                        handleRowsPerPageChange={handleRowsPerPageChange}
-                        handleDateChange={filters.handleDateChange}
-                        handleZoomChange={(zoom) => {
-                            filters.setZoomLevel(zoom as 'day' | 'week' | 'month' | 'range');
-                            filters.setQuickView(null);
-                        }}
-                    />
-                )}
+                        {filters.viewMode === 'matrix' && (
+                            <MatrixView
+                                rows={rows}
+                                employees={employees}
+                                loading={loading}
+                                filters={filters}
+                                totalEmployees={totalEmployees}
+                                page={page}
+                                rowsPerPage={rowsPerPage}
+                                handlePageChange={handlePageChange}
+                                handleRowsPerPageChange={handleRowsPerPageChange}
+                                handleDateChange={filters.handleDateChange}
+                                handleZoomChange={(zoom) => {
+                                    filters.setZoomLevel(zoom as 'day' | 'week' | 'month' | 'range');
+                                    filters.setQuickView(null);
+                                }}
+                            />
+                        )}
 
-                {filters.viewMode === 'table' && (
-                    <TableView
-                        rows={rows}
-                        columns={columns}
-                        loading={loading}
-                        totalEmployees={totalEmployees}
-                        page={page}
-                        rowsPerPage={rowsPerPage}
-                        handlePageChange={handlePageChange}
-                        handleRowsPerPageChange={handleRowsPerPageChange}
-                    />
-                )}
+                        {filters.viewMode === 'table' && (
+                            <TableView
+                                rows={rows}
+                                columns={columns}
+                                loading={loading}
+                                totalEmployees={totalEmployees}
+                                page={page}
+                                rowsPerPage={rowsPerPage}
+                                handlePageChange={handlePageChange}
+                                handleRowsPerPageChange={handleRowsPerPageChange}
+                            />
+                        )}
 
-                {filters.viewMode === 'month' && (
-                    <MonthView
-                        rows={rows}
-                        employees={employees}
-                        filters={filters}
-                        totalEmployees={totalEmployees}
-                        page={page}
-                        rowsPerPage={rowsPerPage}
-                        handlePageChange={handlePageChange}
-                        handleRowsPerPageChange={handleRowsPerPageChange}
-                    />
-                )}
+                        {filters.viewMode === 'month' && (
+                            <MonthView
+                                rows={rows}
+                                employees={employees}
+                                filters={{
+                                    ...filters,
+                                    startDate: filters.startDate || undefined,
+                                    endDate: filters.endDate || undefined
+                                }}
+                                totalEmployees={totalEmployees}
+                                page={page}
+                                rowsPerPage={rowsPerPage}
+                                handlePageChange={handlePageChange}
+                                handleRowsPerPageChange={handleRowsPerPageChange}
+                            />
+                        )}
 
-                {filters.viewMode === 'calendar' && (
-                    <CalendarView
-                        rows={rows}
-                        filters={filters}
-                    />
-                )}
+                        {filters.viewMode === 'calendar' && (
+                            <CalendarView
+                                rows={rows}
+                                filters={filters}
+                            />
+                        )}
+                    </Grid>
+
+                    {filters.viewMode !== 'analytics' && (
+                        <Grid item xs={12} md={3} className="no-print">
+                            <RecentActivitySidebar />
+                        </Grid>
+                    )}
+                </Grid>
             </Box>
         </LocalizationProvider>
     );

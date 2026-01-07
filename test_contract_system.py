@@ -25,7 +25,7 @@ async def run_comprehensive_test():
             print("Admin user not found, skipping test.")
             return
 
-        test_user = db.query(core_models.User).filter(core_models.User.email == "said.shahwan@archive.com").first()
+        test_user = db.query(core_models.User).filter(core_models.User.email == "s.chehwan@archive.com").first()
         if not test_user:
             # Create a test user if doesn't exist to receive notifications
             test_user = core_models.User(

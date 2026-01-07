@@ -20,11 +20,9 @@ const HrDashboard: React.FC = () => {
     const [loading, setLoading] = useState(true);
 
     const fetchStats = useCallback(async () => {
-        console.log("🔍 HrDashboard: Starting fetchStats...");
         try {
             setLoading(true);
             const res = await api.get('hr/dashboard');
-            console.log("✅ HrDashboard: Stats received:", res.data);
             setStats(res.data);
         } catch (error: any) {
             console.error("❌ Failed to load HR stats", error);
@@ -37,60 +35,97 @@ const HrDashboard: React.FC = () => {
         fetchStats();
     }, [fetchStats]);
 
+    // Material Dashboard 2 Pro Style Constants
+    const COLORS = {
+        primary: '#5E72E4',
+        secondary: '#8392AB',
+        info: '#11CDEF',
+        success: '#2DCE89',
+        warning: '#FB6340',
+        error: '#F5365C',
+        dark: '#344767',
+        light: '#E9ECEF',
+        bg: '#F8F9FA',
+        white: '#FFFFFF',
+        gradientPrimary: 'linear-gradient(135deg, #5E72E4 0%, #825EE4 100%)',
+        gradientSuccess: 'linear-gradient(135deg, #2DCE89 0%, #2DCE89 100%)',
+        gradientInfo: 'linear-gradient(135deg, #11CDEF 0%, #1171EF 100%)',
+        gradientWarning: 'linear-gradient(135deg, #FB6340 0%, #FBB140 100%)',
+        gradientError: 'linear-gradient(135deg, #F5365C 0%, #F56036 100%)',
+    };
+
+    const SHADOWS = {
+        xs: '0 1px 5px rgba(0, 0, 0, 0.05)',
+        sm: '0 3px 8px rgba(0, 0, 0, 0.08)',
+        md: '0 7px 14px rgba(50, 50, 93, 0.1)',
+        lg: '0 15px 35px rgba(50, 50, 93, 0.1)',
+    };
+
     const cards = useMemo(() => [
         {
             title: t("Total Employees"),
             value: stats?.total_employees || 0,
             icon: <People />,
-            color: theme.palette.primary.main,
+            gradient: COLORS.gradientPrimary,
         },
         {
             title: t("Currently In"),
             value: stats?.currently_in || 0,
             icon: <CheckCircle />,
-            color: theme.palette.success.main,
+            gradient: COLORS.gradientSuccess,
         },
         {
             title: t("Late Arrivals"),
             value: stats?.late_today || 0,
             icon: <Warning />,
-            color: theme.palette.warning.main,
+            gradient: COLORS.gradientWarning,
         },
         {
             title: t("Early Leave"),
             value: stats?.early_leave_today || 0,
             icon: <TrendingUp />,
-            color: theme.palette.secondary.main, // Changed from hardcoded orange
+            gradient: COLORS.gradientInfo,
         },
         {
             title: t("Absent"),
             value: stats?.absent_today || 0,
             icon: <Cancel />,
-            color: theme.palette.error.main,
+            gradient: COLORS.gradientError,
         }
-    ], [stats, t, theme.palette]);
+    ], [stats, t]);
 
     return (
-        <Box sx={{ p: { xs: 2, md: 4 }, bgcolor: 'background.default', minHeight: '100vh' }}>
-            <Box mb={6} display="flex" justifyContent="space-between" alignItems="center">
+        <Box sx={{ p: { xs: 3, md: 4 }, bgcolor: COLORS.bg, minHeight: '100vh' }}>
+            <Box mb={5} display="flex" justifyContent="space-between" alignItems="center">
                 <Box>
-                    <Typography variant="h4" fontWeight="700" sx={{ mb: 1, color: 'text.primary' }}>
+                    <Typography variant="h3" fontWeight="800" sx={{ mb: 1, color: COLORS.dark, letterSpacing: '-1px' }}>
                         {t("HR Overview")}
                     </Typography>
-                    <Typography variant="body2" color="text.secondary">
+                    <Typography variant="body1" color={COLORS.secondary} fontWeight="500">
                         {t("Real-time workforce monitoring and attendance analytics")}
                     </Typography>
                 </Box>
                 <Stack direction="row" spacing={2} alignItems="center">
                     <Button 
-                        variant="outlined" 
-                        size="small"
+                        variant="contained" 
                         startIcon={<Refresh />} 
                         onClick={fetchStats}
                         disabled={loading}
-                        sx={{ borderRadius: '4px' }}
+                        sx={{ 
+                            borderRadius: '8px', 
+                            background: COLORS.gradientPrimary,
+                            boxShadow: SHADOWS.sm,
+                            textTransform: 'none',
+                            px: 3,
+                            py: 1,
+                            fontWeight: '700',
+                            '&:hover': {
+                                boxShadow: SHADOWS.md,
+                                opacity: 0.9
+                            }
+                        }}
                     >
-                        {t("Refresh")}
+                        {t("Refresh Data")}
                     </Button>
                 </Stack>
             </Box>
@@ -99,10 +134,10 @@ const HrDashboard: React.FC = () => {
                 {loading ? (
                     [...Array(5)].map((_, i) => (
                         <Grid item xs={12} sm={6} md={2.4} key={`skeleton-${i}`}>
-                            <Paper sx={{ p: 3, borderRadius: 2 }}>
+                            <Paper sx={{ p: 3, borderRadius: '16px', boxShadow: SHADOWS.sm }}>
                                 <Stack spacing={2}>
-                                    <Skeleton variant="circular" width={40} height={40} />
-                                    <Skeleton variant="text" width="60%" height={32} />
+                                    <Skeleton variant="circular" width={48} height={48} />
+                                    <Skeleton variant="text" width="60%" height={40} />
                                     <Skeleton variant="text" width="40%" />
                                 </Stack>
                             </Paper>
@@ -115,39 +150,51 @@ const HrDashboard: React.FC = () => {
                                 elevation={0}
                                 sx={{
                                     p: 3,
-                                    borderRadius: 2,
-                                    backgroundColor: 'background.paper',
-                                    border: `1px solid ${theme.palette.divider}`,
+                                    borderRadius: '16px',
+                                    background: card.gradient,
+                                    color: COLORS.white,
+                                    boxShadow: SHADOWS.md,
                                     position: 'relative',
                                     overflow: 'hidden',
-                                    transition: 'all 0.2s ease-in-out',
+                                    transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+                                    cursor: 'pointer',
                                     '&:hover': {
-                                        borderColor: card.color,
-                                        boxShadow: `0 4px 12px ${alpha(card.color, 0.08)}`,
-                                        transform: 'translateY(-2px)',
+                                        transform: 'translateY(-8px)',
+                                        boxShadow: SHADOWS.lg,
+                                    },
+                                    '&::after': {
+                                        content: '""',
+                                        position: 'absolute',
+                                        top: -20,
+                                        right: -20,
+                                        width: 100,
+                                        height: 100,
+                                        background: 'rgba(255, 255, 255, 0.1)',
+                                        borderRadius: '50%',
                                     }
                                 }}
                             >
-                                <Stack spacing={2}>
+                                <Stack spacing={2.5}>
                                     <Box
                                         sx={{
                                             display: 'flex',
                                             alignItems: 'center',
                                             justifyContent: 'center',
-                                            width: 40,
-                                            height: 40,
-                                            borderRadius: '8px',
-                                            bgcolor: alpha(card.color, 0.1),
-                                            color: card.color,
+                                            width: 48,
+                                            height: 48,
+                                            borderRadius: '12px',
+                                            bgcolor: 'rgba(255, 255, 255, 0.2)',
+                                            color: COLORS.white,
+                                            boxShadow: '0 4px 10px rgba(0, 0, 0, 0.1)',
                                         }}
                                     >
-                                        {React.cloneElement(card.icon as React.ReactElement, { fontSize: 'small' })}
+                                        {React.cloneElement(card.icon as React.ReactElement, { fontSize: 'medium' })}
                                     </Box>
                                     <Box>
-                                        <Typography variant="h5" fontWeight="700" sx={{ mb: 0.5 }}>
+                                        <Typography variant="h3" fontWeight="800" sx={{ mb: 0.5, letterSpacing: '-1px' }}>
                                             {card.value}
                                         </Typography>
-                                        <Typography variant="caption" color="text.secondary" fontWeight="500">
+                                        <Typography variant="subtitle2" fontWeight="600" sx={{ opacity: 0.9, textTransform: 'uppercase', fontSize: '0.7rem', letterSpacing: '1px' }}>
                                             {card.title}
                                         </Typography>
                                     </Box>

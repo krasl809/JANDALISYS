@@ -1,15 +1,49 @@
 import React, { useMemo } from 'react';
 import {
-    Box, Grid, Paper, Typography, useTheme, alpha
+    Box, Grid, Paper, Typography, useTheme, alpha, Avatar
 } from '@mui/material';
 import {
-    XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer,
+    XAxis, YAxis, CartesianGrid, Legend, ResponsiveContainer,
     PieChart, Pie, Cell, BarChart, Bar, Tooltip as RechartsTooltip, AreaChart, Area
 } from 'recharts';
 import { useTranslation } from 'react-i18next';
 import { format, eachDayOfInterval } from 'date-fns';
-import { ATTENDANCE_COLORS } from '../../pages/hr/AttendancePage';
 import { Schedule, Timer, TrendingUp } from '@mui/icons-material';
+
+// Material Dashboard 2 Pro Style Constants
+const COLORS = {
+    primary: '#5E72E4',
+    secondary: '#8392AB',
+    info: '#11CDEF',
+    success: '#2DCE89',
+    warning: '#FB6340',
+    error: '#F5365C',
+    dark: '#344767',
+    light: '#E9ECEF',
+    bg: '#F8F9FA',
+    white: '#FFFFFF',
+    gradientPrimary: 'linear-gradient(135deg, #5E72E4 0%, #825EE4 100%)',
+    gradientSuccess: 'linear-gradient(135deg, #2DCE89 0%, #2DCECC 100%)',
+    gradientInfo: 'linear-gradient(135deg, #11CDEF 0%, #1171EF 100%)',
+    gradientWarning: 'linear-gradient(135deg, #FB6340 0%, #FBB140 100%)',
+    gradientError: 'linear-gradient(135deg, #F5365C 0%, #F56036 100%)',
+};
+
+const SHADOWS = {
+    xs: '0 1px 5px rgba(0, 0, 0, 0.05)',
+    sm: '0 3px 8px rgba(0, 0, 0, 0.08)',
+    md: '0 7px 14px rgba(50, 50, 93, 0.1)',
+    lg: '0 15px 35px rgba(50, 50, 93, 0.1)',
+};
+
+const ATTENDANCE_COLORS = {
+    present: COLORS.success,
+    late: COLORS.error,
+    earlyLeave: COLORS.warning,
+    absent: COLORS.secondary,
+    ongoing: COLORS.primary,
+    overtime: '#7C3AED',
+};
 
 interface AttendanceAnalyticsProps {
     data: any[];
@@ -18,16 +52,45 @@ interface AttendanceAnalyticsProps {
     endDate: Date;
 }
 
-const AnalyticsMetric = ({ title, value, icon, color }: { title: string, value: string | number, icon: any, color: string }) => {
-    const theme = useTheme();
+const AnalyticsMetric = ({ title, value, icon, color, gradient }: { title: string, value: string | number, icon: any, color: string, gradient: string }) => {
     return (
-        <Paper sx={{ p: 2, borderRadius: 2, border: `1px solid ${theme.palette.divider}`, display: 'flex', alignItems: 'center', gap: 2 }}>
-            <Box sx={{ p: 1, borderRadius: 1.5, bgcolor: alpha(color, 0.1), color: color, display: 'flex' }}>
+        <Paper 
+            elevation={0}
+            sx={{ 
+                p: 2.5, 
+                borderRadius: '16px', 
+                bgcolor: COLORS.white,
+                boxShadow: SHADOWS.md,
+                display: 'flex', 
+                alignItems: 'center', 
+                gap: 2.5,
+                position: 'relative',
+                overflow: 'hidden',
+                '&:hover': {
+                    transform: 'translateY(-5px)',
+                    transition: 'all 0.3s ease-in-out'
+                }
+            }}
+        >
+            <Avatar
+                sx={{ 
+                    width: 48, 
+                    height: 48, 
+                    background: gradient,
+                    color: COLORS.white,
+                    boxShadow: SHADOWS.sm,
+                    borderRadius: '12px'
+                }}
+            >
                 {icon}
-            </Box>
+            </Avatar>
             <Box>
-                <Typography variant="caption" color="text.secondary" fontWeight="600">{title}</Typography>
-                <Typography variant="h6" fontWeight="800" sx={{ lineHeight: 1.2 }}>{value}</Typography>
+                <Typography variant="caption" color={COLORS.secondary} fontWeight="700" sx={{ textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                    {title}
+                </Typography>
+                <Typography variant="h5" fontWeight="800" color={COLORS.dark} sx={{ lineHeight: 1.2, mt: 0.5 }}>
+                    {value}
+                </Typography>
             </Box>
         </Paper>
     );
@@ -101,10 +164,10 @@ const AttendanceAnalytics: React.FC<AttendanceAnalyticsProps> = ({ data, employe
         const totalAttendance = trendData.reduce((acc, curr) => acc + curr.rate, 0) / trendData.length;
 
         return [
-            { title: t('Avg Attendance Rate'), value: `${Math.round(totalAttendance)}%`, icon: <TrendingUp />, color: ATTENDANCE_COLORS.present },
-            { title: t('Avg Work Hours'), value: `${Math.round(avgWork * 10) / 10}h`, icon: <Timer />, color: ATTENDANCE_COLORS.ongoing },
-            { title: t('Avg Late Rate'), value: `${Math.round(avgLateRate)}%`, icon: <Schedule />, color: ATTENDANCE_COLORS.late },
-            { title: t('Total Overtime'), value: `${Math.round(totalOvertime)}h`, icon: <TrendingUp />, color: ATTENDANCE_COLORS.overtime },
+            { title: t('Avg Attendance Rate'), value: `${Math.round(totalAttendance)}%`, icon: <TrendingUp />, color: ATTENDANCE_COLORS.present, gradient: COLORS.gradientSuccess },
+            { title: t('Avg Work Hours'), value: `${Math.round(avgWork * 10) / 10}h`, icon: <Timer />, color: ATTENDANCE_COLORS.ongoing, gradient: COLORS.gradientPrimary },
+            { title: t('Avg Late Rate'), value: `${Math.round(avgLateRate)}%`, icon: <Schedule />, color: ATTENDANCE_COLORS.late, gradient: COLORS.gradientError },
+            { title: t('Total Overtime'), value: `${Math.round(totalOvertime)}h`, icon: <TrendingUp />, color: ATTENDANCE_COLORS.overtime, gradient: COLORS.gradientWarning },
         ];
     }, [data, trendData, t]);
 
@@ -128,7 +191,7 @@ const AttendanceAnalytics: React.FC<AttendanceAnalyticsProps> = ({ data, employe
 
     return (
         <Box sx={{ mt: 2 }}>
-            <Grid container spacing={2} sx={{ mb: 3 }}>
+            <Grid container spacing={3} sx={{ mb: 4 }}>
                 {metrics.map((m, idx) => (
                     <Grid item xs={12} sm={6} md={3} key={idx}>
                         <AnalyticsMetric {...m} />
@@ -139,11 +202,11 @@ const AttendanceAnalytics: React.FC<AttendanceAnalyticsProps> = ({ data, employe
             <Grid container spacing={3}>
                 {/* Attendance & Lateness Trend Chart */}
                 <Grid item xs={12} md={8}>
-                    <Paper sx={{ p: 3, borderRadius: 2, border: `1px solid ${theme.palette.divider}`, height: 450 }}>
-                        <Typography variant="h6" fontWeight="700" gutterBottom>
+                    <Paper elevation={0} sx={{ p: 3, borderRadius: '16px', bgcolor: COLORS.white, boxShadow: SHADOWS.md, height: 500 }}>
+                        <Typography variant="h6" fontWeight="800" color={COLORS.dark} sx={{ mb: 3 }}>
                             {t('Attendance & Lateness Trend (%)')}
                         </Typography>
-                        <Box sx={{ width: '100%', height: '85%', mt: 2 }}>
+                        <Box sx={{ width: '100%', height: '85%' }}>
                             <ResponsiveContainer width="100%" height="100%">
                                 <AreaChart data={trendData}>
                                     <defs>
@@ -156,13 +219,41 @@ const AttendanceAnalytics: React.FC<AttendanceAnalyticsProps> = ({ data, employe
                                             <stop offset="95%" stopColor={ATTENDANCE_COLORS.late} stopOpacity={0}/>
                                         </linearGradient>
                                     </defs>
-                                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke={theme.palette.divider} />
-                                    <XAxis dataKey="date" stroke={theme.palette.text.secondary} fontSize={12} />
-                                    <YAxis stroke={theme.palette.text.secondary} fontSize={12} domain={[0, 100]} />
-                                    <Tooltip 
-                                        contentStyle={{ borderRadius: 12, border: 'none', boxShadow: theme.shadows[10], padding: '12px' }}
+                                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke={COLORS.light} />
+                                    <XAxis 
+                                        dataKey="date" 
+                                        stroke={COLORS.secondary} 
+                                        fontSize={12} 
+                                        fontWeight={600}
+                                        tickLine={false}
+                                        axisLine={false}
+                                        dy={10}
                                     />
-                                    <Legend verticalAlign="top" align="right" height={36}/>
+                                    <YAxis 
+                                        stroke={COLORS.secondary} 
+                                        fontSize={12} 
+                                        fontWeight={600}
+                                        domain={[0, 100]} 
+                                        tickLine={false}
+                                        axisLine={false}
+                                        dx={-10}
+                                    />
+                                    <RechartsTooltip 
+                                        contentStyle={{ 
+                                            borderRadius: '12px', 
+                                            border: 'none', 
+                                            boxShadow: SHADOWS.lg, 
+                                            padding: '12px',
+                                            fontWeight: 700
+                                        }}
+                                    />
+                                    <Legend 
+                                        verticalAlign="top" 
+                                        align="right" 
+                                        height={36}
+                                        iconType="circle"
+                                        formatter={(value) => <span style={{ color: COLORS.dark, fontWeight: 700, fontSize: '0.85rem' }}>{value}</span>}
+                                    />
                                     <Area 
                                         name={t('Attendance Rate')}
                                         type="monotone" 
@@ -170,7 +261,7 @@ const AttendanceAnalytics: React.FC<AttendanceAnalyticsProps> = ({ data, employe
                                         stroke={ATTENDANCE_COLORS.present} 
                                         fillOpacity={1} 
                                         fill="url(#colorRate)" 
-                                        strokeWidth={3}
+                                        strokeWidth={4}
                                     />
                                     <Area 
                                         name={t('Late Rate')}
@@ -179,7 +270,7 @@ const AttendanceAnalytics: React.FC<AttendanceAnalyticsProps> = ({ data, employe
                                         stroke={ATTENDANCE_COLORS.late} 
                                         fillOpacity={1} 
                                         fill="url(#colorLate)" 
-                                        strokeWidth={2}
+                                        strokeWidth={3}
                                         strokeDasharray="5 5"
                                     />
                                 </AreaChart>
@@ -190,11 +281,11 @@ const AttendanceAnalytics: React.FC<AttendanceAnalyticsProps> = ({ data, employe
 
                 {/* Status Distribution Pie Chart */}
                 <Grid item xs={12} md={4}>
-                    <Paper sx={{ p: 3, borderRadius: 2, border: `1px solid ${theme.palette.divider}`, height: 450 }}>
-                        <Typography variant="h6" fontWeight="700" gutterBottom>
+                    <Paper elevation={0} sx={{ p: 3, borderRadius: '16px', bgcolor: COLORS.white, boxShadow: SHADOWS.md, height: 500 }}>
+                        <Typography variant="h6" fontWeight="800" color={COLORS.dark} sx={{ mb: 3 }}>
                             {t('Overall Status')}
                         </Typography>
-                        <Box sx={{ width: '100%', height: '85%', mt: 2 }}>
+                        <Box sx={{ width: '100%', height: '85%' }}>
                             <ResponsiveContainer width="100%" height="100%">
                                 <PieChart>
                                     <Pie
@@ -202,20 +293,20 @@ const AttendanceAnalytics: React.FC<AttendanceAnalyticsProps> = ({ data, employe
                                         cx="50%"
                                         cy="50%"
                                         innerRadius={70}
-                                        outerRadius={90}
+                                        outerRadius={100}
                                         paddingAngle={8}
                                         dataKey="value"
                                     >
                                         {statusData.map((entry, index) => (
-                                            <Cell key={`cell-${index}`} fill={entry.color} />
+                                            <Cell key={`cell-${index}`} fill={entry.color} stroke="none" />
                                         ))}
                                     </Pie>
-                                    <RechartsTooltip contentStyle={{ borderRadius: 12 }} />
+                                    <RechartsTooltip contentStyle={{ borderRadius: '12px', boxShadow: SHADOWS.md, border: 'none' }} />
                                     <Legend 
                                         verticalAlign="bottom" 
                                         layout="horizontal" 
                                         iconType="circle"
-                                        formatter={(value) => <span style={{ color: theme.palette.text.primary, fontWeight: 500 }}>{value}</span>}
+                                        formatter={(value) => <span style={{ color: COLORS.dark, fontWeight: 700, fontSize: '0.85rem' }}>{value}</span>}
                                     />
                                 </PieChart>
                             </ResponsiveContainer>
@@ -225,21 +316,36 @@ const AttendanceAnalytics: React.FC<AttendanceAnalyticsProps> = ({ data, employe
 
                 {/* Overtime Distribution Bar Chart */}
                 <Grid item xs={12} md={6}>
-                    <Paper sx={{ p: 3, borderRadius: 2, border: `1px solid ${theme.palette.divider}`, height: 400 }}>
-                        <Typography variant="h6" fontWeight="700" gutterBottom>
+                    <Paper elevation={0} sx={{ p: 3, borderRadius: '16px', bgcolor: COLORS.white, boxShadow: SHADOWS.md, height: 400 }}>
+                        <Typography variant="h6" fontWeight="800" color={COLORS.dark} sx={{ mb: 3 }}>
                             {t('Overtime Distribution (Count)')}
                         </Typography>
-                        <Box sx={{ height: '85%', width: '100%', mt: 2 }}>
+                        <Box sx={{ height: '85%', width: '100%' }}>
                             <ResponsiveContainer width="100%" height="100%">
                                 <BarChart data={overtimeData}>
-                                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke={theme.palette.divider} />
-                                    <XAxis dataKey="name" stroke={theme.palette.text.secondary} fontSize={12} />
-                                    <YAxis stroke={theme.palette.text.secondary} fontSize={12} />
-                                    <RechartsTooltip cursor={{ fill: alpha(theme.palette.primary.main, 0.05) }} />
+                                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke={COLORS.light} />
+                                    <XAxis 
+                                        dataKey="name" 
+                                        stroke={COLORS.secondary} 
+                                        fontSize={12} 
+                                        fontWeight={600}
+                                        tickLine={false}
+                                        axisLine={false}
+                                        dy={10}
+                                    />
+                                    <YAxis 
+                                        stroke={COLORS.secondary} 
+                                        fontSize={12} 
+                                        fontWeight={600}
+                                        tickLine={false}
+                                        axisLine={false}
+                                        dx={-10}
+                                    />
+                                    <RechartsTooltip cursor={{ fill: alpha(COLORS.primary, 0.05) }} contentStyle={{ borderRadius: '12px', boxShadow: SHADOWS.md, border: 'none' }} />
                                     <Bar 
                                         dataKey="value" 
                                         fill={ATTENDANCE_COLORS.overtime} 
-                                        radius={[4, 4, 0, 0]} 
+                                        radius={[8, 8, 0, 0]} 
                                         barSize={40}
                                     />
                                 </BarChart>
@@ -250,23 +356,32 @@ const AttendanceAnalytics: React.FC<AttendanceAnalyticsProps> = ({ data, employe
 
                 {/* Department Performance Bar Chart */}
                 <Grid item xs={12} md={6}>
-                    <Paper sx={{ p: 3, borderRadius: 2, border: `1px solid ${theme.palette.divider}`, height: 400 }}>
-                        <Typography variant="h6" fontWeight="700" gutterBottom>
+                    <Paper elevation={0} sx={{ p: 3, borderRadius: '16px', bgcolor: COLORS.white, boxShadow: SHADOWS.md, height: 400 }}>
+                        <Typography variant="h6" fontWeight="800" color={COLORS.dark} sx={{ mb: 3 }}>
                             {t('Department Ranking (%)')}
                         </Typography>
-                        <Box sx={{ height: '85%', width: '100%', mt: 2 }}>
+                        <Box sx={{ height: '85%', width: '100%' }}>
                             <ResponsiveContainer width="100%" height="100%">
                                 <BarChart data={deptData} layout="vertical" margin={{ left: 20, right: 30 }}>
-                                    <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke={theme.palette.divider} />
+                                    <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke={COLORS.light} />
                                     <XAxis type="number" domain={[0, 100]} hide />
-                                    <YAxis dataKey="name" type="category" width={120} stroke={theme.palette.text.secondary} fontSize={12} />
-                                    <RechartsTooltip cursor={{ fill: 'transparent' }} />
+                                    <YAxis 
+                                        dataKey="name" 
+                                        type="category" 
+                                        width={120} 
+                                        stroke={COLORS.secondary} 
+                                        fontSize={12} 
+                                        fontWeight={700}
+                                        tickLine={false}
+                                        axisLine={false}
+                                    />
+                                    <RechartsTooltip cursor={{ fill: 'transparent' }} contentStyle={{ borderRadius: '12px', boxShadow: SHADOWS.md, border: 'none' }} />
                                     <Bar 
                                         dataKey="rate" 
-                                        fill={ATTENDANCE_COLORS.ongoing} 
-                                        radius={[0, 4, 4, 0]} 
-                                        barSize={15}
-                                        label={{ position: 'right', formatter: (val: any) => `${val}%`, fontSize: 11, fontWeight: 600 }}
+                                        fill={COLORS.primary} 
+                                        radius={[0, 8, 8, 0]} 
+                                        barSize={18}
+                                        label={{ position: 'right', formatter: (val: any) => `${val}%`, fontSize: 12, fontWeight: 700, fill: COLORS.dark }}
                                     />
                                 </BarChart>
                             </ResponsiveContainer>

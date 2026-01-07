@@ -15,16 +15,37 @@ import { useTranslation } from 'react-i18next';
 import { DatePicker } from '@mui/x-date-pickers/DatePicker';
 import { LocalizationProvider } from '@mui/x-date-pickers/LocalizationProvider';
 import { AdapterDateFns } from '@mui/x-date-pickers/AdapterDateFns';
+import { alpha } from '@mui/material/styles';
 
-// Colors inspired by the reference image - matching the new design
+// Material Dashboard 2 Pro Constants
+const COLORS = {
+    primary: '#5E72E4',
+    secondary: '#8392AB',
+    info: '#11CDEF',
+    success: '#2DCE89',
+    warning: '#FB6340',
+    error: '#F5365C',
+    dark: '#344767',
+    light: '#E9ECEF',
+    white: '#FFFFFF',
+    bg: '#F8F9FA'
+};
+
+const SHADOWS = {
+    xs: '0 1px 5px rgba(0, 0, 0, 0.05)',
+    sm: '0 3px 8px rgba(0, 0, 0, 0.08)',
+    md: '0 7px 14px rgba(50, 50, 93, 0.1)',
+    lg: '0 15px 35px rgba(50, 50, 93, 0.1)'
+};
+
 const TIMELINE_COLORS = {
-    present: '#10B981', // Emerald 500 - for normal attendance
-    late: '#EF4444',    // Red 500 - for late arrival
-    earlyLeave: '#F59E0B', // Amber 500 - for early leave
-    absent: '#6B7280',  // Gray 500 - for absent
-    ongoing: '#3B82F6', // Blue 500 - for ongoing work
-    overtime: '#8B5CF6', // Violet 500 - for overtime
-    partial: '#F97316'  // Orange 500 - for partial work
+    present: COLORS.success,
+    late: COLORS.error,
+    earlyLeave: COLORS.warning,
+    absent: COLORS.secondary,
+    ongoing: COLORS.info,
+    overtime: '#825EE4', // Gradient primary end
+    partial: '#FBB140'   // Gradient warning end
 };
 
 interface AttendanceTimelineProps {
@@ -140,9 +161,9 @@ const AttendanceTimeline: React.FC<AttendanceTimelineProps> = ({
                 position: 'relative', 
                 height: 36, 
                 width: '100%', 
-                backgroundColor: 'action.hover', 
-                borderRadius: 1,
-                border: `1px solid ${theme.palette.divider}`
+                backgroundColor: alpha(COLORS.bg, 0.5), 
+                borderRadius: '8px',
+                border: `1px solid ${COLORS.light}`
             }}>
                 {employeeLogs.map((log, idx) => {
                     // Handle both Raw Logs and Processed Periods
@@ -180,17 +201,19 @@ const AttendanceTimeline: React.FC<AttendanceTimelineProps> = ({
                                         insetInlineStart: `${startPercent}%`,
                                         top: '50%',
                                         transform: `translate(${isRtl ? '50%' : '-50%'}, -50%)`,
-                                        width: 12,
-                                        height: 12,
+                                        width: 14,
+                                        height: 14,
                                         borderRadius: '50%',
                                         backgroundColor: getRawColor(),
                                         border: '2px solid white',
+                                        boxShadow: SHADOWS.xs,
                                         zIndex: 2,
                                         cursor: 'pointer',
                                         transition: 'all 0.2s ease',
                                         '&:hover': {
-                                            opacity: 0.8,
-                                            transform: `translate(${isRtl ? '50%' : '-50%'}, -50%) scale(1.1)`
+                                            transform: `translate(${isRtl ? '50%' : '-50%'}, -50%) scale(1.2)`,
+                                            boxShadow: SHADOWS.sm,
+                                            zIndex: 3
                                         }
                                     }}
                                 />
@@ -228,9 +251,10 @@ const AttendanceTimeline: React.FC<AttendanceTimelineProps> = ({
                                     height: 28,
                                     top: '50%',
                                     transform: 'translateY(-50%)',
-                                    borderRadius: 1,
+                                    borderRadius: '6px',
                                     backgroundColor: getStatusColor(),
-                                    border: `1px solid ${getStatusColor()}`,
+                                    border: 'none',
+                                    boxShadow: SHADOWS.xs,
                                     display: 'flex',
                                     alignItems: 'center',
                                     justifyContent: 'center',
@@ -240,14 +264,16 @@ const AttendanceTimeline: React.FC<AttendanceTimelineProps> = ({
                                     overflow: 'hidden',
                                     transition: 'all 0.2s ease',
                                     '&:hover': {
-                                        opacity: 0.8
+                                        transform: 'translateY(-50%) scaleY(1.05)',
+                                        boxShadow: SHADOWS.sm,
+                                        zIndex: 2
                                     }
                                 }}
                             >
                                 {showLabels && (
                                     <Typography variant="caption" sx={{ 
-                                        color: 'white', 
-                                        fontWeight: 600, 
+                                        color: COLORS.white, 
+                                        fontWeight: 700, 
                                         whiteSpace: 'nowrap', 
                                         fontSize: '0.65rem'
                                     }}>
@@ -260,19 +286,21 @@ const AttendanceTimeline: React.FC<AttendanceTimelineProps> = ({
                 })}
             </Box>
         );
-    }, [data, timeRange, handlePopoverOpen, t, theme.palette.divider]);
+    }, [data, timeRange, handlePopoverOpen, t, isRtl]);
 
     // Loading state
     if (loading) {
         return (
             <Paper sx={{
                 p: 4,
-                borderRadius: 1,
-                border: `1px solid ${theme.palette.divider}`,
-                textAlign: 'center'
+                borderRadius: '12px',
+                border: 'none',
+                boxShadow: SHADOWS.md,
+                textAlign: 'center',
+                backgroundColor: COLORS.white
             }}>
-                <CircularProgress size={40} sx={{ color: TIMELINE_COLORS.present, mb: 2 }} />
-                <Typography variant="h6" color="text.secondary">
+                <CircularProgress size={40} sx={{ color: COLORS.primary, mb: 2 }} />
+                <Typography variant="h6" sx={{ color: COLORS.secondary, fontWeight: 600 }}>
                     {t('Loading attendance data...')}
                 </Typography>
             </Paper>
@@ -281,33 +309,36 @@ const AttendanceTimeline: React.FC<AttendanceTimelineProps> = ({
 
     return (
         <Paper sx={{
-            p: 2,
-            borderRadius: 1,
-            border: `1px solid ${theme.palette.divider}`,
+            p: 3,
+            borderRadius: '12px',
+            border: 'none',
+            boxShadow: SHADOWS.md,
+            backgroundColor: COLORS.white,
             overflow: 'hidden'
         }}>
             {/* --- Simple Controls Header --- */}
-            <Stack direction={{ xs: 'column', md: 'row' }} spacing={2} justifyContent="space-between" alignItems="center" sx={{ mb: 3 }}>
+            <Stack direction={{ xs: 'column', md: 'row' }} spacing={2} justifyContent="space-between" alignItems="center" sx={{ mb: 4 }}>
                 <Stack direction="row" spacing={1.5} alignItems="center">
                     <Box sx={{ 
                         display: 'flex', 
-                        backgroundColor: 'action.hover', 
-                        borderRadius: 1, 
+                        backgroundColor: COLORS.bg, 
+                        borderRadius: '10px', 
                         p: 0.5, 
-                        border: `1px solid ${theme.palette.divider}`
+                        border: 'none'
                     }}>
-                        <IconButton size="small" onClick={handlePrev} disabled={zoomLevel === 'range'} sx={{ color: TIMELINE_COLORS.present }}>
+                        <IconButton size="small" onClick={handlePrev} disabled={zoomLevel === 'range'} sx={{ color: COLORS.primary }}>
                             {isRtl ? <ChevronRight /> : <ChevronLeft />}
                         </IconButton>
                         <IconButton size="small" onClick={() => onDateChange(new Date())} sx={{ 
-                            color: 'white', 
-                            backgroundColor: TIMELINE_COLORS.present,
+                            color: COLORS.white, 
+                            background: `linear-gradient(135deg, ${COLORS.primary} 0%, #825EE4 100%)`,
                             marginInline: 0.5,
-                            '&:hover': { backgroundColor: TIMELINE_COLORS.present, opacity: 0.8 }
+                            boxShadow: SHADOWS.xs,
+                            '&:hover': { background: `linear-gradient(135deg, ${COLORS.primary} 0%, #825EE4 100%)`, opacity: 0.9 }
                         }}>
                             <Today />
                         </IconButton>
-                        <IconButton size="small" onClick={handleNext} disabled={zoomLevel === 'range'} sx={{ color: TIMELINE_COLORS.present }}>
+                        <IconButton size="small" onClick={handleNext} disabled={zoomLevel === 'range'} sx={{ color: COLORS.primary }}>
                             {isRtl ? <ChevronLeft /> : <ChevronRight />}
                         </IconButton>
                     </Box>
@@ -321,11 +352,13 @@ const AttendanceTimeline: React.FC<AttendanceTimelineProps> = ({
                                     size: 'small',
                                     sx: {
                                         width: 180,
-                                        '& .MuiInput-root': { 
-                                            fontWeight: 500, 
-                                            '& fieldset': {
-                                                borderColor: theme.palette.divider
-                                            }
+                                        '& .MuiOutlinedInput-root': { 
+                                            fontWeight: 600,
+                                            borderRadius: '8px',
+                                            backgroundColor: COLORS.bg,
+                                            '& fieldset': { border: 'none' },
+                                            '&:hover fieldset': { border: 'none' },
+                                            '&.Mui-focused fieldset': { border: `1px solid ${COLORS.primary}` }
                                         }
                                     }
                                 }
@@ -341,18 +374,26 @@ const AttendanceTimeline: React.FC<AttendanceTimelineProps> = ({
                         onChange={(_, v) => v && onZoomChange(v)}
                         size="small"
                         sx={{
-                            backgroundColor: 'action.hover',
-                            border: `1px solid ${theme.palette.divider}`,
+                            backgroundColor: COLORS.bg,
+                            borderRadius: '8px',
+                            p: 0.5,
+                            border: 'none',
                             '& .MuiToggleButton-root': {
-                                paddingInline: 1.5,
-                                py: 0.5,
-                                fontWeight: 500,
+                                px: 2,
+                                py: 0.75,
+                                fontWeight: 600,
+                                fontSize: '0.75rem',
                                 textTransform: 'none',
                                 border: 'none',
-                                borderRadius: '0px !important',
+                                borderRadius: '6px !important',
+                                color: COLORS.secondary,
                                 '&.Mui-selected': {
-                                    backgroundColor: TIMELINE_COLORS.present,
-                                    color: 'white'
+                                    backgroundColor: COLORS.white,
+                                    color: COLORS.primary,
+                                    boxShadow: SHADOWS.xs,
+                                    '&:hover': {
+                                        backgroundColor: COLORS.white,
+                                    }
                                 }
                             }
                         }}
@@ -369,14 +410,14 @@ const AttendanceTimeline: React.FC<AttendanceTimelineProps> = ({
                             onClick={handleZoomOut} 
                             disabled={zoomLevel === 'month' || zoomLevel === 'range'}
                             sx={{
-                                backgroundColor: 'action.hover',
-                                color: TIMELINE_COLORS.overtime,
-                                border: `1px solid ${theme.palette.divider}`,
+                                backgroundColor: COLORS.bg,
+                                color: COLORS.primary,
+                                borderRadius: '8px',
                                 '&:hover': {
-                                    backgroundColor: 'action.selected'
+                                    backgroundColor: alpha(COLORS.primary, 0.1)
                                 },
                                 '&:disabled': {
-                                    opacity: 0.5
+                                    opacity: 0.3
                                 }
                             }}
                         >
@@ -387,14 +428,14 @@ const AttendanceTimeline: React.FC<AttendanceTimelineProps> = ({
                             onClick={handleZoomIn} 
                             disabled={zoomLevel === 'day' || zoomLevel === 'range'}
                             sx={{
-                                backgroundColor: 'action.hover',
-                                color: TIMELINE_COLORS.ongoing,
-                                border: `1px solid ${theme.palette.divider}`,
+                                backgroundColor: COLORS.bg,
+                                color: COLORS.primary,
+                                borderRadius: '8px',
                                 '&:hover': {
-                                    backgroundColor: 'action.selected'
+                                    backgroundColor: alpha(COLORS.primary, 0.1)
                                 },
                                 '&:disabled': {
-                                    opacity: 0.5
+                                    opacity: 0.3
                                 }
                             }}
                         >
@@ -413,13 +454,13 @@ const AttendanceTimeline: React.FC<AttendanceTimelineProps> = ({
                     height: '6px'
                 },
                 '&::-webkit-scrollbar-track': {
-                    backgroundColor: 'action.hover'
+                    backgroundColor: COLORS.bg
                 },
                 '&::-webkit-scrollbar-thumb': {
-                    backgroundColor: TIMELINE_COLORS.present,
+                    backgroundColor: alpha(COLORS.primary, 0.3),
+                    borderRadius: '10px',
                     '&:hover': {
-                        backgroundColor: TIMELINE_COLORS.present,
-                        opacity: 0.8
+                        backgroundColor: alpha(COLORS.primary, 0.5)
                     }
                 }
             }} ref={scrollContainerRef}>
@@ -437,7 +478,7 @@ const AttendanceTimeline: React.FC<AttendanceTimelineProps> = ({
                 }}>
                     {timeRange.interval.map((_, i) => (
                         <Box key={i} sx={{ 
-                            borderInlineStart: `1px solid ${theme.palette.divider}`, 
+                            borderInlineStart: `1px solid ${COLORS.light}`, 
                             width: 1, 
                             height: '100%' 
                         }} />
@@ -448,11 +489,11 @@ const AttendanceTimeline: React.FC<AttendanceTimelineProps> = ({
                 <Box sx={{ 
                     display: 'flex', 
                     mb: 2, 
-                    borderBottom: `1px solid ${theme.palette.divider}`, 
+                    borderBottom: `1px solid ${COLORS.light}`, 
                     pb: 1, 
                     position: 'sticky', 
                     top: 0, 
-                    backgroundColor: 'background.paper', 
+                    backgroundColor: COLORS.white, 
                     zIndex: 10,
                     paddingInline: 1
                 }}>
@@ -463,17 +504,18 @@ const AttendanceTimeline: React.FC<AttendanceTimelineProps> = ({
                         alignItems: 'center',
                         paddingInline: 1
                     }}>
-                        <Schedule sx={{ marginInlineEnd: 1, color: TIMELINE_COLORS.present }} />
-                        <Typography variant="subtitle2" fontWeight="600" color="primary">
+                        <Schedule sx={{ marginInlineEnd: 1, color: COLORS.primary }} />
+                        <Typography variant="subtitle2" fontWeight="700" sx={{ color: COLORS.dark }}>
                             {t('Employees')}
                         </Typography>
                     </Box>
                     <Box sx={{ display: 'flex', flexGrow: 1, justifyContent: 'space-between', paddingInlineEnd: 2 }}>
                         {timeRange.interval.map((t, i) => (
-                            <Typography key={i} variant="caption" color="text.secondary" sx={{ 
+                            <Typography key={i} variant="caption" sx={{ 
                                 minWidth: 60, 
                                 textAlign: 'center', 
-                                fontWeight: 500,
+                                fontWeight: 600,
+                                color: COLORS.secondary,
                                 paddingInline: 1
                             }}>
                                 {format(t, timeRange.labelFormat)}
@@ -483,7 +525,7 @@ const AttendanceTimeline: React.FC<AttendanceTimelineProps> = ({
                 </Box>
 
                 {/* Employee Rows */}
-                <Stack spacing={1}>
+                <Stack spacing={1.5}>
                     {employees.map((emp, index) => {
                         // Calculate employee work progress
                         const empLogs = data.filter(d => d.employee_id === emp.employee_id || d.employee_pk === emp.id);
@@ -496,12 +538,13 @@ const AttendanceTimeline: React.FC<AttendanceTimelineProps> = ({
                                 display: 'flex',
                                 alignItems: 'center',
                                 py: 1,
-                                borderRadius: 1,
-                                border: `1px solid ${theme.palette.divider}`,
-                                backgroundColor: index % 2 === 0 ? 'transparent' : 'action.hover',
+                                borderRadius: '12px',
+                                border: `1px solid ${alpha(COLORS.light, 0.5)}`,
+                                backgroundColor: index % 2 === 0 ? 'transparent' : alpha(COLORS.bg, 0.5),
                                 transition: 'all 0.2s ease',
                                 '&:hover': {
-                                    backgroundColor: 'action.selected'
+                                    backgroundColor: alpha(COLORS.bg, 0.8),
+                                    boxShadow: SHADOWS.xs
                                 }
                             }}>
                                 {/* Employee Info - Sticky */}
@@ -514,22 +557,25 @@ const AttendanceTimeline: React.FC<AttendanceTimelineProps> = ({
                                     insetInlineStart: 0,
                                     backgroundColor: 'inherit',
                                     zIndex: 2,
-                                    borderInlineEnd: `1px solid ${theme.palette.divider}`,
+                                    borderInlineEnd: `1px solid ${COLORS.light}`,
                                     py: 0.5,
                                     paddingInline: 1,
-                                    borderRadius: isRtl ? '4px 0 0 4px' : '0 4px 4px 0'
+                                    borderRadius: isRtl ? '12px 0 0 12px' : '0 12px 12px 0'
                                 }}>
                                     <Avatar sx={{ 
-                                        backgroundColor: TIMELINE_COLORS.present, 
-                                        width: 32, 
-                                        height: 32, 
+                                        background: `linear-gradient(135deg, ${COLORS.primary} 0%, #825EE4 100%)`,
+                                        width: 36, 
+                                        height: 36, 
                                         fontSize: '0.85rem', 
-                                        fontWeight: 600
+                                        fontWeight: 700,
+                                        boxShadow: SHADOWS.xs
                                     }}>
                                         {emp.name[0]}
                                     </Avatar>
                                     <Box sx={{ minWidth: 0, flex: 1 }}>
-                                        <Typography variant="body2" fontWeight="600" sx={{
+                                        <Typography variant="body2" sx={{
+                                            fontWeight: 700,
+                                            color: COLORS.dark,
                                             whiteSpace: 'nowrap',
                                             overflow: 'hidden',
                                             textOverflow: 'ellipsis'
@@ -537,26 +583,30 @@ const AttendanceTimeline: React.FC<AttendanceTimelineProps> = ({
                                             {emp.name}
                                         </Typography>
                                         <Stack direction="row" spacing={1} alignItems="center" sx={{ mt: 0.5 }}>
-                                            <Typography variant="caption" color="text.secondary" sx={{ 
+                                            <Typography variant="caption" sx={{ 
+                                                color: COLORS.secondary,
+                                                fontWeight: 500,
                                                 fontSize: '0.7rem'
                                             }}>
                                                 {emp.employee_id}
                                             </Typography>
                                             <Box sx={{
-                                                paddingInline: 0.5,
-                                                py: 0.1,
-                                                borderRadius: 0.5,
-                                                backgroundColor: progress >= 100 ? TIMELINE_COLORS.present : 
-                                                         progress >= 75 ? TIMELINE_COLORS.ongoing : 
-                                                         TIMELINE_COLORS.earlyLeave,
-                                                color: 'white',
+                                                paddingInline: 0.75,
+                                                py: 0.2,
+                                                borderRadius: '6px',
+                                                backgroundColor: progress >= 100 ? alpha(COLORS.success, 0.1) : 
+                                                         progress >= 75 ? alpha(COLORS.info, 0.1) : 
+                                                         alpha(COLORS.warning, 0.1),
+                                                color: progress >= 100 ? COLORS.success : 
+                                                         progress >= 75 ? COLORS.info : 
+                                                         COLORS.warning,
                                                 display: 'flex',
                                                 alignItems: 'center',
                                                 gap: 0.5
                                             }}>
                                                 <Typography sx={{ 
                                                     fontSize: '0.65rem', 
-                                                    fontWeight: 600 
+                                                    fontWeight: 700 
                                                 }}>
                                                     {Math.round(work * 10) / 10}/{capacity}h
                                                 </Typography>
@@ -595,151 +645,158 @@ const AttendanceTimeline: React.FC<AttendanceTimelineProps> = ({
                     sx: {
                         mt: 1,
                         p: 0,
-                        width: 280,
-                        borderRadius: 1,
-                        border: `1px solid ${theme.palette.divider}`
+                        width: 300,
+                        borderRadius: '12px',
+                        border: 'none',
+                        boxShadow: SHADOWS.lg,
+                        overflow: 'hidden'
                     }
                 }}
             >
                 {selectedDetailLog && (
-                    <Card sx={{ borderRadius: 1 }}>
-                        <CardContent sx={{ p: 0 }}>
-                            <Box sx={{ 
-                                p: 1.5, 
-                                backgroundColor: 'action.hover', 
-                                borderBottom: `1px solid ${theme.palette.divider}`
-                            }}>
-                                <Typography variant="subtitle2" fontWeight="600" sx={{ mb: 0.5 }}>
-                                    {selectedDetailLog.status === 'present' ? t('Present') :
-                                        selectedDetailLog.status === 'late' ? t('Late') :
-                                        selectedDetailLog.status === 'early_leave' ? t('Early Leave') : 
-                                        selectedDetailLog.status === 'ongoing' ? t('Ongoing Work') : 
-                                        t('Working Period')}
-                                </Typography>
-                                <Typography variant="caption" color="text.secondary">
-                                    {format(selectedDetailLog.timestamp ? parseISO(selectedDetailLog.timestamp) : parseISO(selectedDetailLog.check_in), 'EEEE, MMMM d, yyyy')}
-                                </Typography>
-                            </Box>
-                            <List dense sx={{ p: 1 }}>
-                                {/* If it's a period, show all raw logs for that day */}
-                                {selectedDetailLog.check_in ? (
-                                    data.filter(log => !!log.timestamp && isSameDay(parseISO(log.timestamp), parseISO(selectedDetailLog.check_in)) && (log.employee_id === selectedDetailLog.employee_id || log.employee_pk === selectedDetailLog.employee_pk))
-                                        .sort((a, b) => parseISO(a.timestamp).getTime() - parseISO(b.timestamp).getTime())
-                                        .map((raw, rIdx) => (
-                                            <ListItem key={rIdx} sx={{ paddingInline: 0.5 }}>
-                                                <ListItemIcon sx={{ minWidth: 28 }}>
-                                                    {raw.type === 'check_in' ? 
-                                                        <Check fontSize="small" sx={{ color: TIMELINE_COLORS.present }} /> : 
-                                                        <AccessTime fontSize="small" sx={{ color: TIMELINE_COLORS.ongoing }} />
-                                                    }
-                                                </ListItemIcon>
-                                                <ListItemText
-                                                    primary={format(parseISO(raw.timestamp), 'HH:mm:ss')}
-                                                    secondary={t(raw.type)}
-                                                    primaryTypographyProps={{ fontWeight: 600, fontSize: '0.8rem' }}
-                                                    secondaryTypographyProps={{ fontSize: '0.7rem', color: 'text.secondary' }}
-                                                />
-                                            </ListItem>
-                                        ))
-                                ) : (
-                                    <ListItem sx={{ paddingInline: 0.5 }}>
-                                        <ListItemIcon sx={{ minWidth: 28 }}>
-                                            <AccessTime fontSize="small" sx={{ color: TIMELINE_COLORS.present }} />
-                                        </ListItemIcon>
-                                        <ListItemText
-                                            primary={format(parseISO(selectedDetailLog.timestamp), 'HH:mm:ss')}
-                                            secondary={t(selectedDetailLog.type)}
-                                            primaryTypographyProps={{ fontWeight: 600 }}
-                                        />
-                                    </ListItem>
-                                )}
-                                <ListItem sx={{ paddingInline: 0.5 }}>
-                                    <ListItemIcon sx={{ minWidth: 28 }}>
-                                        <DeviceIcon fontSize="small" sx={{ color: 'text.secondary' }} />
+                    <Box sx={{ backgroundColor: COLORS.white }}>
+                        <Box sx={{ 
+                            p: 2, 
+                            background: `linear-gradient(135deg, ${COLORS.dark} 0%, #1e293b 100%)`,
+                            color: COLORS.white
+                        }}>
+                            <Typography variant="subtitle2" fontWeight="700" sx={{ mb: 0.5 }}>
+                                {selectedDetailLog.status === 'present' ? t('Present') :
+                                    selectedDetailLog.status === 'late' ? t('Late') :
+                                    selectedDetailLog.status === 'early_leave' ? t('Early Leave') : 
+                                    selectedDetailLog.status === 'ongoing' ? t('Ongoing Work') : 
+                                    t('Working Period')}
+                            </Typography>
+                            <Typography variant="caption" sx={{ opacity: 0.8 }}>
+                                {format(selectedDetailLog.timestamp ? parseISO(selectedDetailLog.timestamp) : parseISO(selectedDetailLog.check_in), 'EEEE, MMMM d, yyyy')}
+                            </Typography>
+                        </Box>
+                        <List dense sx={{ p: 1.5 }}>
+                            {/* If it's a period, show all raw logs for that day */}
+                            {selectedDetailLog.check_in ? (
+                                data.filter(log => !!log.timestamp && isSameDay(parseISO(log.timestamp), parseISO(selectedDetailLog.check_in)) && (log.employee_id === selectedDetailLog.employee_id || log.employee_pk === selectedDetailLog.employee_pk))
+                                    .sort((a, b) => parseISO(a.timestamp).getTime() - parseISO(b.timestamp).getTime())
+                                    .map((raw, rIdx) => (
+                                        <ListItem key={rIdx} sx={{ px: 1, py: 0.5, borderRadius: '8px', mb: 0.5, '&:hover': { bgcolor: COLORS.bg } }}>
+                                            <ListItemIcon sx={{ minWidth: 32 }}>
+                                                {raw.type === 'check_in' ? 
+                                                    <Check fontSize="small" sx={{ color: COLORS.success }} /> : 
+                                                    <AccessTime fontSize="small" sx={{ color: COLORS.info }} />
+                                                }
+                                            </ListItemIcon>
+                                            <ListItemText
+                                                primary={format(parseISO(raw.timestamp), 'HH:mm:ss')}
+                                                secondary={t(raw.type)}
+                                                primaryTypographyProps={{ fontWeight: 700, fontSize: '0.85rem', color: COLORS.dark }}
+                                                secondaryTypographyProps={{ fontSize: '0.75rem', color: COLORS.secondary, fontWeight: 500 }}
+                                            />
+                                        </ListItem>
+                                    ))
+                            ) : (
+                                <ListItem sx={{ px: 1, py: 0.5 }}>
+                                    <ListItemIcon sx={{ minWidth: 32 }}>
+                                        <AccessTime fontSize="small" sx={{ color: COLORS.primary }} />
                                     </ListItemIcon>
                                     <ListItemText
-                                        primary={selectedDetailLog.device || t('Machine: #01 (Front)')}
-                                        secondary={t('Verification: Fingerprint')}
-                                        primaryTypographyProps={{ variant: 'caption', fontWeight: 500 }}
+                                        primary={format(parseISO(selectedDetailLog.timestamp), 'HH:mm:ss')}
+                                        secondary={t(selectedDetailLog.type)}
+                                        primaryTypographyProps={{ fontWeight: 700, color: COLORS.dark }}
+                                        secondaryTypographyProps={{ fontSize: '0.75rem', color: COLORS.secondary }}
                                     />
                                 </ListItem>
-                            </List>
-                            <Divider />
-                            <Box sx={{ p: 1.5, display: 'flex', gap: 1 }}>
-                                <Button 
-                                    size="small" 
-                                    fullWidth 
-                                    variant="outlined" 
-                                    sx={{ 
-                                        borderRadius: 1, 
-                                        textTransform: 'none', 
-                                        fontWeight: 500,
-                                        borderColor: theme.palette.divider,
-                                        '&:hover': {
-                                            backgroundColor: 'action.hover'
-                                        }
-                                    }}
-                                >
-                                    {t('Request Correction')}
-                                </Button>
-                            </Box>
-                        </CardContent>
-                    </Card>
+                            )}
+                            <Divider sx={{ my: 1, opacity: 0.5 }} />
+                            <ListItem sx={{ px: 1, py: 0.5 }}>
+                                <ListItemIcon sx={{ minWidth: 32 }}>
+                                    <DeviceIcon fontSize="small" sx={{ color: COLORS.secondary }} />
+                                </ListItemIcon>
+                                <ListItemText
+                                    primary={selectedDetailLog.device || t('Machine: #01 (Front)')}
+                                    secondary={t('Verification: Fingerprint')}
+                                    primaryTypographyProps={{ variant: 'caption', fontWeight: 600, color: COLORS.dark }}
+                                    secondaryTypographyProps={{ variant: 'caption', color: COLORS.secondary }}
+                                />
+                            </ListItem>
+                        </List>
+                        <Box sx={{ p: 2, pt: 0 }}>
+                            <Button 
+                                size="small" 
+                                fullWidth 
+                                variant="contained" 
+                                sx={{ 
+                                    borderRadius: '8px', 
+                                    textTransform: 'none', 
+                                    fontWeight: 700,
+                                    background: `linear-gradient(135deg, ${COLORS.primary} 0%, #825EE4 100%)`,
+                                    boxShadow: SHADOWS.xs,
+                                    '&:hover': {
+                                        boxShadow: SHADOWS.sm
+                                    }
+                                }}
+                            >
+                                {t('Request Correction')}
+                            </Button>
+                        </Box>
+                    </Box>
                 )}
             </Popover>
 
             {/* --- Legend --- */}
-            <Stack direction={{ xs: 'column', md: 'row' }} spacing={2} sx={{ 
-                mt: 3, 
-                pt: 2, 
-                borderTop: `1px solid ${theme.palette.divider}`,
-                backgroundColor: 'action.hover',
-                paddingInline: 1
+            <Stack direction={{ xs: 'column', md: 'row' }} spacing={3} sx={{ 
+                mt: 4, 
+                pt: 3, 
+                borderTop: `1px solid ${COLORS.light}`,
+                px: 1
             }}>
                 <Stack direction="row" spacing={1} alignItems="center">
                     <Box sx={{ 
-                        width: 12, 
-                        height: 12, 
+                        width: 10, 
+                        height: 10, 
                         borderRadius: '50%', 
-                        backgroundColor: TIMELINE_COLORS.present
+                        backgroundColor: COLORS.success,
+                        boxShadow: SHADOWS.xs
                     }} />
-                    <Typography variant="caption" fontWeight="500">{t('Normal Work')}</Typography>
+                    <Typography variant="caption" sx={{ fontWeight: 600, color: COLORS.secondary }}>{t('Normal Work')}</Typography>
                 </Stack>
                 <Stack direction="row" spacing={1} alignItems="center">
                     <Box sx={{ 
-                        width: 12, 
-                        height: 12, 
+                        width: 10, 
+                        height: 10, 
                         borderRadius: '50%', 
-                        backgroundColor: TIMELINE_COLORS.late
+                        backgroundColor: COLORS.error,
+                        boxShadow: SHADOWS.xs
                     }} />
-                    <Typography variant="caption" fontWeight="500">{t('Late Check-in')}</Typography>
+                    <Typography variant="caption" sx={{ fontWeight: 600, color: COLORS.secondary }}>{t('Late Check-in')}</Typography>
                 </Stack>
                 <Stack direction="row" spacing={1} alignItems="center">
                     <Box sx={{ 
-                        width: 12, 
-                        height: 12, 
+                        width: 10, 
+                        height: 10, 
                         borderRadius: '50%', 
-                        backgroundColor: TIMELINE_COLORS.earlyLeave
+                        backgroundColor: COLORS.warning,
+                        boxShadow: SHADOWS.xs
                     }} />
-                    <Typography variant="caption" fontWeight="500">{t('Early Leave')}</Typography>
+                    <Typography variant="caption" sx={{ fontWeight: 600, color: COLORS.secondary }}>{t('Early Leave')}</Typography>
                 </Stack>
                 <Stack direction="row" spacing={1} alignItems="center">
                     <Box sx={{ 
-                        width: 12, 
-                        height: 12, 
+                        width: 10, 
+                        height: 10, 
                         borderRadius: '50%', 
-                        backgroundColor: TIMELINE_COLORS.ongoing
+                        backgroundColor: COLORS.info,
+                        boxShadow: SHADOWS.xs
                     }} />
-                    <Typography variant="caption" fontWeight="500">{t('Ongoing Session')}</Typography>
+                    <Typography variant="caption" sx={{ fontWeight: 600, color: COLORS.secondary }}>{t('Ongoing Session')}</Typography>
                 </Stack>
                 <Stack direction="row" spacing={1} alignItems="center">
                     <Box sx={{ 
-                        width: 12, 
-                        height: 12, 
+                        width: 10, 
+                        height: 10, 
                         borderRadius: '50%', 
-                        backgroundColor: theme.palette.divider
+                        backgroundColor: COLORS.light,
+                        border: `1px solid ${alpha(COLORS.secondary, 0.2)}`
                     }} />
-                    <Typography variant="caption" color="text.secondary">{t('Weekend / Off')}</Typography>
+                    <Typography variant="caption" sx={{ fontWeight: 600, color: COLORS.secondary }}>{t('Weekend / Off')}</Typography>
                 </Stack>
             </Stack>
         </Paper>

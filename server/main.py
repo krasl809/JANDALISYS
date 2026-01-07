@@ -387,12 +387,12 @@ def startup_event():
 
         # Create 6 default archive users
         archive_users = [
-            {"name": "م. سايد شهوان", "email": "said.shahwan@archive.com", "role": "archive_admin"},
-            {"name": "أ. نازك الجندلي", "email": "nazik.jandali@archive.com", "role": "archive_admin"},
-            {"name": "أ. ماهر الريحاوي", "email": "maher.rehayi@archive.com", "role": "archive_admin"},
-            {"name": "أ . غزوان البيك", "email": "ghazwan.baik@archive.com", "role": "archive_admin"},
-            {"name": "أ . عبيدة الحامد", "email": "obada.hamed@archive.com", "role": "archive_admin"},
-            {"name": "Archive Viewer", "email": "viewer@archive.com", "role": "archive_viewer"}
+            {"name": "م. سايد شهوان", "email": "s.chehwan@archive.com", "role": "archive_admin"},
+            {"name": "أ. نازك الجندلي", "email": "n.jandali@archive.com", "role": "archive_admin"},
+            {"name": "أ. ماهر الريحاوي", "email": "m.alrihawi@archive.com", "role": "archive_admin"},
+            {"name": "م. غزوان البيك", "email": "mg.bek@archive.com", "role": "archive_admin"},
+            {"name": "أ. عبيدة الحامد", "email": "O.alhamed@archive.com", "role": "archive_admin"},
+            {"name": "مستعرض الأرشيف", "email": "viewer@archive.com", "role": "archive_viewer"}
         ]
         
         archive_password = os.getenv("DEFAULT_ARCHIVE_PASSWORD", "Archive@123")

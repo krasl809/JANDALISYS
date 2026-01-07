@@ -12,6 +12,28 @@ import { ATTENDANCE_COLORS } from './AttendancePage';
 import { LocalizationProvider, DatePicker } from '@mui/x-date-pickers';
 import { AdapterDateFns } from '@mui/x-date-pickers/AdapterDateFns';
 
+// Material Dashboard 2 Pro Style Constants
+const COLORS = {
+    primary: '#5E72E4',
+    secondary: '#8392AB',
+    info: '#11CDEF',
+    success: '#2DCE89',
+    warning: '#FB6340',
+    error: '#F5365C',
+    dark: '#344767',
+    light: '#E9ECEF',
+    bg: '#F8F9FA',
+    white: '#FFFFFF',
+    gradientPrimary: 'linear-gradient(135deg, #5E72E4 0%, #825EE4 100%)',
+};
+
+const SHADOWS = {
+    xs: '0 1px 5px rgba(0, 0, 0, 0.05)',
+    sm: '0 3px 8px rgba(0, 0, 0, 0.08)',
+    md: '0 7px 14px rgba(50, 50, 93, 0.1)',
+    lg: '0 15px 35px rgba(50, 50, 93, 0.1)',
+};
+
 interface AttendanceRecord {
     id: string;
     employee_id: string;
@@ -126,13 +148,11 @@ const MonthView: React.FC<MonthViewProps> = React.memo(({
             <Paper 
                 elevation={0}
                 sx={{
-                    borderRadius: 3,
+                    borderRadius: '16px',
                     overflow: 'hidden',
-                    border: `1px solid ${theme.palette.divider}`,
-                    backgroundColor: 'background.paper',
-                    boxShadow: theme.palette.mode === 'light' 
-                        ? '0 1px 3px rgba(0,0,0,0.02)' 
-                        : 'none'
+                    backgroundColor: COLORS.white,
+                    boxShadow: SHADOWS.md,
+                    border: 'none'
                 }}
             >
                 <Box sx={{ display: 'flex', flexDirection: 'column', minHeight: 400, maxHeight: 800 }}>
@@ -141,10 +161,9 @@ const MonthView: React.FC<MonthViewProps> = React.memo(({
                         display: 'flex',
                         alignItems: 'center',
                         justifyContent: 'space-between',
-                        backgroundColor: mode === 'light' ? '#FFFFFF' : '#0F172A',
-                        borderBottom: `1px solid ${theme.palette.divider}`,
-                        p: 1.5,
-                        px: 2,
+                        backgroundColor: COLORS.white,
+                        borderBottom: `1px solid ${alpha(COLORS.secondary, 0.1)}`,
+                        p: 2.5,
                         gap: 2,
                         flexWrap: 'wrap',
                         zIndex: 20,
@@ -162,52 +181,83 @@ const MonthView: React.FC<MonthViewProps> = React.memo(({
                                         slotProps={{
                                             textField: {
                                                 size: 'small',
-                                                sx: { width: 180 }
+                                                sx: { 
+                                                    width: 180,
+                                                    '& .MuiOutlinedInput-root': {
+                                                        borderRadius: '8px',
+                                                        '& fieldset': { borderColor: '#E9ECEF' },
+                                                        '&:hover fieldset': { borderColor: COLORS.primary },
+                                                    }
+                                                }
                                             }
                                         }}
                                     />
                                 </LocalizationProvider>
                             </Box>
                             
-                            <Box sx={{ display: 'flex', gap: 0.5, alignItems: 'center' }}>
+                            <Box sx={{ display: 'flex', gap: 1, alignItems: 'center' }}>
                                 <Tooltip title={t('Previous Month')}>
-                                    <IconButton size="small" onClick={handlePrevMonth} sx={{ border: `1px solid ${theme.palette.divider}`, bgcolor: 'background.paper' }}>
+                                    <IconButton 
+                                        size="small" 
+                                        onClick={handlePrevMonth} 
+                                        sx={{ 
+                                            bgcolor: COLORS.bg,
+                                            borderRadius: '8px',
+                                            '&:hover': { bgcolor: alpha(COLORS.primary, 0.1), color: COLORS.primary }
+                                        }}
+                                    >
                                         {isRtl ? <ChevronRight fontSize="small" /> : <ChevronLeft fontSize="small" />}
                                     </IconButton>
                                 </Tooltip>
                                 <Tooltip title={t('Today')}>
-                                    <IconButton size="small" onClick={handleToday} sx={{ border: `1px solid ${theme.palette.divider}`, bgcolor: 'background.paper' }}>
+                                    <IconButton 
+                                        size="small" 
+                                        onClick={handleToday} 
+                                        sx={{ 
+                                            bgcolor: COLORS.bg,
+                                            borderRadius: '8px',
+                                            '&:hover': { bgcolor: alpha(COLORS.primary, 0.1), color: COLORS.primary }
+                                        }}
+                                    >
                                         <Today fontSize="small" />
                                     </IconButton>
                                 </Tooltip>
                                 <Tooltip title={t('Next Month')}>
-                                    <IconButton size="small" onClick={handleNextMonth} sx={{ border: `1px solid ${theme.palette.divider}`, bgcolor: 'background.paper' }}>
+                                    <IconButton 
+                                        size="small" 
+                                        onClick={handleNextMonth} 
+                                        sx={{ 
+                                            bgcolor: COLORS.bg,
+                                            borderRadius: '8px',
+                                            '&:hover': { bgcolor: alpha(COLORS.primary, 0.1), color: COLORS.primary }
+                                        }}
+                                    >
                                         {isRtl ? <ChevronLeft fontSize="small" /> : <ChevronRight fontSize="small" />}
                                     </IconButton>
                                 </Tooltip>
                             </Box>
                         </Box>
 
-                        <Box sx={{ display: 'flex', gap: 2, alignItems: 'center', flexWrap: 'wrap' }}>
-                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-                                <Box sx={{ width: 12, height: 12, borderRadius: 0.5, bgcolor: ATTENDANCE_COLORS.present }} />
-                                <Typography variant="caption" fontWeight="600">{t('Present')}</Typography>
+                        <Box sx={{ display: 'flex', gap: 2.5, alignItems: 'center', flexWrap: 'wrap' }}>
+                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                                <Box sx={{ width: 10, height: 10, borderRadius: '50%', bgcolor: ATTENDANCE_COLORS.present }} />
+                                <Typography variant="caption" fontWeight="700" sx={{ color: COLORS.dark }}>{t('Present')}</Typography>
                             </Box>
-                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-                                <Box sx={{ width: 12, height: 12, borderRadius: 0.5, bgcolor: ATTENDANCE_COLORS.late }} />
-                                <Typography variant="caption" fontWeight="600">{t('Late')}</Typography>
+                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                                <Box sx={{ width: 10, height: 10, borderRadius: '50%', bgcolor: ATTENDANCE_COLORS.late }} />
+                                <Typography variant="caption" fontWeight="700" sx={{ color: COLORS.dark }}>{t('Late')}</Typography>
                             </Box>
-                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-                                <Box sx={{ width: 12, height: 12, borderRadius: 0.5, bgcolor: ATTENDANCE_COLORS.earlyLeave }} />
-                                <Typography variant="caption" fontWeight="600">{t('Early Leave')}</Typography>
+                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                                <Box sx={{ width: 10, height: 10, borderRadius: '50%', bgcolor: ATTENDANCE_COLORS.earlyLeave }} />
+                                <Typography variant="caption" fontWeight="700" sx={{ color: COLORS.dark }}>{t('Early Leave')}</Typography>
                             </Box>
-                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-                                <Box sx={{ width: 12, height: 12, borderRadius: 0.5, bgcolor: ATTENDANCE_COLORS.absent, opacity: 0.3 }} />
-                                <Typography variant="caption" fontWeight="600">{t('Absent')}</Typography>
+                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                                <Box sx={{ width: 10, height: 10, borderRadius: '50%', bgcolor: ATTENDANCE_COLORS.absent, opacity: 0.4 }} />
+                                <Typography variant="caption" fontWeight="700" sx={{ color: COLORS.dark }}>{t('Absent')}</Typography>
                             </Box>
-                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-                                <Box sx={{ width: 12, height: 12, borderRadius: 0.5, border: `1px solid ${theme.palette.divider}`, bgcolor: alpha(theme.palette.action.hover, 0.5) }} />
-                                <Typography variant="caption" fontWeight="600">{t('Weekend')}</Typography>
+                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                                <Box sx={{ width: 10, height: 10, borderRadius: '50%', bgcolor: alpha(COLORS.secondary, 0.2) }} />
+                                <Typography variant="caption" fontWeight="700" sx={{ color: COLORS.dark }}>{t('Weekend')}</Typography>
                             </Box>
                         </Box>
                     </Box>
@@ -218,50 +268,38 @@ const MonthView: React.FC<MonthViewProps> = React.memo(({
                         flexGrow: 1, 
                         overflow: 'auto', 
                         position: 'relative',
-                        // Custom scrollbar for better appearance
-                        '&::-webkit-scrollbar': { width: '8px', height: '8px' },
+                        backgroundColor: COLORS.bg,
+                        // Custom scrollbar
+                        '&::-webkit-scrollbar': { width: '6px', height: '6px' },
                         '&::-webkit-scrollbar-track': { background: 'transparent' },
                         '&::-webkit-scrollbar-thumb': {
-                            background: theme.palette.mode === 'light' ? '#E2E8F0' : '#334155',
+                            background: alpha(COLORS.secondary, 0.2),
                             borderRadius: '10px',
-                            '&:hover': { background: theme.palette.mode === 'light' ? '#CBD5E1' : '#475569' },
+                            '&:hover': { background: alpha(COLORS.secondary, 0.3) },
                         },
                     }}>
                         {/* Employee Names Column */}
                         <Box sx={{
-                            width: 240,
+                            width: 260,
                             flexShrink: 0,
-                            backgroundColor: mode === 'light' ? '#F8FAFC' : '#111827',
-                            borderInlineEnd: `2px solid ${theme.palette.divider}`,
+                            backgroundColor: COLORS.white,
+                            borderInlineEnd: `1px solid ${alpha(COLORS.secondary, 0.1)}`,
                             position: 'sticky',
                             left: isRtl ? 'auto' : 0,
                             right: isRtl ? 0 : 'auto',
                             zIndex: 10,
-                            '&::after': {
-                                content: '""',
-                                position: 'absolute',
-                                top: 0,
-                                bottom: 0,
-                                right: isRtl ? 'auto' : -10,
-                                left: isRtl ? -10 : 'auto',
-                                width: 10,
-                                background: mode === 'light'
-                                    ? `linear-gradient(${isRtl ? '270deg' : '90deg'}, rgba(0,0,0,0.03) 0%, rgba(0,0,0,0) 100%)`
-                                    : `linear-gradient(${isRtl ? '270deg' : '90deg'}, rgba(0,0,0,0.2) 0%, rgba(0,0,0,0) 100%)`,
-                                pointerEvents: 'none',
-                                opacity: 1
-                            }
+                            boxShadow: isRtl ? '-4px 0 8px rgba(0,0,0,0.02)' : '4px 0 8px rgba(0,0,0,0.02)'
                         }}>
-                            {/* Empty corner space for header alignment */}
+                            {/* Header alignment */}
                             <Box sx={{ 
                                 height: 60, 
-                                borderBottom: `2px solid ${theme.palette.divider}`,
+                                borderBottom: `2px solid ${alpha(COLORS.secondary, 0.05)}`,
                                 display: 'flex',
                                 alignItems: 'center',
-                                px: 2,
-                                backgroundColor: mode === 'light' ? '#F1F5F9' : '#1F2937'
+                                px: 2.5,
+                                backgroundColor: alpha(COLORS.bg, 0.5)
                             }}>
-                                <Typography variant="caption" fontWeight="800" color="primary.main" sx={{ textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                                <Typography variant="caption" fontWeight="800" sx={{ color: COLORS.primary, textTransform: 'uppercase', letterSpacing: '1px' }}>
                                     {t('Employee Name')}
                                 </Typography>
                             </Box>
@@ -272,31 +310,31 @@ const MonthView: React.FC<MonthViewProps> = React.memo(({
                                         height: 55,
                                         display: 'flex',
                                         alignItems: 'center',
-                                        px: 2,
-                                        borderBottom: `1px solid ${theme.palette.divider}`,
-                                        backgroundColor: index % 2 === 0 ? 'background.paper' : alpha(theme.palette.action.hover, 0.3),
-                                        transition: 'background-color 0.2s',
+                                        px: 2.5,
+                                        borderBottom: `1px solid ${alpha(COLORS.secondary, 0.05)}`,
+                                        backgroundColor: index % 2 === 0 ? COLORS.white : alpha(COLORS.bg, 0.3),
+                                        transition: 'all 0.2s',
                                         '&:hover': {
-                                            backgroundColor: alpha(theme.palette.primary.main, 0.05)
+                                            backgroundColor: alpha(COLORS.primary, 0.04)
                                         }
                                     }}>
                                         <Avatar sx={{ 
-                                            width: 34, 
-                                            height: 34, 
+                                            width: 32, 
+                                            height: 32, 
                                             marginInlineEnd: 1.5, 
-                                            bgcolor: alpha(theme.palette.primary.main, 0.1),
-                                            color: 'primary.main',
-                                            fontSize: '0.9rem',
+                                            bgcolor: alpha(COLORS.primary, 0.1),
+                                            color: COLORS.primary,
+                                            fontSize: '0.8rem',
                                             fontWeight: '700',
-                                            border: `1px solid ${alpha(theme.palette.primary.main, 0.2)}`
+                                            border: `1px solid ${alpha(COLORS.primary, 0.1)}`
                                         }}>
                                             {displayName[0]}
                                         </Avatar>
                                         <Box sx={{ minWidth: 0 }}>
-                                            <Typography variant="body2" fontWeight="700" noWrap color="text.primary">
+                                            <Typography variant="body2" fontWeight="700" noWrap sx={{ color: COLORS.dark }}>
                                                 {displayName}
                                             </Typography>
-                                            <Typography variant="caption" color="text.disabled" sx={{ fontFamily: 'monospace' }}>
+                                            <Typography variant="caption" sx={{ color: COLORS.secondary, fontFamily: 'monospace' }}>
                                                 {employee.employee_id}
                                             </Typography>
                                         </Box>
@@ -316,8 +354,8 @@ const MonthView: React.FC<MonthViewProps> = React.memo(({
                                         minWidth: 60,
                                         flex: 1,
                                         position: 'relative',
-                                        borderInlineEnd: `1px solid ${theme.palette.divider}`,
-                                        backgroundColor: isDayWeekend ? alpha(theme.palette.action.hover, 0.5) : 'transparent'
+                                        borderInlineEnd: `1px solid ${alpha(COLORS.secondary, 0.05)}`,
+                                        backgroundColor: isDayWeekend ? alpha(COLORS.secondary, 0.03) : 'transparent'
                                     }}>
                                         {/* Day Header */}
                                         <Box sx={{
@@ -326,17 +364,16 @@ const MonthView: React.FC<MonthViewProps> = React.memo(({
                                             flexDirection: 'column',
                                             alignItems: 'center',
                                             justifyContent: 'center',
-                                            borderBottom: `2px solid ${theme.palette.divider}`,
-                                            backgroundColor: isDayToday ? alpha(theme.palette.primary.main, 0.1) : (mode === 'light' ? '#F1F5F9' : '#1F2937'),
+                                            borderBottom: `2px solid ${alpha(COLORS.secondary, 0.05)}`,
+                                            backgroundColor: isDayToday ? alpha(COLORS.primary, 0.08) : alpha(COLORS.bg, 0.5),
                                             position: 'sticky',
                                             top: 0,
                                             zIndex: 5,
-                                            transition: 'background-color 0.2s'
                                         }}>
-                                            <Typography variant="caption" fontWeight="800" color={isDayToday ? 'primary' : 'text.secondary'} sx={{ textTransform: 'uppercase', fontSize: '0.6rem', letterSpacing: '0.05em' }}>
+                                            <Typography variant="caption" fontWeight="800" sx={{ color: isDayToday ? COLORS.primary : COLORS.secondary, textTransform: 'uppercase', fontSize: '0.65rem' }}>
                                                 {format(day, 'EEE', { locale: dateLocale })}
                                             </Typography>
-                                            <Typography variant="body2" fontWeight="900" color={isDayToday ? 'primary.main' : 'text.primary'}>
+                                            <Typography variant="body2" fontWeight="900" sx={{ color: isDayToday ? COLORS.primary : COLORS.dark }}>
                                                 {format(day, 'd', { locale: dateLocale })}
                                             </Typography>
                                         </Box>
@@ -349,15 +386,15 @@ const MonthView: React.FC<MonthViewProps> = React.memo(({
                                             return (
                                                 <Box key={employee.id} sx={{
                                                     height: 55,
-                                                    borderBottom: `1px solid ${theme.palette.divider}`,
-                                                    backgroundColor: isEvenRow ? 'transparent' : alpha(theme.palette.action.hover, 0.2),
+                                                    borderBottom: `1px solid ${alpha(COLORS.secondary, 0.05)}`,
+                                                    backgroundColor: isEvenRow ? 'transparent' : alpha(COLORS.bg, 0.2),
                                                     display: 'flex',
                                                     alignItems: 'center',
                                                     justifyContent: 'center',
                                                     px: 0.5,
                                                     position: 'relative',
                                                     '&:hover': {
-                                                        backgroundColor: alpha(theme.palette.primary.main, 0.08)
+                                                        backgroundColor: alpha(COLORS.primary, 0.04)
                                                     }
                                                 }}>
                                                     {employeeAttendance.length > 0 ? (
@@ -371,55 +408,70 @@ const MonthView: React.FC<MonthViewProps> = React.memo(({
                                                                     key={sIdx} 
                                                                     arrow
                                                                     title={
-                                                                        <Box sx={{ p: 0.5 }}>
-                                                                            <Typography variant="caption" display="block" fontWeight="700">
+                                                                        <Box sx={{ p: 1 }}>
+                                                                            <Typography variant="caption" display="block" fontWeight="700" sx={{ color: COLORS.white, mb: 0.5 }}>
                                                                                 {format(parseISO(session.check_in), 'PPP', { locale: dateLocale })}
                                                                             </Typography>
-                                                                            <Divider sx={{ my: 0.5, bgcolor: 'rgba(255,255,255,0.2)' }} />
-                                                                            <Typography variant="caption" display="block">
-                                                                                {t('Check In')}: {format(parseISO(session.check_in), 'HH:mm')}
-                                                                            </Typography>
-                                                                            {session.check_out && (
-                                                                                <Typography variant="caption" display="block">
-                                                                                    {t('Check Out')}: {format(parseISO(session.check_out), 'HH:mm')}
+                                                                            <Divider sx={{ my: 0.5, bgcolor: alpha(COLORS.white, 0.2) }} />
+                                                                            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5 }}>
+                                                                                <Typography variant="caption" display="block" sx={{ color: COLORS.white, opacity: 0.9 }}>
+                                                                                    <strong>{t('Check In')}:</strong> {format(parseISO(session.check_in), 'HH:mm')}
                                                                                 </Typography>
-                                                                            )}
-                                                                            <Typography variant="caption" display="block">
-                                                                                {t('Work')}: {session.actual_work}h
-                                                                            </Typography>
-                                                                            {isLate && (
-                                                                                <Typography variant="caption" display="block" color="error.light">
-                                                                                    {t('Late Arrival')}: {session.late_minutes} {t('min')}
+                                                                                {session.check_out && (
+                                                                                    <Typography variant="caption" display="block" sx={{ color: COLORS.white, opacity: 0.9 }}>
+                                                                                        <strong>{t('Check Out')}:</strong> {format(parseISO(session.check_out), 'HH:mm')}
+                                                                                    </Typography>
+                                                                                )}
+                                                                                <Typography variant="caption" display="block" sx={{ color: COLORS.white, opacity: 0.9 }}>
+                                                                                    <strong>{t('Work')}:</strong> {session.actual_work}h
                                                                                 </Typography>
-                                                                            )}
-                                                                            {isEarlyLeave && (
-                                                                                <Typography variant="caption" display="block" color="warning.light">
-                                                                                    {t('Early Leave')}: {session.early_leave_minutes} {t('min')}
-                                                                                </Typography>
-                                                                            )}
+                                                                                {isLate && (
+                                                                                    <Typography variant="caption" display="block" sx={{ color: '#FFD700', fontWeight: 'bold' }}>
+                                                                                        ⚠ {t('Late Arrival')}: {session.late_minutes} {t('min')}
+                                                                                    </Typography>
+                                                                                )}
+                                                                                {isEarlyLeave && (
+                                                                                    <Typography variant="caption" display="block" sx={{ color: '#FFD700', fontWeight: 'bold' }}>
+                                                                                        ⚠ {t('Early Leave')}: {session.early_leave_minutes} {t('min')}
+                                                                                    </Typography>
+                                                                                )}
+                                                                            </Box>
                                                                         </Box>
                                                                     }
+                                                                    componentsProps={{
+                                                                        tooltip: {
+                                                                            sx: {
+                                                                                bgcolor: alpha(COLORS.dark, 0.95),
+                                                                                borderRadius: '12px',
+                                                                                padding: '8px',
+                                                                                boxShadow: SHADOWS.lg,
+                                                                                '& .MuiTooltip-arrow': {
+                                                                                    color: alpha(COLORS.dark, 0.95),
+                                                                                }
+                                                                            }
+                                                                        }
+                                                                    }}
                                                                 >
                                                                     <Box
                                                                         sx={{
                                                                             width: '90%',
                                                                             height: '75%',
-                                                                            borderRadius: 1,
+                                                                            borderRadius: '8px',
                                                                             backgroundColor: statusColor,
                                                                             display: 'flex',
                                                                             flexDirection: 'column',
                                                                             alignItems: 'center',
                                                                             justifyContent: 'center',
-                                                                            color: 'white',
+                                                                            color: COLORS.white,
                                                                             cursor: 'pointer',
                                                                             transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)',
-                                                                            boxShadow: '0 2px 4px rgba(0,0,0,0.12)',
+                                                                            boxShadow: SHADOWS.xs,
                                                                             position: 'relative',
                                                                             '&:hover': {
                                                                                 filter: 'brightness(1.1)',
-                                                                                transform: 'scale(1.1)',
+                                                                                transform: 'scale(1.15)',
                                                                                 zIndex: 2,
-                                                                                boxShadow: '0 4px 8px rgba(0,0,0,0.2)'
+                                                                                boxShadow: SHADOWS.sm
                                                                             }
                                                                         }}
                                                                     >
@@ -436,8 +488,8 @@ const MonthView: React.FC<MonthViewProps> = React.memo(({
                                                                                 width: 8, 
                                                                                 height: 8, 
                                                                                 borderRadius: '50%', 
-                                                                                bgcolor: isLate ? 'error.main' : 'warning.main',
-                                                                                border: '1.5px solid white'
+                                                                                bgcolor: isLate ? COLORS.error : COLORS.warning,
+                                                                                border: `1.5px solid ${COLORS.white}`
                                                                             }} />
                                                                         )}
                                                                     </Box>
@@ -449,15 +501,15 @@ const MonthView: React.FC<MonthViewProps> = React.memo(({
                                                             <Box sx={{
                                                                 width: 28,
                                                                 height: 28,
-                                                                borderRadius: 1,
+                                                                borderRadius: '8px',
                                                                 display: 'flex',
                                                                 alignItems: 'center',
                                                                 justifyContent: 'center',
-                                                                backgroundColor: alpha(theme.palette.error.main, 0.03),
-                                                                border: `1px solid ${alpha(theme.palette.error.main, 0.1)}`,
+                                                                backgroundColor: alpha(COLORS.error, 0.03),
+                                                                border: `1px solid ${alpha(COLORS.error, 0.1)}`,
                                                                 opacity: 0.6
                                                             }}>
-                                                                <Typography variant="caption" sx={{ color: theme.palette.error.main, fontSize: '0.65rem', fontWeight: 900 }}>
+                                                                <Typography variant="caption" sx={{ color: COLORS.error, fontSize: '0.65rem', fontWeight: 900 }}>
                                                                     {t('A')}
                                                                 </Typography>
                                                             </Box>
@@ -472,28 +524,28 @@ const MonthView: React.FC<MonthViewProps> = React.memo(({
 
                             {/* Total Work Column */}
                             <Box sx={{
-                                minWidth: 80,
-                                backgroundColor: mode === 'light' ? '#F8FAFC' : '#111827',
-                                borderInlineStart: `2px solid ${theme.palette.divider}`,
+                                minWidth: 90,
+                                backgroundColor: COLORS.white,
+                                borderInlineStart: `2px solid ${alpha(COLORS.secondary, 0.1)}`,
                                 position: 'sticky',
                                 right: isRtl ? 'auto' : 0,
                                 left: isRtl ? 0 : 'auto',
-                                zIndex: 5,
-                                boxShadow: isRtl ? '2px 0 8px rgba(0,0,0,0.05)' : '-2px 0 8px rgba(0,0,0,0.05)'
+                                zIndex: 10,
+                                boxShadow: isRtl ? '4px 0 15px rgba(0,0,0,0.05)' : '-4px 0 15px rgba(0,0,0,0.05)'
                             }}>
                                 <Box sx={{ 
                                     height: 60, 
-                                    borderBottom: `2px solid ${theme.palette.divider}`,
+                                    borderBottom: `2px solid ${alpha(COLORS.secondary, 0.05)}`,
                                     display: 'flex',
                                     flexDirection: 'column',
                                     alignItems: 'center',
                                     justifyContent: 'center',
-                                    backgroundColor: mode === 'light' ? '#F1F5F9' : '#1F2937'
+                                    backgroundColor: alpha(COLORS.bg, 0.5)
                                 }}>
-                                    <Typography variant="caption" fontWeight="900" color="primary.main" sx={{ letterSpacing: '0.05em' }}>
+                                    <Typography variant="caption" fontWeight="900" sx={{ color: COLORS.primary, letterSpacing: '0.05em', fontSize: '0.75rem' }}>
                                         {t('Total')}
                                     </Typography>
-                                    <Typography variant="caption" sx={{ fontSize: '0.6rem', fontWeight: 800, opacity: 0.7 }}>
+                                    <Typography variant="caption" sx={{ fontSize: '0.6rem', fontWeight: 800, opacity: 0.7, color: COLORS.secondary }}>
                                         {t('Hours')}
                                     </Typography>
                                 </Box>
@@ -506,19 +558,30 @@ const MonthView: React.FC<MonthViewProps> = React.memo(({
                                     return (
                                         <Box key={employee.id} sx={{
                                             height: 55,
-                                            borderBottom: `1px solid ${theme.palette.divider}`,
-                                            backgroundColor: isEvenRow ? 'transparent' : alpha(theme.palette.action.hover, 0.2),
+                                            borderBottom: `1px solid ${alpha(COLORS.secondary, 0.05)}`,
+                                            backgroundColor: isEvenRow ? COLORS.white : alpha(COLORS.bg, 0.3),
                                             display: 'flex',
                                             flexDirection: 'column',
                                             alignItems: 'center',
                                             justifyContent: 'center',
-                                            lineHeight: 1
+                                            lineHeight: 1,
+                                            transition: 'all 0.2s',
+                                            '&:hover': {
+                                                backgroundColor: alpha(COLORS.primary, 0.04)
+                                            }
                                         }}>
-                                            <Typography variant="body2" fontWeight="800" color="primary.main">
+                                            <Typography variant="body2" fontWeight="900" sx={{ color: COLORS.dark }}>
                                                 {totalWork.toFixed(1)}
                                             </Typography>
                                             {totalOT > 0 && (
-                                                <Typography variant="caption" fontWeight="700" color="secondary.main" sx={{ fontSize: '0.65rem' }}>
+                                                <Typography variant="caption" fontWeight="900" sx={{ 
+                                                    color: COLORS.success, 
+                                                    fontSize: '0.65rem',
+                                                    bgcolor: alpha(COLORS.success, 0.1),
+                                                    px: 0.5,
+                                                    borderRadius: '4px',
+                                                    mt: 0.2
+                                                }}>
                                                     +{totalOT.toFixed(1)}
                                                 </Typography>
                                             )}
@@ -538,7 +601,31 @@ const MonthView: React.FC<MonthViewProps> = React.memo(({
                 rowsPerPage={rowsPerPage}
                 onRowsPerPageChange={handleRowsPerPageChange}
                 rowsPerPageOptions={[10, 25, 50, 100]}
-                sx={{ mt: 2 }}
+                sx={{ 
+                    mt: 3,
+                    px: 2,
+                    backgroundColor: COLORS.white,
+                    borderRadius: '12px',
+                    boxShadow: SHADOWS.xs,
+                    color: COLORS.secondary,
+                    '& .MuiTablePagination-selectLabel, & .MuiTablePagination-displayedRows': {
+                        fontWeight: 600,
+                        fontSize: '0.8rem'
+                    },
+                    '& .MuiTablePagination-select': {
+                        fontWeight: 700,
+                        color: COLORS.dark,
+                        borderRadius: '8px',
+                        '&:focus': { borderRadius: '8px' }
+                    },
+                    '& .MuiTablePagination-actions': {
+                        '& .MuiIconButton-root': {
+                            borderRadius: '8px',
+                            mx: 0.5,
+                            '&:hover': { bgcolor: alpha(COLORS.primary, 0.1), color: COLORS.primary }
+                        }
+                    }
+                }}
             />
         </Box>
     );

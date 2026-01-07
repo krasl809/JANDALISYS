@@ -15,7 +15,7 @@ import {
     CalendarToday, Today, Event, GetApp,
     TrendingUp, MoreVert, ExpandMore,
     FiberManualRecord, Delete, CheckCircle, Alarm, Cancel, Print,
-    Close, PersonPinCircle
+    Close, PersonPinCircle, Computer, People
 } from '@mui/icons-material';
 import api from '../../services/api';
 import { useTranslation } from 'react-i18next';
@@ -29,16 +29,41 @@ import { AdapterDateFns } from '@mui/x-date-pickers/AdapterDateFns';
 import { LocalizationProvider, DatePicker } from '@mui/x-date-pickers';
 import { alpha } from '@mui/material/styles';
 
-// Colors inspired by professional enterprise systems (Zoho, etc.)
+// Material Dashboard 2 Pro Style Constants
+const COLORS = {
+    primary: '#5E72E4',
+    secondary: '#8392AB',
+    info: '#11CDEF',
+    success: '#2DCE89',
+    warning: '#FB6340',
+    error: '#F5365C',
+    dark: '#344767',
+    light: '#E9ECEF',
+    bg: '#F8F9FA',
+    white: '#FFFFFF',
+    gradientPrimary: 'linear-gradient(135deg, #5E72E4 0%, #825EE4 100%)',
+    gradientSuccess: 'linear-gradient(135deg, #2DCE89 0%, #2DCECC 100%)',
+    gradientInfo: 'linear-gradient(135deg, #11CDEF 0%, #1171EF 100%)',
+    gradientWarning: 'linear-gradient(135deg, #FB6340 0%, #FBB140 100%)',
+    gradientError: 'linear-gradient(135deg, #F5365C 0%, #F56036 100%)',
+};
+
+const SHADOWS = {
+    xs: '0 1px 5px rgba(0, 0, 0, 0.05)',
+    sm: '0 3px 8px rgba(0, 0, 0, 0.08)',
+    md: '0 7px 14px rgba(50, 50, 93, 0.1)',
+    lg: '0 15px 35px rgba(50, 50, 93, 0.1)',
+};
+
 export const ATTENDANCE_COLORS = {
-    present: '#059669',     // Emerald 600
-    late: '#DC2626',        // Red 600
-    earlyLeave: '#D97706',  // Amber 600
-    absent: '#475569',      // Slate 600
-    holiday: '#7C3AED',     // Violet 600
-    ongoing: '#2563EB',     // Blue 600
-    overtime: '#7C3AED',    // Violet 600
-    partial: '#EA580C'      // Orange 600
+    present: COLORS.success,
+    late: COLORS.error,
+    earlyLeave: COLORS.warning,
+    absent: COLORS.secondary,
+    holiday: '#7C3AED',
+    ongoing: COLORS.primary,
+    overtime: '#7C3AED',
+    partial: '#EA580C'
 };
 
 const round = (val: number, precision: number) => Math.round(val * Math.pow(10, precision)) / Math.pow(10, precision);
@@ -223,7 +248,6 @@ const useAttendanceFilters = () => {
 // Add RecentActivitySidebar component
 const RecentActivitySidebar = () => {
     const { t } = useTranslation();
-    const theme = useTheme();
     const [recentLogs, setRecentLogs] = useState<any[]>([]);
     const [loading, setLoading] = useState(true);
 
@@ -244,36 +268,138 @@ const RecentActivitySidebar = () => {
         return () => clearInterval(interval);
     }, [fetchRecentActivity]);
 
-    if (loading && recentLogs.length === 0) return <LinearProgress />;
-    if (recentLogs.length === 0) return null;
+    if (loading && recentLogs.length === 0) return (
+        <Box sx={{ p: 3, textAlign: 'center' }}>
+            <CircularProgress size={30} sx={{ color: COLORS.primary }} />
+        </Box>
+    );
+    
+    if (recentLogs.length === 0) return (
+        <Paper 
+            elevation={0}
+            sx={{ 
+                p: 4, 
+                borderRadius: '16px', 
+                bgcolor: COLORS.white,
+                boxShadow: SHADOWS.md,
+                textAlign: 'center'
+            }}
+        >
+            <Typography variant="body2" color={COLORS.secondary} fontWeight="600">
+                {t('No recent activity')}
+            </Typography>
+        </Paper>
+    );
 
     return (
-        <Paper sx={{ p: 2, borderRadius: 2, border: `1px solid ${theme.palette.divider}`, height: '100%', maxHeight: '800px', overflowY: 'auto' }}>
-            <Typography variant="subtitle1" fontWeight="700" sx={{ mb: 2, display: 'flex', alignItems: 'center', gap: 1 }}>
-                <AccessTime fontSize="small" color="primary" />
-                {t('Live Activity')}
-            </Typography>
+        <Paper 
+            elevation={0}
+            sx={{ 
+                p: 3, 
+                borderRadius: '16px', 
+                bgcolor: COLORS.white,
+                boxShadow: SHADOWS.md,
+                height: '100%', 
+                maxHeight: '800px', 
+                overflowY: 'auto',
+                border: `1px solid ${alpha(COLORS.secondary, 0.05)}`,
+                '&::-webkit-scrollbar': { width: '4px' },
+                '&::-webkit-scrollbar-thumb': { bgcolor: alpha(COLORS.secondary, 0.2), borderRadius: '4px' }
+            }}
+        >
+            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
+                <Typography variant="subtitle1" fontWeight="800" sx={{ display: 'flex', alignItems: 'center', gap: 1.5, color: COLORS.dark }}>
+                    <Box sx={{ 
+                        width: 36, 
+                        height: 36, 
+                        borderRadius: '10px', 
+                        bgcolor: alpha(COLORS.primary, 0.1), 
+                        display: 'flex', 
+                        alignItems: 'center', 
+                        justifyContent: 'center',
+                        boxShadow: `0 4px 10px ${alpha(COLORS.primary, 0.1)}`
+                    }}>
+                        <AccessTime sx={{ color: COLORS.primary, fontSize: 20 }} />
+                    </Box>
+                    {t('Live Activity')}
+                </Typography>
+                <Chip 
+                    label={t('LIVE')} 
+                    size="small" 
+                    sx={{ 
+                        bgcolor: alpha(COLORS.error, 0.1), 
+                        color: COLORS.error, 
+                        fontWeight: 900, 
+                        fontSize: '0.65rem',
+                        height: 20,
+                        animation: 'blink 2s infinite',
+                        '@keyframes blink': {
+                            '0%': { opacity: 1 },
+                            '50%': { opacity: 0.5 },
+                            '100%': { opacity: 1 }
+                        }
+                    }} 
+                />
+            </Box>
+
             <Stack spacing={2}>
                 {recentLogs.map((log, idx) => (
-                    <Box key={log.id || idx} sx={{ display: 'flex', gap: 1.5, alignItems: 'flex-start' }}>
-                        <Avatar sx={{ width: 32, height: 32, bgcolor: log.type === 'check_in' ? ATTENDANCE_COLORS.present : ATTENDANCE_COLORS.earlyLeave, fontSize: '0.8rem' }}>
+                    <Box key={log.id || idx} sx={{ 
+                        display: 'flex', 
+                        gap: 2, 
+                        alignItems: 'center',
+                        p: 2,
+                        borderRadius: '12px',
+                        transition: 'all 0.2s ease',
+                        border: `1px solid transparent`,
+                        '&:hover': { 
+                            bgcolor: alpha(COLORS.primary, 0.02),
+                            borderColor: alpha(COLORS.primary, 0.05),
+                            transform: 'translateX(-4px)'
+                        }
+                    }}>
+                        <Avatar 
+                            sx={{ 
+                                width: 42, 
+                                height: 42, 
+                                background: log.type === 'check_in' ? COLORS.gradientSuccess : COLORS.gradientWarning,
+                                color: COLORS.white,
+                                fontSize: '1rem',
+                                fontWeight: 800,
+                                borderRadius: '12px',
+                                boxShadow: SHADOWS.sm
+                            }}
+                        >
                             {log.employee_name?.[0]}
                         </Avatar>
+                        
                         <Box sx={{ flex: 1, minWidth: 0 }}>
-                            <Typography variant="body2" fontWeight="600" noWrap title={log.employee_name}>
-                                {log.employee_name}
-                            </Typography>
-                            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                                <Typography variant="caption" color="text.secondary">
-                                    {log.type === 'check_in' ? t('Checked In') : t('Checked Out')}
+                            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                                <Typography variant="body2" fontWeight="800" color={COLORS.dark} noWrap sx={{ maxWidth: '70%' }}>
+                                    {log.employee_name}
                                 </Typography>
-                                <Typography variant="caption" fontWeight="700" color="primary.main">
+                                <Typography variant="caption" fontWeight="800" sx={{ color: COLORS.primary, bgcolor: alpha(COLORS.primary, 0.05), px: 1, py: 0.25, borderRadius: '4px' }}>
                                     {format(parseISO(log.timestamp), 'HH:mm')}
                                 </Typography>
                             </Box>
-                            <Typography variant="caption" color="text.disabled" sx={{ fontSize: '0.65rem' }}>
-                                {log.device}
-                            </Typography>
+                            
+                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mt: 0.5 }}>
+                                <Box sx={{ 
+                                    width: 8, 
+                                    height: 8, 
+                                    borderRadius: '50%', 
+                                    bgcolor: log.type === 'check_in' ? COLORS.success : COLORS.warning,
+                                    boxShadow: `0 0 0 2px ${alpha(log.type === 'check_in' ? COLORS.success : COLORS.warning, 0.15)}`
+                                }} />
+                                <Typography variant="caption" fontWeight="700" sx={{ color: log.type === 'check_in' ? COLORS.success : COLORS.warning }}>
+                                    {log.type === 'check_in' ? t('Check In') : t('Check Out')}
+                                </Typography>
+                                <Typography variant="caption" sx={{ color: COLORS.secondary, mx: 0.5 }}>•</Typography>
+                                <Typography variant="caption" sx={{ color: alpha(COLORS.secondary, 0.8), fontSize: '0.7rem', display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                                    <Computer sx={{ fontSize: 12 }} />
+                                    {log.device}
+                                </Typography>
+                            </Box>
                         </Box>
                     </Box>
                 ))}
@@ -304,20 +430,39 @@ const DeviceStatusWidget = () => {
         return () => clearInterval(interval);
     }, []);
 
-    if (loading) return <LinearProgress sx={{ width: 100 }} />;
+    if (loading) return <LinearProgress sx={{ width: 100, borderRadius: '4px', height: 4, bgcolor: alpha(COLORS.primary, 0.1), '& .MuiLinearProgress-bar': { background: COLORS.gradientPrimary } }} />;
 
     return (
-        <Box sx={{ display: 'flex', gap: 1, alignItems: 'center' }}>
+        <Box sx={{ display: 'flex', gap: 1.5, alignItems: 'center' }}>
             {devices.map((device) => (
                 <Tooltip key={device.id} title={`${device.name} (${device.ip_address})`}>
-                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-                        <FiberManualRecord 
-                            sx={{ 
-                                fontSize: 12, 
-                                color: device.status === 'online' ? ATTENDANCE_COLORS.present : ATTENDANCE_COLORS.late 
-                            }} 
-                        />
-                        <Typography variant="caption" fontWeight="600" color="text.secondary">
+                    <Box sx={{ 
+                        display: 'flex', 
+                        alignItems: 'center', 
+                        gap: 1,
+                        bgcolor: COLORS.white,
+                        px: 1.5,
+                        py: 0.75,
+                        borderRadius: '10px',
+                        boxShadow: SHADOWS.xs,
+                        border: `1px solid ${alpha(COLORS.secondary, 0.05)}`,
+                        transition: 'all 0.2s',
+                        '&:hover': { transform: 'translateY(-2px)', boxShadow: SHADOWS.sm }
+                    }}>
+                        <Box sx={{ 
+                            width: 8, 
+                            height: 8, 
+                            borderRadius: '50%', 
+                            bgcolor: device.status === 'online' ? COLORS.success : COLORS.error,
+                            boxShadow: `0 0 0 3px ${alpha(device.status === 'online' ? COLORS.success : COLORS.error, 0.15)}`,
+                            animation: device.status === 'online' ? 'pulse 2s infinite' : 'none',
+                            '@keyframes pulse': {
+                                '0%': { boxShadow: `0 0 0 0px ${alpha(COLORS.success, 0.4)}` },
+                                '70%': { boxShadow: `0 0 0 6px ${alpha(COLORS.success, 0)}` },
+                                '100%': { boxShadow: `0 0 0 0px ${alpha(COLORS.success, 0)}` }
+                            }
+                        }} />
+                        <Typography variant="caption" fontWeight="800" sx={{ color: COLORS.dark, fontSize: '0.75rem' }}>
                             {device.name}
                         </Typography>
                     </Box>
@@ -330,7 +475,6 @@ const DeviceStatusWidget = () => {
 // Add DigitalClock component
 const DigitalClock = () => {
     const [time, setTime] = useState(new Date());
-    const theme = useTheme();
 
     useEffect(() => {
         const timer = setInterval(() => setTime(new Date()), 1000);
@@ -342,16 +486,28 @@ const DigitalClock = () => {
             display: 'flex', 
             flexDirection: 'column', 
             alignItems: 'flex-end',
-            px: 2,
-            py: 0.5,
-            borderRadius: 2,
-            bgcolor: alpha(theme.palette.primary.main, 0.05),
-            border: `1px solid ${alpha(theme.palette.primary.main, 0.1)}`
+            px: 2.5,
+            py: 1,
+            borderRadius: '12px',
+            bgcolor: COLORS.white,
+            border: `1px solid ${alpha(COLORS.primary, 0.1)}`,
+            boxShadow: SHADOWS.xs,
+            position: 'relative',
+            overflow: 'hidden',
+            '&::after': {
+                content: '""',
+                position: 'absolute',
+                top: 0,
+                right: 0,
+                width: '4px',
+                height: '100%',
+                bgcolor: COLORS.primary
+            }
         }}>
-            <Typography variant="h6" fontWeight="800" sx={{ color: 'primary.main', lineHeight: 1, mb: 0.5 }}>
+            <Typography variant="h6" fontWeight="900" sx={{ color: COLORS.primary, lineHeight: 1.2, mb: 0.25, letterSpacing: '1px', fontFamily: '"Roboto Mono", monospace' }}>
                 {format(time, 'HH:mm:ss')}
             </Typography>
-            <Typography variant="caption" fontWeight="500" color="text.secondary">
+            <Typography variant="caption" fontWeight="700" sx={{ color: COLORS.secondary, fontSize: '0.65rem', textTransform: 'uppercase' }}>
                 {format(time, 'EEEE, dd MMMM yyyy')}
             </Typography>
         </Box>
@@ -382,15 +538,25 @@ const SyncDevicesButton = ({ onSyncSuccess }: { onSyncSuccess: () => void }) => 
     return (
         <Button
             variant="contained"
-            color="primary"
-            startIcon={syncing ? <CircularProgress size={20} color="inherit" /> : <Refresh />}
+            startIcon={syncing ? <CircularProgress size={18} sx={{ color: COLORS.white }} /> : <Refresh />}
             onClick={handleSync}
             disabled={syncing}
             sx={{ 
-                borderRadius: 2, 
+                borderRadius: '8px', 
                 textTransform: 'none',
-                fontWeight: 600,
-                boxShadow: 2
+                fontWeight: 700,
+                background: COLORS.gradientPrimary,
+                boxShadow: SHADOWS.sm,
+                px: 3,
+                py: 1,
+                '&:hover': {
+                    boxShadow: SHADOWS.md,
+                    opacity: 0.9,
+                },
+                '&.Mui-disabled': {
+                    background: alpha(COLORS.primary, 0.5),
+                    color: COLORS.white
+                }
             }}
         >
             {syncing ? t('Syncing...') : t('Sync Devices')}
@@ -401,11 +567,9 @@ const SyncDevicesButton = ({ onSyncSuccess }: { onSyncSuccess: () => void }) => 
 // Consolidated Summary Cards Component
 const AttendanceSummaryCards = React.memo(({
     summary,
-    theme,
     onCardClick
 }: {
     summary: AttendanceSummary;
-    theme: any;
     onCardClick?: (type: string) => void;
 }) => {
     const { t } = useTranslation();
@@ -415,65 +579,81 @@ const AttendanceSummaryCards = React.memo(({
             id: 'total',
             title: t('Total Employees'),
             value: summary.total_employees,
-            icon: <Group sx={{ fontSize: 28 }} />,
-            color: theme.palette.primary.main
+            icon: <Group />,
+            gradient: COLORS.gradientPrimary,
+            shadowColor: alpha(COLORS.primary, 0.3)
         },
         {
             id: 'present',
             title: t('Present Today'),
             value: summary.present_today,
-            icon: <CheckCircle sx={{ fontSize: 28 }} />,
-            color: ATTENDANCE_COLORS.present
+            icon: <CheckCircle />,
+            gradient: COLORS.gradientSuccess,
+            shadowColor: alpha(COLORS.success, 0.3)
         },
         {
             id: 'late',
             title: t('Late Today'),
             value: summary.late_today,
-            icon: <Alarm sx={{ fontSize: 28 }} />,
-            color: ATTENDANCE_COLORS.late
+            icon: <Alarm />,
+            gradient: COLORS.gradientWarning,
+            shadowColor: alpha(COLORS.warning, 0.3)
         },
         {
             id: 'currently_in',
             title: t('Currently In'),
             value: summary.currently_in,
-            icon: <PersonPinCircle sx={{ fontSize: 28 }} />,
-            color: ATTENDANCE_COLORS.ongoing
+            icon: <PersonPinCircle />,
+            gradient: COLORS.gradientInfo,
+            shadowColor: alpha(COLORS.info, 0.3)
         },
         {
             id: 'absent',
             title: t('Absent Today'),
             value: summary.absent_today,
-            icon: <Cancel sx={{ fontSize: 28 }} />,
-            color: ATTENDANCE_COLORS.absent
+            icon: <Cancel />,
+            gradient: COLORS.gradientError,
+            shadowColor: alpha(COLORS.error, 0.3)
         }
-    ], [summary, theme.palette.primary.main, t]);
+    ], [summary, t]);
 
     return (
-        <Grid container spacing={2} sx={{ mb: 4 }}>
+        <Grid container spacing={3} sx={{ mb: 4 }}>
             {cards.map((card) => (
                 <Grid item xs={12} sm={6} md={2.4} key={card.id}>
                     <Card 
+                        elevation={0}
                         sx={{ 
                             p: 2.5, 
                             display: 'flex', 
                             flexDirection: 'column', 
                             height: '100%',
                             position: 'relative',
-                            overflow: 'hidden',
-                            borderRadius: 4,
-                            border: `1px solid ${alpha(card.color, 0.1)}`,
-                            background: theme.palette.mode === 'light'
-                                ? `linear-gradient(135deg, ${alpha(card.color, 0.02)} 0%, #FFFFFF 100%)`
-                                : `linear-gradient(135deg, ${alpha(card.color, 0.05)} 0%, ${theme.palette.background.paper} 100%)`,
+                            overflow: 'visible', // Changed to visible for shadow to show better
+                            borderRadius: '16px',
+                            background: card.gradient,
+                            color: COLORS.white,
                             cursor: onCardClick ? 'pointer' : 'default',
+                            boxShadow: `0 8px 16px -4px ${card.shadowColor}`,
                             transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
                             '&:hover': onCardClick ? {
-                                transform: 'translateY(-6px)',
-                                boxShadow: theme.palette.mode === 'light'
-                                    ? `0 12px 24px ${alpha(card.color, 0.12)}`
-                                    : `0 12px 24px ${alpha(card.color, 0.3)}`,
-                                border: `1px solid ${alpha(card.color, 0.3)}`,
-                            } : {}
+                                transform: 'translateY(-8px)',
+                                boxShadow: `0 12px 20px -5px ${card.shadowColor}`,
+                                '& .card-icon-box': {
+                                    transform: 'scale(1.1) rotate(-5deg)',
+                                }
+                            } : {},
+                            '&::after': {
+                                content: '""',
+                                position: 'absolute',
+                                top: '-20%',
+                                right: '-10%',
+                                width: '120px',
+                                height: '120px',
+                                background: 'rgba(255, 255, 255, 0.1)',
+                                borderRadius: '50%',
+                                zIndex: 0
+                            }
                         }}
                         onClick={() => onCardClick?.(card.id)}
                     >
@@ -481,60 +661,31 @@ const AttendanceSummaryCards = React.memo(({
                             display: 'flex', 
                             alignItems: 'center', 
                             justifyContent: 'space-between',
-                            mb: 2,
+                            mb: 2.5,
+                            position: 'relative',
                             zIndex: 1
                         }}>
-                            <Box sx={{ 
-                                p: 1.2, 
-                                borderRadius: 2.5, 
-                                background: `linear-gradient(135deg, ${card.color} 0%, ${alpha(card.color, 0.8)} 100%)`,
-                                color: '#FFFFFF',
-                                display: 'flex',
-                                boxShadow: `0 4px 12px ${alpha(card.color, 0.25)}`
-                            }}>
-                                {card.icon}
+                            <Box 
+                                className="card-icon-box"
+                                sx={{ 
+                                    p: 1.5, 
+                                    borderRadius: '12px', 
+                                    bgcolor: 'rgba(255, 255, 255, 0.2)',
+                                    color: COLORS.white,
+                                    display: 'flex',
+                                    boxShadow: '0 4px 10px rgba(0, 0, 0, 0.1)',
+                                    transition: 'transform 0.3s ease'
+                                }}
+                            >
+                                {React.cloneElement(card.icon as React.ReactElement, { sx: { fontSize: 24 } })}
                             </Box>
-                            <Typography variant="h4" fontWeight="900" sx={{ color: 'text.primary', letterSpacing: '-0.02em' }}>
+                            <Typography variant="h3" fontWeight="800" sx={{ color: COLORS.white, letterSpacing: '-1px' }}>
                                 {card.value}
                             </Typography>
                         </Box>
-                        <Typography variant="subtitle2" color="text.secondary" fontWeight="700" sx={{ zIndex: 1 }}>
+                        <Typography variant="subtitle2" color="inherit" fontWeight="700" sx={{ opacity: 0.95, position: 'relative', zIndex: 1, textTransform: 'uppercase', fontSize: '0.75rem', letterSpacing: '0.5px' }}>
                             {card.title}
                         </Typography>
-                        
-                        {/* Decorative background element */}
-                        <Box sx={{ 
-                            position: 'absolute', 
-                            right: -15, 
-                            bottom: -15, 
-                            opacity: theme.palette.mode === 'light' ? 0.06 : 0.1, 
-                            transform: 'rotate(-10deg)',
-                            color: card.color,
-                            transition: 'all 0.3s ease',
-                            '.MuiCard-root:hover &': {
-                                transform: 'rotate(0deg) scale(1.1)',
-                                opacity: 0.12
-                            }
-                        }}>
-                            {React.cloneElement(card.icon as React.ReactElement, { sx: { fontSize: 100 } })}
-                        </Box>
-
-                        {/* Progress line at bottom */}
-                        <Box sx={{
-                            position: 'absolute',
-                            bottom: 0,
-                            left: 0,
-                            width: '100%',
-                            height: 4,
-                            background: alpha(card.color, 0.1)
-                        }}>
-                            <Box sx={{
-                                width: '40%', // Decorative width
-                                height: '100%',
-                                background: card.color,
-                                borderRadius: '0 4px 4px 0'
-                            }} />
-                        </Box>
                     </Card>
                 </Grid>
             ))}
@@ -591,14 +742,19 @@ const QuickViewMenu = React.memo(({
                 size="small"
                 sx={{
                     minWidth: 120,
-                    fontWeight: 500,
+                    fontWeight: 700,
                     textTransform: 'none',
-                    borderRadius: 1,
-                    borderColor: theme.palette.divider,
-                    color: theme.palette.text.primary,
+                    borderRadius: '8px',
+                    borderColor: '#E9ECEF',
+                    color: COLORS.dark,
+                    bgcolor: COLORS.white,
+                    boxShadow: SHADOWS.xs,
+                    px: 2,
+                    py: 0.75,
                     '&:hover': {
-                        borderColor: ATTENDANCE_COLORS.present,
-                        backgroundColor: 'action.hover'
+                        borderColor: COLORS.primary,
+                        backgroundColor: alpha(COLORS.primary, 0.05),
+                        boxShadow: SHADOWS.sm
                     }
                 }}
             >
@@ -608,6 +764,7 @@ const QuickViewMenu = React.memo(({
                 anchorEl={anchorEl}
                 open={open}
                 onClose={handleClose}
+                elevation={0}
                 anchorOrigin={{
                     vertical: 'bottom',
                     horizontal: isRtl ? 'right' : 'left',
@@ -616,21 +773,43 @@ const QuickViewMenu = React.memo(({
                     vertical: 'top',
                     horizontal: isRtl ? 'right' : 'left',
                 }}
+                PaperProps={{
+                    sx: {
+                        mt: 1,
+                        borderRadius: '12px',
+                        boxShadow: SHADOWS.lg,
+                        border: `1px solid ${alpha(COLORS.dark, 0.05)}`,
+                        minWidth: 160,
+                        '& .MuiMenuItem-root': {
+                            fontSize: '0.875rem',
+                            fontWeight: 600,
+                            borderRadius: '8px',
+                            mx: 1,
+                            my: 0.5,
+                            gap: 1.5,
+                            color: COLORS.dark,
+                            '&:hover': {
+                                bgcolor: alpha(COLORS.primary, 0.05),
+                                color: COLORS.primary
+                            }
+                        }
+                    }
+                }}
             >
                 <MenuItem onClick={() => { filters.handleQuickView('today'); handleClose(); }}>
-                    <ListItemIcon>
+                    <ListItemIcon sx={{ minWidth: 'auto !important' }}>
                         <Today fontSize="small" />
                     </ListItemIcon>
                     <ListItemText>{t('Today')}</ListItemText>
                 </MenuItem>
                 <MenuItem onClick={() => { filters.handleQuickView('week'); handleClose(); }}>
-                    <ListItemIcon>
+                    <ListItemIcon sx={{ minWidth: 'auto !important' }}>
                         <Event fontSize="small" />
                     </ListItemIcon>
                     <ListItemText>{t('This Week')}</ListItemText>
                 </MenuItem>
                 <MenuItem onClick={() => { filters.handleQuickView('month'); handleClose(); }}>
-                    <ListItemIcon>
+                    <ListItemIcon sx={{ minWidth: 'auto !important' }}>
                         <CalendarToday fontSize="small" />
                     </ListItemIcon>
                     <ListItemText>{t('This Month')}</ListItemText>
@@ -743,14 +922,19 @@ const AttendanceMoreActions = React.memo(({
                 size="small"
                 sx={{
                     minWidth: 100,
-                    fontWeight: 500,
+                    fontWeight: 700,
                     textTransform: 'none',
-                    borderRadius: 1,
-                    borderColor: theme.palette.divider,
-                    color: theme.palette.text.primary,
+                    borderRadius: '8px',
+                    borderColor: '#E9ECEF',
+                    color: COLORS.dark,
+                    bgcolor: COLORS.white,
+                    boxShadow: SHADOWS.xs,
+                    px: 2,
+                    py: 0.75,
                     '&:hover': {
-                        borderColor: ATTENDANCE_COLORS.present,
-                        backgroundColor: 'action.hover'
+                        borderColor: COLORS.primary,
+                        backgroundColor: alpha(COLORS.primary, 0.05),
+                        boxShadow: SHADOWS.sm
                     }
                 }}
             >
@@ -760,6 +944,7 @@ const AttendanceMoreActions = React.memo(({
                 anchorEl={anchorEl}
                 open={open}
                 onClose={handleClose}
+                elevation={0}
                 anchorOrigin={{
                     vertical: 'bottom',
                     horizontal: isRtl ? 'left' : 'right',
@@ -768,35 +953,57 @@ const AttendanceMoreActions = React.memo(({
                     vertical: 'top',
                     horizontal: isRtl ? 'left' : 'right',
                 }}
+                PaperProps={{
+                    sx: {
+                        mt: 1,
+                        borderRadius: '12px',
+                        boxShadow: SHADOWS.lg,
+                        border: `1px solid ${alpha(COLORS.dark, 0.05)}`,
+                        minWidth: 180,
+                        '& .MuiMenuItem-root': {
+                            fontSize: '0.875rem',
+                            fontWeight: 600,
+                            borderRadius: '8px',
+                            mx: 1,
+                            my: 0.5,
+                            gap: 1.5,
+                            color: COLORS.dark,
+                            '&:hover': {
+                                bgcolor: alpha(COLORS.primary, 0.05),
+                                color: COLORS.primary
+                            }
+                        }
+                    }
+                }}
             >
                 <MenuItem 
                     onClick={handleRawViewToggle}
                     disabled={filters.viewMode === 'calendar' || filters.viewMode === 'matrix' || filters.viewMode === 'month' || filters.viewMode === 'analytics'}
                 >
-                    <ListItemIcon>
+                    <ListItemIcon sx={{ minWidth: 'auto !important' }}>
                         {filters.rawView ? <TableChart fontSize="small" /> : <ViewList fontSize="small" />}
                     </ListItemIcon>
                     <ListItemText>{filters.rawView ? t('Processed View') : t('Raw View')}</ListItemText>
                 </MenuItem>
                 <MenuItem onClick={handleExport} disabled={loading || !rows || rows.length === 0}>
-                    <ListItemIcon>
+                    <ListItemIcon sx={{ minWidth: 'auto !important' }}>
                         <GetApp fontSize="small" />
                     </ListItemIcon>
                     <ListItemText>{t('Export CSV')}</ListItemText>
                 </MenuItem>
                 <MenuItem onClick={handlePrint}>
-                    <ListItemIcon>
+                    <ListItemIcon sx={{ minWidth: 'auto !important' }}>
                         <Print fontSize="small" />
                     </ListItemIcon>
                     <ListItemText>{t('Print Report')}</ListItemText>
                 </MenuItem>
                 <MenuItem onClick={handleRefresh} disabled={loading}>
-                    <ListItemIcon>
+                    <ListItemIcon sx={{ minWidth: 'auto !important' }}>
                         <Refresh fontSize="small" />
                     </ListItemIcon>
                     <ListItemText>{t('Refresh Data')}</ListItemText>
                 </MenuItem>
-                <Divider />
+                <Divider sx={{ my: 1, opacity: 0.1 }} />
                 <MenuItem 
                     onClick={async () => {
                         handleClose();
@@ -818,10 +1025,10 @@ const AttendanceMoreActions = React.memo(({
                             }
                         }
                     }}
-                    sx={{ color: 'error.main' }}
+                    sx={{ color: COLORS.error, '&:hover': { bgcolor: alpha(COLORS.error, 0.05) + ' !important' } }}
                 >
-                    <ListItemIcon>
-                        <Delete fontSize="small" color="error" />
+                    <ListItemIcon sx={{ minWidth: 'auto !important' }}>
+                        <Delete fontSize="small" sx={{ color: COLORS.error }} />
                     </ListItemIcon>
                     <ListItemText>{t('Clear All Logs')}</ListItemText>
                 </MenuItem>
@@ -854,19 +1061,23 @@ const AttendanceControls = React.memo(({
     const theme = useTheme();
 
     return (
-        <Paper sx={{
-            p: 2,
-            mb: 2,
-            borderRadius: 1,
-            border: `1px solid ${theme.palette.divider}`,
-            backgroundColor: 'background.paper'
-        }}>
+        <Paper 
+            elevation={0}
+            sx={{
+                p: 2.5,
+                mb: 3,
+                borderRadius: '16px',
+                backgroundColor: COLORS.white,
+                boxShadow: SHADOWS.md,
+                border: `1px solid ${alpha(COLORS.secondary, 0.05)}`,
+            }}
+        >
             {/* Main Controls Row */}
-            <Stack direction="row" spacing={2} alignItems="center" sx={{ mb: 2, flexWrap: 'wrap' }}>
+            <Stack direction="row" spacing={2} alignItems="center" sx={{ mb: 3, flexWrap: 'wrap', gap: 2 }}>
                 {/* View Mode Selection */}
-                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                    <Typography variant="subtitle2" fontWeight="600" sx={{ whiteSpace: 'nowrap' }}>
-                        {t('View Mode')}:
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+                    <Typography variant="subtitle2" fontWeight="800" sx={{ color: COLORS.dark, textTransform: 'uppercase', fontSize: '0.75rem', letterSpacing: '0.5px' }}>
+                        {t('View Mode')}
                     </Typography>
                     <ToggleButtonGroup
                         value={filters.viewMode}
@@ -874,55 +1085,69 @@ const AttendanceControls = React.memo(({
                         onChange={(_, v) => v && filters.handleViewModeChange(v)}
                         size="small"
                         sx={{
-                            backgroundColor: 'background.paper',
-                            border: `1px solid ${theme.palette.divider}`,
-                            borderRadius: 1,
+                            backgroundColor: alpha(COLORS.bg, 0.8),
+                            borderRadius: '10px',
+                            p: 0.5,
+                            border: 'none',
                             '& .MuiToggleButton-root': {
-                                paddingInline: 1.5,
-                                py: 0.5,
-                                fontWeight: 500,
+                                px: 2.5,
+                                py: 0.75,
+                                fontWeight: 700,
+                                fontSize: '0.75rem',
                                 textTransform: 'none',
                                 border: 'none',
-                                borderRadius: '0px !important',
+                                borderRadius: '8px !important',
+                                color: COLORS.secondary,
+                                transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)',
                                 '&.Mui-selected': {
-                                    backgroundColor: ATTENDANCE_COLORS.present,
-                                    color: 'white'
+                                    backgroundColor: COLORS.white,
+                                    color: COLORS.primary,
+                                    boxShadow: SHADOWS.sm,
+                                    '&:hover': {
+                                        backgroundColor: COLORS.white,
+                                    }
+                                },
+                                '&:hover': {
+                                    backgroundColor: alpha(COLORS.white, 0.5),
+                                    color: COLORS.primary
                                 }
                             }
                         }}
                     >
                         <ToggleButton value="matrix">
-                            <Schedule sx={{ marginInlineEnd: 0.5, fontSize: 16 }} />
+                            <Schedule sx={{ marginInlineEnd: 1, fontSize: 18 }} />
                             {t('Matrix')}
                         </ToggleButton>
                         <ToggleButton value="month">
-                            <CalendarToday sx={{ marginInlineEnd: 0.5, fontSize: 16 }} />
+                            <CalendarToday sx={{ marginInlineEnd: 1, fontSize: 18 }} />
                             {t('Month')}
                         </ToggleButton>
                         <ToggleButton value="calendar">
-                            <Event sx={{ marginInlineEnd: 0.5, fontSize: 16 }} />
+                            <Event sx={{ marginInlineEnd: 1, fontSize: 18 }} />
                             {t('Calendar')}
                         </ToggleButton>
                         <ToggleButton value="table">
-                            <TableChart sx={{ marginInlineEnd: 0.5, fontSize: 16 }} />
+                            <TableChart sx={{ marginInlineEnd: 1, fontSize: 18 }} />
                             {t('List')}
                         </ToggleButton>
                         <ToggleButton value="analytics">
-                            <TrendingUp sx={{ marginInlineEnd: 0.5, fontSize: 16 }} />
+                            <TrendingUp sx={{ marginInlineEnd: 1, fontSize: 18 }} />
                             {t('Analytics')}
                         </ToggleButton>
                     </ToggleButtonGroup>
                 </Box>
 
+                <Divider orientation="vertical" flexItem sx={{ mx: 1, height: 24, alignSelf: 'center', opacity: 0.1 }} />
+
                 {/* Quick View Menu */}
-                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                    <Typography variant="subtitle2" fontWeight="600" sx={{ whiteSpace: 'nowrap' }}>
-                        {t('Quick View')}:
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+                    <Typography variant="subtitle2" fontWeight="800" sx={{ color: COLORS.dark, textTransform: 'uppercase', fontSize: '0.75rem', letterSpacing: '0.5px' }}>
+                        {t('Quick View')}
                     </Typography>
                     <QuickViewMenu 
-                    filters={filters} 
-                    theme={theme} 
-                />
+                        filters={filters} 
+                        theme={theme} 
+                    />
                 </Box>
 
                 {/* Action Menu */}
@@ -938,34 +1163,56 @@ const AttendanceControls = React.memo(({
             </Stack>
 
             {/* Filters Row */}
-            <Grid container spacing={2} alignItems="center">
+            <Grid container spacing={2.5} alignItems="flex-end">
                 {/* Date Range */}
                 {(filters.viewMode === 'table' || filters.viewMode === 'matrix' || filters.viewMode === 'analytics') && (
                     <>
                         <Grid item xs={12} sm={6} md={2}>
+                            <Typography variant="caption" fontWeight="800" sx={{ color: COLORS.secondary, mb: 0.5, display: 'block', textTransform: 'uppercase', ml: 0.5 }}>
+                                {t('Start Date')}
+                            </Typography>
                             <DatePicker
-                                label={t('Start Date')}
                                 value={filters.startDate}
                                 onChange={(newValue) => onFilterChange('startDate', newValue)}
                                 slotProps={{
                                     textField: {
                                         size: 'small',
                                         fullWidth: true,
-                                        variant: 'outlined'
+                                        variant: 'outlined',
+                                        sx: {
+                                            '& .MuiOutlinedInput-root': {
+                                                borderRadius: '10px',
+                                                bgcolor: COLORS.white,
+                                                '& fieldset': { borderColor: alpha(COLORS.secondary, 0.2) },
+                                                '&:hover fieldset': { borderColor: COLORS.primary },
+                                                '&.Mui-focused fieldset': { borderColor: COLORS.primary, borderWidth: '2px' },
+                                            }
+                                        }
                                     }
                                 }}
                             />
                         </Grid>
                         <Grid item xs={12} sm={6} md={2}>
+                            <Typography variant="caption" fontWeight="800" sx={{ color: COLORS.secondary, mb: 0.5, display: 'block', textTransform: 'uppercase', ml: 0.5 }}>
+                                {t('End Date')}
+                            </Typography>
                             <DatePicker
-                                label={t('End Date')}
                                 value={filters.endDate}
                                 onChange={(newValue) => onFilterChange('endDate', newValue)}
                                 slotProps={{
                                     textField: {
                                         size: 'small',
                                         fullWidth: true,
-                                        variant: 'outlined'
+                                        variant: 'outlined',
+                                        sx: {
+                                            '& .MuiOutlinedInput-root': {
+                                                borderRadius: '10px',
+                                                bgcolor: COLORS.white,
+                                                '& fieldset': { borderColor: alpha(COLORS.secondary, 0.2) },
+                                                '&:hover fieldset': { borderColor: COLORS.primary },
+                                                '&.Mui-focused fieldset': { borderColor: COLORS.primary, borderWidth: '2px' },
+                                            }
+                                        }
                                     }
                                 }}
                             />
@@ -975,12 +1222,21 @@ const AttendanceControls = React.memo(({
 
                 {/* Department Filter */}
                 <Grid item xs={12} sm={6} md={filters.viewMode === 'table' || filters.viewMode === 'matrix' || filters.viewMode === 'analytics' ? 2 : 3}>
+                    <Typography variant="caption" fontWeight="800" sx={{ color: COLORS.secondary, mb: 0.5, display: 'block', textTransform: 'uppercase', ml: 0.5 }}>
+                        {t('Department')}
+                    </Typography>
                     <FormControl fullWidth size="small">
-                        <InputLabel>{t('Department')}</InputLabel>
                         <Select
                             value={filters.selectedDepartment}
                             onChange={(e) => onFilterChange('selectedDepartment', e.target.value)}
-                            label={t('Department')}
+                            displayEmpty
+                            sx={{
+                                borderRadius: '10px',
+                                bgcolor: COLORS.white,
+                                '& .MuiOutlinedInput-notchedOutline': { borderColor: alpha(COLORS.secondary, 0.2) },
+                                '&:hover .MuiOutlinedInput-notchedOutline': { borderColor: COLORS.primary },
+                                '&.Mui-focused .MuiOutlinedInput-notchedOutline': { borderColor: COLORS.primary, borderWidth: '2px' }
+                            }}
                         >
                             <MenuItem value="">{t('All Departments')}</MenuItem>
                             {departments.map((dept, index) => (
@@ -994,12 +1250,21 @@ const AttendanceControls = React.memo(({
 
                 {/* Employee Filter */}
                 <Grid item xs={12} sm={6} md={filters.viewMode === 'table' || filters.viewMode === 'matrix' || filters.viewMode === 'analytics' ? 2 : 3}>
+                    <Typography variant="caption" fontWeight="800" sx={{ color: COLORS.secondary, mb: 0.5, display: 'block', textTransform: 'uppercase', ml: 0.5 }}>
+                        {t('Employee')}
+                    </Typography>
                     <FormControl fullWidth size="small">
-                        <InputLabel>{t('Employee')}</InputLabel>
                         <Select
                             value={filters.selectedEmployee}
                             onChange={(e) => onFilterChange('selectedEmployee', e.target.value)}
-                            label={t('Employee')}
+                            displayEmpty
+                            sx={{
+                                borderRadius: '10px',
+                                bgcolor: COLORS.white,
+                                '& .MuiOutlinedInput-notchedOutline': { borderColor: alpha(COLORS.secondary, 0.2) },
+                                '&:hover .MuiOutlinedInput-notchedOutline': { borderColor: COLORS.primary },
+                                '&.Mui-focused .MuiOutlinedInput-notchedOutline': { borderColor: COLORS.primary, borderWidth: '2px' }
+                            }}
                         >
                             <MenuItem value="">{t('All Employees')}</MenuItem>
                             {employees
@@ -1021,12 +1286,23 @@ const AttendanceControls = React.memo(({
                             variant="contained"
                             onClick={onApplyFilters}
                             disabled={loading}
+                            startIcon={loading ? <CircularProgress size={18} color="inherit" /> : <Refresh />}
                             sx={{
                                 height: '40px',
-                                backgroundColor: ATTENDANCE_COLORS.present,
+                                background: COLORS.gradientPrimary,
+                                color: COLORS.white,
+                                borderRadius: '10px',
+                                fontWeight: 800,
+                                textTransform: 'none',
+                                boxShadow: SHADOWS.sm,
+                                transition: 'all 0.3s ease',
                                 '&:hover': {
-                                    backgroundColor: ATTENDANCE_COLORS.present,
-                                    opacity: 0.8
+                                    boxShadow: SHADOWS.md,
+                                    transform: 'translateY(-1px)',
+                                    opacity: 0.95
+                                },
+                                '&:active': {
+                                    transform: 'translateY(0)'
                                 }
                             }}
                         >
@@ -1059,17 +1335,20 @@ const TableView = React.memo(({
     handlePageChange: (event: React.MouseEvent<HTMLButtonElement> | null, newPage: number) => void;
     handleRowsPerPageChange: (event: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => void;
 }) => {
-    const theme = useTheme();
-
     return (
-        <Box sx={{ mt: 2 }}>
-            <Paper sx={{
-                height: 600,
-                width: '100%',
-                borderRadius: 1,
-                overflow: 'hidden',
-                border: `1px solid ${theme.palette.divider}`
-            }}>
+        <Box sx={{ mt: 3 }}>
+            <Paper 
+                elevation={0}
+                sx={{
+                    height: 600,
+                    width: '100%',
+                    borderRadius: '16px',
+                    overflow: 'hidden',
+                    boxShadow: SHADOWS.md,
+                    backgroundColor: COLORS.white,
+                    border: 'none'
+                }}
+            >
                 <DataGrid
                     rows={rows}
                     columns={columns}
@@ -1080,27 +1359,98 @@ const TableView = React.memo(({
                         toolbar: {
                             showQuickFilter: true,
                             quickFilterProps: { debounceMs: 500 },
+                            sx: {
+                                p: 2.5,
+                                borderBottom: `1px solid ${alpha(COLORS.secondary, 0.05)}`,
+                                '& .MuiButton-root': { 
+                                    color: COLORS.primary, 
+                                    fontWeight: 700,
+                                    textTransform: 'none',
+                                    fontSize: '0.8rem',
+                                    borderRadius: '8px',
+                                    '&:hover': { bgcolor: alpha(COLORS.primary, 0.05) }
+                                },
+                                '& .MuiInputBase-root': { 
+                                    borderRadius: '10px',
+                                    bgcolor: COLORS.bg,
+                                    px: 2,
+                                    py: 0.5,
+                                    border: '1px solid transparent',
+                                    transition: 'all 0.2s',
+                                    '&:hover': { borderColor: alpha(COLORS.primary, 0.2) },
+                                    '&.Mui-focused': { borderColor: COLORS.primary, bgcolor: COLORS.white, boxShadow: SHADOWS.xs },
+                                    '&:before, &:after': { display: 'none' }
+                                }
+                            }
                         },
                     }}
                     sx={{
                         border: 'none',
-                        '& .MuiDataGrid-cell:focus': { outline: 'none' },
-                        '& .MuiDataGrid-row:hover': {
-                            backgroundColor: 'action.hover'
+                        '& .MuiDataGrid-main': { borderRadius: '16px' },
+                        '& .MuiDataGrid-columnHeaders': {
+                            backgroundColor: alpha(COLORS.bg, 0.5),
+                            borderBottom: `1px solid ${alpha(COLORS.secondary, 0.1)}`,
+                            '& .MuiDataGrid-columnHeaderTitle': {
+                                fontWeight: 700,
+                                color: COLORS.dark,
+                                fontSize: '0.8rem',
+                                textTransform: 'uppercase',
+                                letterSpacing: '0.5px'
+                            }
+                        },
+                        '& .MuiDataGrid-cell': {
+                            borderBottom: `1px solid ${alpha(COLORS.secondary, 0.05)}`,
+                            color: COLORS.secondary,
+                            fontSize: '0.85rem',
+                            fontWeight: 500,
+                            '&:focus': { outline: 'none' }
+                        },
+                        '& .MuiDataGrid-row': {
+                            transition: 'all 0.2s',
+                            '&:hover': {
+                                backgroundColor: alpha(COLORS.primary, 0.04),
+                                cursor: 'pointer'
+                            }
+                        },
+                        '& .MuiLinearProgress-root': {
+                            height: 4,
+                            bgcolor: alpha(COLORS.primary, 0.1),
+                            '& .MuiLinearProgress-bar': { background: COLORS.gradientPrimary }
                         }
                     }}
                 />
             </Paper>
-            <TablePagination
-                component="div"
-                count={totalEmployees}
-                page={page}
-                onPageChange={handlePageChange}
-                rowsPerPage={rowsPerPage}
-                onRowsPerPageChange={handleRowsPerPageChange}
-                rowsPerPageOptions={[10, 25, 50, 100]}
-                sx={{ mt: 2 }}
-            />
+            <Box sx={{ 
+                display: 'flex', 
+                justifyContent: 'flex-end', 
+                mt: 2,
+                bgcolor: COLORS.white,
+                borderRadius: '12px',
+                boxShadow: SHADOWS.sm,
+                p: 0.5
+            }}>
+                <TablePagination
+                    component="div"
+                    count={totalEmployees}
+                    page={page}
+                    onPageChange={handlePageChange}
+                    rowsPerPage={rowsPerPage}
+                    onRowsPerPageChange={handleRowsPerPageChange}
+                    rowsPerPageOptions={[10, 25, 50, 100]}
+                    sx={{ 
+                        border: 'none',
+                        '& .MuiTablePagination-selectLabel, & .MuiTablePagination-displayedRows': {
+                            color: COLORS.secondary,
+                            fontWeight: 700,
+                            fontSize: '0.8rem'
+                        },
+                        '& .MuiTablePagination-select': {
+                            fontWeight: 700,
+                            color: COLORS.primary
+                        }
+                    }}
+                />
+            </Box>
         </Box>
     );
 });
@@ -1132,27 +1482,56 @@ const MatrixView = React.memo(({
     handleZoomChange: (zoom: string) => void;
 }) => {
     return (
-        <Box sx={{ mt: 2 }}>
-            <AttendanceTimeline
-                data={rows}
-                employees={filters.selectedEmployee ? employees.filter(e => e.employee_id === filters.selectedEmployee) : employees}
-                loading={loading}
-                viewDate={filters.startDate || new Date()}
-                endDate={filters.endDate || undefined}
-                onDateChange={handleDateChange}
-                zoomLevel={filters.zoomLevel}
-                onZoomChange={handleZoomChange}
-            />
-            <TablePagination
-                component="div"
-                count={totalEmployees}
-                page={page}
-                onPageChange={handlePageChange}
-                rowsPerPage={rowsPerPage}
-                onRowsPerPageChange={handleRowsPerPageChange}
-                rowsPerPageOptions={[10, 25, 50, 100]}
-                sx={{ mt: 2 }}
-            />
+        <Box sx={{ mt: 3 }}>
+            <Paper 
+                elevation={0}
+                sx={{
+                    p: 0,
+                    borderRadius: '16px',
+                    overflow: 'hidden',
+                    boxShadow: SHADOWS.md,
+                    backgroundColor: COLORS.white,
+                    border: 'none'
+                }}
+            >
+                <AttendanceTimeline
+                    data={rows}
+                    employees={filters.selectedEmployee ? employees.filter(e => e.employee_id === filters.selectedEmployee) : employees}
+                    loading={loading}
+                    viewDate={filters.startDate || new Date()}
+                    endDate={filters.endDate || undefined}
+                    onDateChange={handleDateChange}
+                    zoomLevel={filters.zoomLevel}
+                    onZoomChange={handleZoomChange}
+                />
+            </Paper>
+            <Box sx={{ 
+                display: 'flex', 
+                justifyContent: 'flex-end', 
+                mt: 2,
+                bgcolor: COLORS.white,
+                borderRadius: '12px',
+                boxShadow: SHADOWS.sm,
+                p: 0.5
+            }}>
+                <TablePagination
+                    component="div"
+                    count={totalEmployees}
+                    page={page}
+                    onPageChange={handlePageChange}
+                    rowsPerPage={rowsPerPage}
+                    onRowsPerPageChange={handleRowsPerPageChange}
+                    rowsPerPageOptions={[10, 25, 50, 100]}
+                    sx={{ 
+                        border: 'none',
+                        '& .MuiTablePagination-selectLabel, & .MuiTablePagination-displayedRows': {
+                            color: COLORS.secondary,
+                            fontWeight: 700,
+                            fontSize: '0.8rem'
+                        }
+                    }}
+                />
+            </Box>
         </Box>
     );
 });
@@ -1386,12 +1765,20 @@ const AttendancePage: React.FC = () => {
                     width: 120,
                     renderCell: (params: GridRenderCellParams) => {
                         const isCheckIn = params.value === 'check_in';
+                        const color = isCheckIn ? COLORS.success : COLORS.warning;
                         return (
                             <Chip
-                                label={isCheckIn ? t('Check In') : t('Check Out')}
-                                color={isCheckIn ? 'success' : 'warning'}
-                                variant="outlined"
-                                size="small"
+                                label={isCheckIn ? t('Check In').toUpperCase() : t('Check Out').toUpperCase()}
+                                sx={{
+                                    borderRadius: '6px',
+                                    height: 24,
+                                    fontSize: '0.65rem',
+                                    fontWeight: 700,
+                                    backgroundColor: alpha(color, 0.1),
+                                    color: color,
+                                    border: `1px solid ${alpha(color, 0.2)}`,
+                                    '& .MuiChip-label': { px: 1 }
+                                }}
                             />
                         );
                     }
@@ -1409,13 +1796,20 @@ const AttendancePage: React.FC = () => {
                 headerName: t('User'),
                 width: 220,
                 renderCell: (params: GridRenderCellParams) => (
-                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                        <Avatar sx={{ width: 28, height: 28, bgcolor: ATTENDANCE_COLORS.present, fontSize: '0.75rem' }}>
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
+                        <Avatar sx={{ 
+                            width: 32, 
+                            height: 32, 
+                            bgcolor: COLORS.primary, 
+                            fontSize: '0.85rem',
+                            fontWeight: 700,
+                            boxShadow: SHADOWS.xs
+                        }}>
                             {params.value?.[0]}
                         </Avatar>
                         <Box>
-                            <Typography variant="body2" fontWeight="500">{params.value}</Typography>
-                            <Typography variant="caption" color="text.secondary">{params.row.employee_id}</Typography>
+                            <Typography variant="body2" fontWeight="700" color={COLORS.dark}>{params.value}</Typography>
+                            <Typography variant="caption" color={COLORS.secondary}>{params.row.employee_id}</Typography>
                         </Box>
                     </Box>
                 )
@@ -1424,25 +1818,41 @@ const AttendancePage: React.FC = () => {
                 field: 'check_in_date',
                 headerName: t('Date'),
                 width: 120,
-                renderCell: (params: GridRenderCellParams) => params.value ? format(parseISO(params.value), 'dd/MM/yyyy') : '-'
+                renderCell: (params: GridRenderCellParams) => (
+                    <Typography variant="body2" color={COLORS.secondary} fontWeight="600">
+                        {params.value ? format(parseISO(params.value), 'dd/MM/yyyy') : '-'}
+                    </Typography>
+                )
             },
             {
                 field: 'check_in',
                 headerName: t('Start'),
                 width: 100,
-                renderCell: (params: GridRenderCellParams) => params.value ? format(parseISO(params.value), 'HH:mm') : '-'
+                renderCell: (params: GridRenderCellParams) => (
+                    <Typography variant="body2" color={COLORS.dark} fontWeight="700">
+                        {params.value ? format(parseISO(params.value), 'HH:mm') : '-'}
+                    </Typography>
+                )
             },
             {
                 field: 'check_out',
                 headerName: t('End'),
                 width: 100,
-                renderCell: (params: GridRenderCellParams) => params.value ? format(parseISO(params.value), 'HH:mm') : '-'
+                renderCell: (params: GridRenderCellParams) => (
+                    <Typography variant="body2" color={COLORS.dark} fontWeight="700">
+                        {params.value ? format(parseISO(params.value), 'HH:mm') : '-'}
+                    </Typography>
+                )
             },
             {
                 field: 'break_hours',
                 headerName: t('Break'),
                 width: 100,
-                valueFormatter: (params: any) => params.value ? `${params.value}h` : '-'
+                renderCell: (params: GridRenderCellParams) => (
+                    <Typography variant="body2" color={COLORS.secondary} fontWeight="600">
+                        {params.value ? `${params.value}h` : '-'}
+                    </Typography>
+                )
             },
             {
                 field: 'actual_work',
@@ -1451,19 +1861,9 @@ const AttendancePage: React.FC = () => {
                 renderCell: (params: GridRenderCellParams) => (
                     <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                         {params.row.actual_work < params.row.capacity && params.row.status !== 'ongoing' && (
-                            <Box
-                                sx={{
-                                    fontSize: 14,
-                                    color: ATTENDANCE_COLORS.earlyLeave,
-                                    cursor: 'pointer'
-                                }}
-                                onClick={() => showAlert(`${t('Under Capacity')}: ${round(params.row.capacity - params.row.actual_work, 1)}h ${t('remaining')}`, t('Warning'), 'warning')}
-                                title={`${t('Under Capacity')}: ${round(params.row.capacity - params.row.actual_work, 1)}h ${t('remaining')}`}
-                            >
-                                <Warning sx={{ fontSize: 14 }} />
-                            </Box>
+                            <Warning sx={{ fontSize: 16, color: COLORS.warning }} />
                         )}
-                        <Typography variant="body2" fontWeight="500">{params.value}h</Typography>
+                        <Typography variant="body2" fontWeight="700" color={COLORS.dark}>{params.value}h</Typography>
                     </Box>
                 )
             },
@@ -1471,14 +1871,22 @@ const AttendancePage: React.FC = () => {
                 field: 'capacity',
                 headerName: t('Capacity'),
                 width: 100,
-                valueFormatter: (params: any) => params.value ? `${params.value}h` : '8.0h'
+                renderCell: (params: GridRenderCellParams) => (
+                    <Typography variant="body2" color={COLORS.secondary} fontWeight="600">
+                        {params.value ? `${params.value}h` : '8.0h'}
+                    </Typography>
+                )
             },
             {
                 field: 'overtime',
                 headerName: t('Overtime'),
                 width: 120,
                 renderCell: (params: GridRenderCellParams) => (
-                    <Typography variant="body2" color={params.value > 0 ? ATTENDANCE_COLORS.present : 'text.secondary'} sx={{ fontWeight: params.value > 0 ? '600' : 'normal' }}>
+                    <Typography 
+                        variant="body2" 
+                        color={params.value > 0 ? COLORS.success : COLORS.secondary} 
+                        sx={{ fontWeight: params.value > 0 ? '700' : '600' }}
+                    >
                         {params.value > 0 ? `+${params.value}h` : '-'}
                     </Typography>
                 )
@@ -1493,49 +1901,49 @@ const AttendancePage: React.FC = () => {
                     const isMissingExit = !params.row.check_out && !isTodayRecord;
 
                     const getStatusColor = () => {
-                        if (isMissingExit) return ATTENDANCE_COLORS.absent;
+                        if (isMissingExit) return COLORS.error;
                         switch (status) {
-                            case 'present': return ATTENDANCE_COLORS.present;
-                            case 'late': return ATTENDANCE_COLORS.late;
-                            case 'early_leave': return ATTENDANCE_COLORS.earlyLeave;
-                            case 'holiday': return ATTENDANCE_COLORS.holiday;
-                            case 'ongoing': return ATTENDANCE_COLORS.ongoing;
-                            default: return ATTENDANCE_COLORS.absent;
+                            case 'present': return COLORS.success;
+                            case 'late': return COLORS.warning;
+                            case 'early_leave': return COLORS.info;
+                            case 'holiday': return COLORS.primary;
+                            case 'ongoing': return COLORS.info;
+                            default: return COLORS.error;
                         }
                     };
+
+                    const color = getStatusColor();
 
                     if (isMissingExit) {
                         return (
                             <Chip
-                                size="small"
-                                label={t('Missing Exit')}
-                                variant="filled"
+                                label={t('Missing Exit').toUpperCase()}
                                 sx={{
-                                    backgroundColor: ATTENDANCE_COLORS.absent,
-                                    color: 'white',
-                                    fontWeight: 600
+                                    borderRadius: '6px',
+                                    height: 24,
+                                    fontSize: '0.65rem',
+                                    fontWeight: 700,
+                                    backgroundColor: alpha(COLORS.error, 0.1),
+                                    color: COLORS.error,
+                                    border: `1px solid ${alpha(COLORS.error, 0.2)}`,
+                                    '& .MuiChip-label': { px: 1 }
                                 }}
                             />
                         );
                     }
 
-                    if (status?.includes('&')) {
-                        return (
-                            <Stack direction="row" spacing={0.5}>
-                                <Chip size="small" label={t('Late')} color="error" variant="outlined" />
-                                <Chip size="small" label={t('Early')} color="warning" variant="outlined" />
-                            </Stack>
-                        );
-                    }
                     return (
                         <Chip
-                            size="small"
-                            label={t(status || 'present')}
-                            variant="filled"
+                            label={t(status || 'present').toUpperCase()}
                             sx={{
-                                backgroundColor: getStatusColor(),
-                                color: 'white',
-                                fontWeight: 500
+                                borderRadius: '6px',
+                                height: 24,
+                                fontSize: '0.65rem',
+                                fontWeight: 700,
+                                backgroundColor: alpha(color, 0.1),
+                                color: color,
+                                border: `1px solid ${alpha(color, 0.2)}`,
+                                '& .MuiChip-label': { px: 1 }
                             }}
                         />
                     );
@@ -1599,7 +2007,9 @@ const AttendancePage: React.FC = () => {
     return (
         <LocalizationProvider dateAdapter={AdapterDateFns}>
             <Box sx={{ 
-                p: 2, 
+                p: 3, 
+                backgroundColor: COLORS.bg,
+                minHeight: '100vh',
                 overflowX: 'hidden', 
                 boxSizing: 'border-box', 
                 width: '100%',
@@ -1610,13 +2020,13 @@ const AttendancePage: React.FC = () => {
                 }
             }}>
                 {/* Header */}
-                <Box className="no-print" sx={{ mb: 3, display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 2 }}>
-                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-                        <Typography variant="h4" fontWeight="800" color="text.primary">
+                <Box className="no-print" sx={{ mb: 4, display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 2 }}>
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 2.5 }}>
+                        <Typography variant="h4" fontWeight="800" color={COLORS.dark} sx={{ letterSpacing: '-0.5px' }}>
                             {t('Attendance Management')}
                         </Typography>
                         <SyncDevicesButton onSyncSuccess={handleRefresh} />
-                        <Divider orientation="vertical" flexItem sx={{ mx: 1 }} />
+                        <Divider orientation="vertical" flexItem sx={{ mx: 1, borderColor: alpha(COLORS.secondary, 0.2) }} />
                         <DeviceStatusWidget />
                     </Box>
                     <Box sx={{ display: 'flex', alignItems: 'center', gap: 3 }}>
@@ -1627,14 +2037,19 @@ const AttendancePage: React.FC = () => {
 
                 {/* Loading Indicator */}
                 {(loading || summaryLoading) && (
-                    <Box className="no-print" sx={{ width: '100%', mb: 2 }}>
-                        <LinearProgress />
+                    <Box className="no-print" sx={{ width: '100%', mb: 3, borderRadius: '4px', overflow: 'hidden' }}>
+                        <LinearProgress sx={{ 
+                            height: 4, 
+                            borderRadius: 2, 
+                            backgroundColor: alpha(COLORS.primary, 0.1),
+                            '& .MuiLinearProgress-bar': { backgroundColor: COLORS.primary }
+                        }} />
                     </Box>
                 )}
 
                 {/* Summary Cards */}
                 {!filters.rawView && (
-                    <AttendanceSummaryCards summary={summary} theme={theme} onCardClick={handleCardClick} />
+                    <AttendanceSummaryCards summary={summary} onCardClick={handleCardClick} />
                 )}
 
                 {/* Detail Dialog */}
@@ -1642,50 +2057,141 @@ const AttendancePage: React.FC = () => {
                     className="no-print"
                     open={detailDialog.open} 
                     onClose={() => setDetailDialog(prev => ({ ...prev, open: false }))}
-                    maxWidth="md"
+                    maxWidth="sm"
                     fullWidth
+                    PaperProps={{
+                        sx: {
+                            borderRadius: '16px',
+                            boxShadow: SHADOWS.lg,
+                            backgroundImage: 'none',
+                            overflow: 'hidden'
+                        }
+                    }}
                 >
-                    <DialogTitle sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                        <Typography variant="h6" fontWeight="700">{detailDialog.title}</Typography>
-                        <IconButton onClick={() => setDetailDialog(prev => ({ ...prev, open: false }))}>
+                    <DialogTitle sx={{ 
+                        display: 'flex', 
+                        justifyContent: 'space-between', 
+                        alignItems: 'center',
+                        p: 3,
+                        background: `linear-gradient(135deg, ${COLORS.dark} 0%, ${alpha(COLORS.dark, 0.9)} 100%)`,
+                        color: COLORS.white
+                    }}>
+                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+                            <Avatar sx={{ bgcolor: alpha(COLORS.white, 0.2), color: COLORS.white }}>
+                                {detailDialog.type === 'late' ? <AccessTime /> : <People />}
+                            </Avatar>
+                            <Box>
+                                <Typography variant="h6" fontWeight="800" sx={{ lineHeight: 1.2 }}>{detailDialog.title}</Typography>
+                                <Typography variant="caption" sx={{ opacity: 0.8 }}>
+                                    {detailDialog.data.length} {t('Employees')}
+                                </Typography>
+                            </Box>
+                        </Box>
+                        <IconButton 
+                            onClick={() => setDetailDialog(prev => ({ ...prev, open: false }))}
+                            sx={{ color: COLORS.white, '&:hover': { bgcolor: alpha(COLORS.white, 0.1) } }}
+                        >
                             <Close />
                         </IconButton>
                     </DialogTitle>
-                    <DialogContent dividers>
+                    <DialogContent sx={{ p: 0, bgcolor: COLORS.bg }}>
                         {detailDialog.data.length > 0 ? (
-                            <List>
+                            <List sx={{ py: 1 }}>
                                 {detailDialog.data.map((item, idx) => (
-                                    <ListItem key={idx} divider={idx < detailDialog.data.length - 1}>
+                                    <ListItem 
+                                        key={idx} 
+                                        sx={{ 
+                                            px: 3, 
+                                            py: 2,
+                                            mx: 1.5,
+                                            my: 0.75,
+                                            width: 'auto',
+                                            borderRadius: '12px',
+                                            bgcolor: COLORS.white,
+                                            boxShadow: SHADOWS.xs,
+                                            transition: 'all 0.2s',
+                                            '&:hover': { 
+                                                transform: 'translateY(-2px)',
+                                                boxShadow: SHADOWS.sm,
+                                                bgcolor: alpha(COLORS.primary, 0.02)
+                                            }
+                                        }}
+                                    >
                                         <ListItemAvatar>
-                                            <Avatar sx={{ bgcolor: alpha(theme.palette.primary.main, 0.1), color: theme.palette.primary.main }}>
+                                            <Avatar sx={{ 
+                                                width: 42, 
+                                                height: 42, 
+                                                bgcolor: alpha(COLORS.primary, 0.1), 
+                                                color: COLORS.primary,
+                                                fontWeight: 800,
+                                                fontSize: '1rem',
+                                                boxShadow: SHADOWS.xs
+                                            }}>
                                                 {item.employee_name?.[0]}
                                             </Avatar>
                                         </ListItemAvatar>
                                         <ListItemText 
-                                            primary={item.employee_name}
+                                            primary={
+                                                <Typography variant="subtitle1" fontWeight="700" color={COLORS.dark}>
+                                                    {item.employee_name}
+                                                </Typography>
+                                            }
                                             secondary={
-                                                detailDialog.type === 'absent' 
-                                                ? `${t('ID')}: ${item.employee_id} | ${t('Department')}: ${item.department || t('N/A')}`
-                                                : `${t('ID')}: ${item.employee_id} | ${t('Check In')}: ${item.check_in ? format(parseISO(item.check_in), 'HH:mm') : '-'}`
+                                                <Typography variant="caption" color={COLORS.secondary} fontWeight="600" sx={{ display: 'flex', alignItems: 'center', gap: 1, mt: 0.25 }}>
+                                                    <Box component="span" sx={{ bgcolor: alpha(COLORS.secondary, 0.1), px: 1, borderRadius: '4px' }}>
+                                                        {t('ID')}: {item.employee_id}
+                                                    </Box>
+                                                    {detailDialog.type !== 'absent' && (
+                                                        <Box component="span" sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                                                            <AccessTime sx={{ fontSize: 14 }} />
+                                                            {item.check_in ? format(parseISO(item.check_in), 'HH:mm') : '-'}
+                                                        </Box>
+                                                    )}
+                                                </Typography>
                                             }
                                         />
                                         <Chip 
-                                            label={t(item.status)} 
-                                            size="small"
+                                            label={t(item.status || 'present').toUpperCase()} 
                                             sx={{ 
-                                                bgcolor: item.status === 'absent' ? ATTENDANCE_COLORS.absent : (item.status === 'late' ? ATTENDANCE_COLORS.late : ATTENDANCE_COLORS.present),
-                                                color: 'white'
+                                                borderRadius: '6px',
+                                                height: 24,
+                                                fontSize: '0.65rem',
+                                                fontWeight: 800,
+                                                background: item.status === 'absent' ? COLORS.gradientError : (item.status === 'late' ? COLORS.gradientWarning : COLORS.gradientSuccess),
+                                                color: COLORS.white,
+                                                boxShadow: SHADOWS.xs,
+                                                '& .MuiChip-label': { px: 1.5 }
                                             }}
                                         />
                                     </ListItem>
                                 ))}
                             </List>
                         ) : (
-                            <Box sx={{ p: 4, textAlign: 'center' }}>
-                                <Typography color="text.secondary">{t('No data found for today.')}</Typography>
+                            <Box sx={{ p: 6, textAlign: 'center' }}>
+                                <Avatar sx={{ width: 64, height: 64, bgcolor: alpha(COLORS.secondary, 0.1), color: COLORS.secondary, mx: 'auto', mb: 2 }}>
+                                    <People sx={{ fontSize: 32 }} />
+                                </Avatar>
+                                <Typography fontWeight="700" color={COLORS.dark}>{t('No data found for today.')}</Typography>
+                                <Typography variant="caption" color={COLORS.secondary}>{t('Check again later or verify filters.')}</Typography>
                             </Box>
                         )}
                     </DialogContent>
+                    <Box sx={{ p: 2, bgcolor: COLORS.white, borderTop: `1px solid ${alpha(COLORS.secondary, 0.1)}`, display: 'flex', justifyContent: 'flex-end' }}>
+                        <Button 
+                            variant="contained" 
+                            onClick={() => setDetailDialog(prev => ({ ...prev, open: false }))}
+                            sx={{ 
+                                background: COLORS.gradientPrimary,
+                                color: COLORS.white,
+                                borderRadius: '8px',
+                                px: 3,
+                                fontWeight: 700,
+                                textTransform: 'none'
+                            }}
+                        >
+                            {t('Close')}
+                        </Button>
+                    </Box>
                 </Dialog>
 
                 {/* Consolidated Controls */}

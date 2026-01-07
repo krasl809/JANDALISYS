@@ -37,6 +37,28 @@ const inventoryItems = [
   { text: 'Movements', path: '/inventory/movements' },
 ];
 
+// Material Dashboard 2 Pro Style Constants
+const COLORS = {
+  primary: '#5E72E4',
+  secondary: '#8392AB',
+  info: '#11CDEF',
+  success: '#2DCE89',
+  warning: '#FB6340',
+  error: '#F5365C',
+  dark: '#344767',
+  light: '#E9ECEF',
+  bg: '#F8F9FA',
+  white: '#FFFFFF',
+  gradientPrimary: 'linear-gradient(135deg, #5E72E4 0%, #825EE4 100%)',
+};
+
+const SHADOWS = {
+  xs: '0 1px 5px rgba(0, 0, 0, 0.05)',
+  sm: '0 3px 8px rgba(0, 0, 0, 0.08)',
+  md: '0 7px 14px rgba(50, 50, 93, 0.1)',
+  lg: '0 15px 35px rgba(50, 50, 93, 0.1)',
+};
+
 const Navigation: React.FC<NavProps> = ({ width, mobileOpen, handleDrawerToggle }) => {
   const { t, i18n } = useTranslation();
   const navigate = useNavigate();
@@ -50,12 +72,12 @@ const Navigation: React.FC<NavProps> = ({ width, mobileOpen, handleDrawerToggle 
 
   // Dynamic Theme Colors
   const isDark = theme.palette.mode === 'dark';
-  const sidebarBg = isDark ? '#1a2035' : '#FFFFFF';
-  const textActive = '#FFFFFF';
-  const textInactive = isDark ? 'rgba(255, 255, 255, 0.7)' : '#8392AB';
-  const accentColor = '#5E72E4';
-  const dividerColor = isDark ? 'rgba(255, 255, 255, 0.12)' : '#E9ECEF';
-  const hoverBg = isDark ? 'rgba(255, 255, 255, 0.05)' : '#F8F9FA';
+  const sidebarBg = isDark ? '#1a2035' : COLORS.white;
+  const textActive = COLORS.white;
+  const textInactive = isDark ? 'rgba(255, 255, 255, 0.7)' : COLORS.secondary;
+  const accentColor = COLORS.primary;
+  const dividerColor = isDark ? 'rgba(255, 255, 255, 0.12)' : COLORS.light;
+  const hoverBg = isDark ? 'rgba(255, 255, 255, 0.05)' : COLORS.bg;
 
   const { boxShadows }: any = theme;
 
@@ -128,12 +150,12 @@ const Navigation: React.FC<NavProps> = ({ width, mobileOpen, handleDrawerToggle 
                     py: 1.2,
                     px: 2,
                     color: isActive ? textActive : textInactive,
-                    bgcolor: isActive ? accentColor : 'transparent',
-                    boxShadow: isActive ? boxShadows.sm : 'none',
+                    background: isActive ? COLORS.gradientPrimary : 'transparent',
+                    boxShadow: isActive ? SHADOWS.sm : 'none',
                     transition: 'all 0.2s ease-in-out',
                     '&:hover': { 
                       bgcolor: isActive ? accentColor : hoverBg,
-                      color: isActive ? textActive : (isDark ? '#fff' : '#344767'),
+                      color: isActive ? textActive : (isDark ? '#fff' : COLORS.dark),
                       transform: 'translateX(4px)'
                     },
                   }}
@@ -143,7 +165,7 @@ const Navigation: React.FC<NavProps> = ({ width, mobileOpen, handleDrawerToggle 
                   </ListItemIcon>
                   <ListItemText
                     primary={item.text}
-                    primaryTypographyProps={{ fontSize: '0.875rem', fontWeight: isActive ? 600 : 400 }}
+                    primaryTypographyProps={{ fontSize: '0.875rem', fontWeight: isActive ? 700 : 400 }}
                     sx={{ textAlign: isRTL ? 'right' : 'left' }}
                   />
                 </ListItemButton>
@@ -211,47 +233,64 @@ const Navigation: React.FC<NavProps> = ({ width, mobileOpen, handleDrawerToggle 
               <ListItemButton
                 onClick={() => navigate('/hr')}
                 sx={{ 
-                  borderRadius: 1, 
-                  mb: 0.2, 
+                  borderRadius: '8px', 
+                  mb: 0.5, 
+                  mx: 1.5,
                   px: 2,
+                  py: 1.2,
                   color: location.pathname === '/hr' ? textActive : textInactive,
-                  bgcolor: location.pathname === '/hr' ? (isDark ? 'rgba(0, 115, 234, 0.15)' : 'rgba(0, 115, 234, 0.1)') : 'transparent',
-                  '&:hover': { bgcolor: hoverBg, color: isDark ? '#fff' : '#323338' }
+                  background: location.pathname === '/hr' ? COLORS.gradientPrimary : 'transparent',
+                  boxShadow: location.pathname === '/hr' ? SHADOWS.sm : 'none',
+                  transition: 'all 0.2s ease-in-out',
+                  '&:hover': { 
+                    bgcolor: location.pathname === '/hr' ? accentColor : hoverBg,
+                    color: location.pathname === '/hr' ? textActive : (isDark ? '#fff' : COLORS.dark),
+                    transform: 'translateX(4px)'
+                  }
                 }}
               >
-                <ListItemIcon sx={{ minWidth: 36, color: location.pathname === '/hr' ? accentColor : 'inherit' }}>
-                  <Dashboard sx={{ fontSize: 20 }} />
+                <ListItemIcon sx={{ minWidth: 32, color: location.pathname === '/hr' ? textActive : 'inherit' }}>
+                  <Dashboard sx={{ fontSize: 18 }} />
                 </ListItemIcon>
-                <ListItemText primary={t('HR Dashboard')} primaryTypographyProps={{ fontSize: '0.85rem', fontWeight: 400 }} sx={{ textAlign: isRTL ? 'right' : 'left' }} />
+                <ListItemText primary={t('HR Dashboard')} primaryTypographyProps={{ fontSize: '0.875rem', fontWeight: location.pathname === '/hr' ? 700 : 400 }} sx={{ textAlign: isRTL ? 'right' : 'left' }} />
               </ListItemButton>
 
               <ListItemButton
                 onClick={() => setEmpOpen(!empOpen)}
                 sx={{ 
-                  borderRadius: 1, 
-                  mb: 0.2, 
+                  borderRadius: '8px', 
+                  mb: 0.5, 
+                  mx: 1.5,
                   px: 2,
+                  py: 1.2,
                   color: location.pathname.startsWith('/employees') ? textActive : textInactive,
-                  '&:hover': { bgcolor: hoverBg, color: isDark ? '#fff' : '#323338' }
+                  background: location.pathname.startsWith('/employees') ? COLORS.gradientPrimary : 'transparent',
+                  boxShadow: location.pathname.startsWith('/employees') ? SHADOWS.sm : 'none',
+                  transition: 'all 0.2s ease-in-out',
+                  '&:hover': { 
+                    bgcolor: location.pathname.startsWith('/employees') ? accentColor : hoverBg,
+                    color: location.pathname.startsWith('/employees') ? textActive : (isDark ? '#fff' : COLORS.dark),
+                    transform: 'translateX(4px)'
+                  }
                 }}
               >
-                <ListItemIcon sx={{ minWidth: 36, color: location.pathname.startsWith('/employees') ? accentColor : 'inherit' }}>
-                  <People sx={{ fontSize: 20 }} />
+                <ListItemIcon sx={{ minWidth: 32, color: location.pathname.startsWith('/employees') ? textActive : 'inherit' }}>
+                  <People sx={{ fontSize: 18 }} />
                 </ListItemIcon>
-                <ListItemText primary={t('Human Resources')} primaryTypographyProps={{ fontSize: '0.85rem', fontWeight: 400 }} sx={{ textAlign: isRTL ? 'right' : 'left' }} />
-                {empOpen ? <ExpandLess sx={{ opacity: 0.5, fontSize: 18 }} /> : <ExpandMore sx={{ opacity: 0.5, fontSize: 18 }} />}
+                <ListItemText primary={t('Human Resources')} primaryTypographyProps={{ fontSize: '0.875rem', fontWeight: location.pathname.startsWith('/employees') ? 700 : 400 }} sx={{ textAlign: isRTL ? 'right' : 'left' }} />
+                {empOpen ? <ExpandLess sx={{ opacity: 0.8, fontSize: 18, color: location.pathname.startsWith('/employees') ? textActive : 'inherit' }} /> : <ExpandMore sx={{ opacity: 0.8, fontSize: 18, color: location.pathname.startsWith('/employees') ? textActive : 'inherit' }} />}
               </ListItemButton>
 
               <Collapse in={empOpen} timeout="auto" unmountOnExit>
-                <List component="div" disablePadding>
+                <List component="div" disablePadding sx={{ mx: 1.5 }}>
                   <ListItemButton
                     onClick={() => { navigate('/employees'); if (mobileOpen) handleDrawerToggle(); }}
                     sx={{
                       pl: isRTL ? 2 : 6.5, pr: isRTL ? 6.5 : 2,
-                      borderRadius: 1, mb: 0.2,
+                      borderRadius: '8px', mb: 0.2,
                       color: location.pathname === '/employees' ? textActive : textInactive,
-                      bgcolor: location.pathname === '/employees' ? (isDark ? 'rgba(0, 115, 234, 0.15)' : 'rgba(0, 115, 234, 0.1)') : 'transparent',
-                      '&:hover': { bgcolor: hoverBg }
+                      background: location.pathname === '/employees' ? alpha(COLORS.primary, 0.1) : 'transparent',
+                      '&:hover': { bgcolor: alpha(COLORS.primary, 0.15) }
                     }}
                   >
                     <ListItemText primary={t('All Employees')} primaryTypographyProps={{ fontSize: '0.8rem', fontWeight: location.pathname === '/employees' ? 600 : 400 }} sx={{ textAlign: isRTL ? 'right' : 'left' }} />
@@ -263,10 +302,10 @@ const Navigation: React.FC<NavProps> = ({ width, mobileOpen, handleDrawerToggle 
                         onClick={() => { navigate('/employees/import'); if (mobileOpen) handleDrawerToggle(); }}
                         sx={{
                           pl: isRTL ? 2 : 6.5, pr: isRTL ? 6.5 : 2,
-                          borderRadius: 1, mb: 0.2,
+                          borderRadius: '8px', mb: 0.2,
                           color: location.pathname === '/employees/import' ? textActive : textInactive,
-                          bgcolor: location.pathname === '/employees/import' ? (isDark ? 'rgba(0, 115, 234, 0.15)' : 'rgba(0, 115, 234, 0.1)') : 'transparent',
-                          '&:hover': { bgcolor: hoverBg }
+                          background: location.pathname === '/employees/import' ? alpha(COLORS.primary, 0.1) : 'transparent',
+                          '&:hover': { bgcolor: alpha(COLORS.primary, 0.15) }
                         }}
                       >
                         <ListItemText primary={t('Import Employees')} primaryTypographyProps={{ fontSize: '0.8rem', fontWeight: location.pathname === '/employees/import' ? 600 : 400 }} sx={{ textAlign: isRTL ? 'right' : 'left' }} />
@@ -276,10 +315,10 @@ const Navigation: React.FC<NavProps> = ({ width, mobileOpen, handleDrawerToggle 
                         onClick={() => { navigate('/employees/add'); if (mobileOpen) handleDrawerToggle(); }}
                         sx={{
                           pl: isRTL ? 2 : 6.5, pr: isRTL ? 6.5 : 2,
-                          borderRadius: 1, mb: 0.2,
+                          borderRadius: '8px', mb: 0.2,
                           color: location.pathname === '/employees/add' ? textActive : textInactive,
-                          bgcolor: location.pathname === '/employees/add' ? (isDark ? 'rgba(0, 115, 234, 0.15)' : 'rgba(0, 115, 234, 0.1)') : 'transparent',
-                          '&:hover': { bgcolor: hoverBg }
+                          background: location.pathname === '/employees/add' ? alpha(COLORS.primary, 0.1) : 'transparent',
+                          '&:hover': { bgcolor: alpha(COLORS.primary, 0.15) }
                         }}
                       >
                         <ListItemText primary={t('Add Employee')} primaryTypographyProps={{ fontSize: '0.8rem', fontWeight: location.pathname === '/employees/add' ? 600 : 400 }} sx={{ textAlign: isRTL ? 'right' : 'left' }} />
@@ -292,53 +331,77 @@ const Navigation: React.FC<NavProps> = ({ width, mobileOpen, handleDrawerToggle 
               <ListItemButton
                 onClick={() => navigate('/hr/attendance')}
                 sx={{ 
-                  borderRadius: 1, 
-                  mb: 0.2, 
+                  borderRadius: '8px', 
+                  mb: 0.5, 
+                  mx: 1.5,
                   px: 2,
+                  py: 1.2,
                   color: location.pathname === '/hr/attendance' ? textActive : textInactive,
-                  bgcolor: location.pathname === '/hr/attendance' ? (isDark ? 'rgba(0, 115, 234, 0.15)' : 'rgba(0, 115, 234, 0.1)') : 'transparent',
-                  '&:hover': { bgcolor: hoverBg, color: isDark ? '#fff' : '#323338' }
+                  background: location.pathname === '/hr/attendance' ? COLORS.gradientPrimary : 'transparent',
+                  boxShadow: location.pathname === '/hr/attendance' ? SHADOWS.sm : 'none',
+                  transition: 'all 0.2s ease-in-out',
+                  '&:hover': { 
+                    bgcolor: location.pathname === '/hr/attendance' ? accentColor : hoverBg,
+                    color: location.pathname === '/hr/attendance' ? textActive : (isDark ? '#fff' : COLORS.dark),
+                    transform: 'translateX(4px)'
+                  }
                 }}
               >
-                <ListItemIcon sx={{ minWidth: 36, color: location.pathname === '/hr/attendance' ? accentColor : 'inherit' }}>
-                  <AccessTime sx={{ fontSize: 20 }} />
+                <ListItemIcon sx={{ minWidth: 32, color: location.pathname === '/hr/attendance' ? textActive : 'inherit' }}>
+                  <AccessTime sx={{ fontSize: 18 }} />
                 </ListItemIcon>
-                <ListItemText primary={t('Attendance')} primaryTypographyProps={{ fontSize: '0.85rem', fontWeight: 400 }} sx={{ textAlign: isRTL ? 'right' : 'left' }} />
+                <ListItemText primary={t('Attendance')} primaryTypographyProps={{ fontSize: '0.875rem', fontWeight: location.pathname === '/hr/attendance' ? 700 : 400 }} sx={{ textAlign: isRTL ? 'right' : 'left' }} />
               </ListItemButton>
 
               <ListItemButton
                 onClick={() => navigate('/hr/shifts')}
                 sx={{ 
-                  borderRadius: 1, 
-                  mb: 0.2, 
+                  borderRadius: '8px', 
+                  mb: 0.5, 
+                  mx: 1.5,
                   px: 2,
+                  py: 1.2,
                   color: location.pathname === '/hr/shifts' ? textActive : textInactive,
-                  bgcolor: location.pathname === '/hr/shifts' ? (isDark ? 'rgba(0, 115, 234, 0.15)' : 'rgba(0, 115, 234, 0.1)') : 'transparent',
-                  '&:hover': { bgcolor: hoverBg, color: isDark ? '#fff' : '#323338' }
+                  background: location.pathname === '/hr/shifts' ? COLORS.gradientPrimary : 'transparent',
+                  boxShadow: location.pathname === '/hr/shifts' ? SHADOWS.sm : 'none',
+                  transition: 'all 0.2s ease-in-out',
+                  '&:hover': { 
+                    bgcolor: location.pathname === '/hr/shifts' ? accentColor : hoverBg,
+                    color: location.pathname === '/hr/shifts' ? textActive : (isDark ? '#fff' : COLORS.dark),
+                    transform: 'translateX(4px)'
+                  }
                 }}
               >
-                <ListItemIcon sx={{ minWidth: 36, color: location.pathname === '/hr/shifts' ? accentColor : 'inherit' }}>
-                  <Schedule sx={{ fontSize: 20 }} />
+                <ListItemIcon sx={{ minWidth: 32, color: location.pathname === '/hr/shifts' ? textActive : 'inherit' }}>
+                  <Schedule sx={{ fontSize: 18 }} />
                 </ListItemIcon>
-                <ListItemText primary={t('Shift Settings')} primaryTypographyProps={{ fontSize: '0.85rem', fontWeight: 400 }} sx={{ textAlign: isRTL ? 'right' : 'left' }} />
+                <ListItemText primary={t('Shift Settings')} primaryTypographyProps={{ fontSize: '0.875rem', fontWeight: location.pathname === '/hr/shifts' ? 700 : 400 }} sx={{ textAlign: isRTL ? 'right' : 'left' }} />
               </ListItemButton>
   
               {canManageHR && (
                 <ListItemButton
                   onClick={() => navigate('/hr/devices')}
                   sx={{ 
-                    borderRadius: 1, 
-                    mb: 0.2, 
+                    borderRadius: '8px', 
+                    mb: 0.5, 
+                    mx: 1.5,
                     px: 2,
+                    py: 1.2,
                     color: location.pathname === '/hr/devices' ? textActive : textInactive,
-                    bgcolor: location.pathname === '/hr/devices' ? (isDark ? 'rgba(0, 115, 234, 0.15)' : 'rgba(0, 115, 234, 0.1)') : 'transparent',
-                    '&:hover': { bgcolor: hoverBg, color: isDark ? '#fff' : '#323338' }
+                    background: location.pathname === '/hr/devices' ? COLORS.gradientPrimary : 'transparent',
+                    boxShadow: location.pathname === '/hr/devices' ? SHADOWS.sm : 'none',
+                    transition: 'all 0.2s ease-in-out',
+                    '&:hover': { 
+                      bgcolor: location.pathname === '/hr/devices' ? accentColor : hoverBg,
+                      color: location.pathname === '/hr/devices' ? textActive : (isDark ? '#fff' : COLORS.dark),
+                      transform: 'translateX(4px)'
+                    }
                   }}
                 >
-                  <ListItemIcon sx={{ minWidth: 36, color: location.pathname === '/hr/devices' ? accentColor : 'inherit' }}>
-                    <SettingsInputComponent sx={{ fontSize: 20 }} />
+                  <ListItemIcon sx={{ minWidth: 32, color: location.pathname === '/hr/devices' ? textActive : 'inherit' }}>
+                    <SettingsInputComponent sx={{ fontSize: 18 }} />
                   </ListItemIcon>
-                  <ListItemText primary={t('Devices')} primaryTypographyProps={{ fontSize: '0.85rem', fontWeight: 400 }} sx={{ textAlign: isRTL ? 'right' : 'left' }} />
+                  <ListItemText primary={t('Devices')} primaryTypographyProps={{ fontSize: '0.875rem', fontWeight: location.pathname === '/hr/devices' ? 700 : 400 }} sx={{ textAlign: isRTL ? 'right' : 'left' }} />
                 </ListItemButton>
               )}
             </>

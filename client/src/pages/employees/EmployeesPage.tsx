@@ -167,29 +167,49 @@ const EmployeesPage: React.FC = () => {
     }
   };
 
+  // Material Dashboard 2 Pro Style Constants
+  const COLORS = {
+    primary: '#5E72E4',
+    secondary: '#8392AB',
+    info: '#11CDEF',
+    success: '#2DCE89',
+    warning: '#FB6340',
+    error: '#F5365C',
+    dark: '#344767',
+    light: '#E9ECEF',
+    bg: '#F8F9FA',
+    white: '#FFFFFF',
+  };
+
+  const SHADOWS = {
+    xs: '0 1px 5px rgba(0, 0, 0, 0.05)',
+    sm: '0 3px 8px rgba(0, 0, 0, 0.08)',
+    md: '0 7px 14px rgba(50, 50, 93, 0.1)',
+    lg: '0 15px 35px rgba(50, 50, 93, 0.1)',
+  };
+
   const getStatusChip = (status: string, isActive: boolean) => {
     const statusInfo = statusOptions.find(opt => opt.value === status);
     
-    // Using Monday colors from theme
-    const getMondayColor = (status: string) => {
+    const getStatusColor = (status: string) => {
       switch(status) {
-        case 'active': return theme.palette.success.main;
-        case 'probation': return theme.palette.warning.main;
+        case 'active': return COLORS.success;
+        case 'probation': return COLORS.warning;
         case 'inactive':
         case 'resigned':
-        case 'terminated': return theme.palette.error.main;
-        case 'on_leave': return theme.palette.info.main;
-        default: return theme.palette.grey[500];
+        case 'terminated': return COLORS.error;
+        case 'on_leave': return COLORS.info;
+        default: return COLORS.secondary;
       }
     };
 
-    const color = getMondayColor(status);
+    const color = getStatusColor(status);
 
     return (
       <Chip
         label={isActive ? t('Active').toUpperCase() : t(statusInfo?.label || status).toUpperCase()}
         sx={{
-          borderRadius: '4px',
+          borderRadius: '6px',
           height: 24,
           fontSize: '0.65rem',
           fontWeight: 700,
@@ -245,88 +265,99 @@ const EmployeesPage: React.FC = () => {
 
   if (loading && employees.length === 0) {
     return (
-      <Container maxWidth="xl" sx={{ mt: 4, mb: 12 }}>
-        <Box display="flex" justifyContent="center" alignItems="center" minHeight="400px">
-          <CircularProgress />
-        </Box>
-      </Container>
+      <Box sx={{ bgcolor: COLORS.bg, minHeight: '100vh', pt: 4 }}>
+        <Container maxWidth="xl">
+          <Box display="flex" justifyContent="center" alignItems="center" minHeight="400px">
+            <CircularProgress sx={{ color: COLORS.primary }} />
+          </Box>
+        </Container>
+      </Box>
     );
   }
 
   return (
-    <Container maxWidth="xl" sx={{ mt: 4, mb: 12 }}>
-      {/* Header */}
-      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: 3 }}>
-        <Box display="flex" alignItems="center" gap={2}>
-          <BackButton />
-          <Box>
-            <Typography variant="h4" fontWeight="800" color="text.primary">
-              {t('Employee Management')}
-            </Typography>
-            <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
-              {t('Manage employee records, profiles, and system access')}
-            </Typography>
+    <Box sx={{ bgcolor: COLORS.bg, minHeight: '100vh', py: 4 }}>
+      <Container maxWidth="xl">
+        {/* Header */}
+        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: 4 }}>
+          <Box display="flex" alignItems="center" gap={2}>
+            <BackButton />
+            <Box>
+              <Typography variant="h4" fontWeight="700" color={COLORS.dark} sx={{ fontFamily: 'Roboto' }}>
+                {t('Employee Management')}
+              </Typography>
+              <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5, fontWeight: 400 }}>
+                {t('Manage employee records, profiles, and system access')}
+              </Typography>
+            </Box>
+          </Box>
+
+          <Box display="flex" gap={2}>
+            <input
+              type="file"
+              ref={fileInputRef}
+              style={{ display: 'none' }}
+              accept=".xlsx"
+              onChange={handleFileChange}
+            />
+            <Button
+              variant="outlined"
+              startIcon={<CloudUpload />}
+              onClick={() => navigate('/hr/employees/import')}
+              sx={{ 
+                borderRadius: '8px', 
+                borderColor: COLORS.secondary, 
+                color: COLORS.secondary,
+                textTransform: 'none',
+                fontWeight: 600,
+                '&:hover': { borderColor: COLORS.dark, color: COLORS.dark }
+              }}
+            >
+              {t('Advanced Import')}
+            </Button>
+            <Button
+              variant="contained"
+              startIcon={<Add />}
+              onClick={() => navigate('/employees/add')}
+              sx={{ 
+                minWidth: 140, 
+                borderRadius: '8px', 
+                bgcolor: COLORS.primary,
+                boxShadow: SHADOWS.sm,
+                textTransform: 'none',
+                fontWeight: 600,
+                '&:hover': { bgcolor: COLORS.primary, boxShadow: SHADOWS.md }
+              }}
+            >
+              {t('Add Employee')}
+            </Button>
           </Box>
         </Box>
 
-        <Box display="flex" gap={2}>
-          <input
-            type="file"
-            ref={fileInputRef}
-            style={{ display: 'none' }}
-            accept=".xlsx"
-            onChange={handleFileChange}
-          />
-          <Button
-            variant="outlined"
-            startIcon={<CloudUpload />}
-            onClick={() => navigate('/hr/employees/import')}
-          >
-            {t('Advanced Import')}
-          </Button>
-          <Button
-            variant="outlined"
-            startIcon={<CloudUpload />}
-            onClick={handleImportClick}
-            disabled={uploading}
-          >
-            {uploading ? t('Importing...') : t('Quick Import')}
-          </Button>
-          <Button
-            variant="contained"
-            startIcon={<Add />}
-            onClick={() => navigate('/employees/add')}
-            sx={{ minWidth: 140 }}
-          >
-            {t('Add Employee')}
-          </Button>
-        </Box>
-      </Box>
-
       {/* Statistics Cards */}
-      <Grid container spacing={2} sx={{ mb: 3 }}>
+      <Grid container spacing={3} sx={{ mb: 4 }}>
         {[
-          { title: t('Total Employees'), value: totalEmployees, icon: <Person />, color: theme.palette.primary.main },
-          { title: t('Active Employees'), value: activeEmployees, icon: <Business />, color: theme.palette.success.main },
-          { title: t('Departments'), value: departments.length, icon: <FilterList />, color: theme.palette.secondary.main },
-          { title: t('Active Departments'), value: new Set(employees.map(emp => emp.department).filter(Boolean)).size, icon: <Refresh />, color: theme.palette.info.main }
+          { title: t('Total Employees'), value: totalEmployees, icon: <Person />, gradient: 'linear-gradient(135deg, #5E72E4 0%, #825EE4 100%)' },
+          { title: t('Active Employees'), value: activeEmployees, icon: <Business />, gradient: 'linear-gradient(135deg, #2DCE89 0%, #2DCECC 100%)' },
+          { title: t('Departments'), value: departments.length, icon: <FilterList />, gradient: 'linear-gradient(135deg, #11CDEF 0%, #1171EF 100%)' },
+          { title: t('Active Departments'), value: new Set(employees.map(emp => emp.department).filter(Boolean)).size, icon: <Refresh />, gradient: 'linear-gradient(135deg, #FB6340 0%, #FBB140 100%)' }
         ].map((stat, index) => (
           <Grid item xs={12} sm={6} md={3} key={index}>
             <Paper
               elevation={0}
               sx={{
-                p: 2,
-                borderRadius: 2,
-                bgcolor: 'background.paper',
-                border: `1px solid ${theme.palette.divider}`,
+                p: 2.5,
+                borderRadius: '12px',
+                background: stat.gradient,
+                color: COLORS.white,
+                boxShadow: SHADOWS.md,
                 display: 'flex',
                 alignItems: 'center',
-                gap: 2,
-                transition: 'all 0.2s ease-in-out',
+                gap: 2.5,
+                transition: 'all 0.3s ease',
                 '&:hover': {
-                  borderColor: stat.color,
-                  boxShadow: `0 4px 12px ${alpha(stat.color, 0.08)}`,
-                  transform: 'translateY(-2px)',
+                  transform: 'translateY(-5px)',
+                  boxShadow: SHADOWS.lg,
                 }
               }}
             >
@@ -335,20 +366,20 @@ const EmployeesPage: React.FC = () => {
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
-                  width: 40,
-                  height: 40,
-                  borderRadius: '8px',
-                  bgcolor: alpha(stat.color as string, 0.1),
-                  color: stat.color,
+                  width: 48,
+                  height: 48,
+                  borderRadius: '10px',
+                  bgcolor: 'rgba(255, 255, 255, 0.2)',
+                  color: COLORS.white,
                 }}
               >
-                {React.cloneElement(stat.icon as React.ReactElement, { fontSize: 'small' })}
+                {React.cloneElement(stat.icon as React.ReactElement, { fontSize: 'medium' })}
               </Box>
               <Box>
-                <Typography variant="h6" fontWeight="700" sx={{ lineHeight: 1.2 }}>
+                <Typography variant="h5" fontWeight="700" sx={{ lineHeight: 1.2, mb: 0.5 }}>
                   {stat.value}
                 </Typography>
-                <Typography variant="caption" color="text.secondary" fontWeight="500">
+                <Typography variant="body2" sx={{ opacity: 0.9, fontWeight: 500, fontSize: '0.85rem' }}>
                   {stat.title}
                 </Typography>
               </Box>
@@ -358,23 +389,27 @@ const EmployeesPage: React.FC = () => {
       </Grid>
 
       {feedback && (
-        <Alert severity={feedback.type} sx={{ mb: 2 }} onClose={() => setFeedback(null)}>
+        <Alert 
+          severity={feedback.type} 
+          sx={{ mb: 3, borderRadius: '8px', boxShadow: SHADOWS.xs }} 
+          onClose={() => setFeedback(null)}
+        >
           {feedback.msg}
         </Alert>
       )}
 
-      {uploading && <LinearProgress sx={{ mb: 2 }} />}
+      {uploading && <LinearProgress sx={{ mb: 3, borderRadius: 2, height: 6, bgcolor: COLORS.light, '& .MuiLinearProgress-bar': { bgcolor: COLORS.primary } }} />}
 
       {/* Filters */}
       <Paper 
         elevation={0} 
         sx={{ 
-          p: 2.5, 
-          mb: 3, 
-          border: '1px solid', 
-          borderColor: 'divider', 
-          borderRadius: 2,
-          bgcolor: 'background.paper'
+          p: 3, 
+          mb: 4, 
+          borderRadius: '12px',
+          bgcolor: COLORS.white,
+          boxShadow: SHADOWS.sm,
+          border: 'none'
         }}
       >
         <Grid container spacing={2} alignItems="center">
@@ -387,10 +422,15 @@ const EmployeesPage: React.FC = () => {
               InputProps={{
                 startAdornment: (
                   <InputAdornment position="start">
-                    <Search color="action" fontSize="small" />
+                    <Search sx={{ color: COLORS.secondary }} fontSize="small" />
                   </InputAdornment>
                 ),
-                sx: { borderRadius: 2 }
+                sx: { 
+                  borderRadius: '8px',
+                  bgcolor: '#fff',
+                  '& fieldset': { borderColor: '#e9ecef' },
+                  '&:hover fieldset': { borderColor: COLORS.primary },
+                }
               }}
               size="small"
             />
@@ -404,7 +444,12 @@ const EmployeesPage: React.FC = () => {
               value={departmentFilter}
               onChange={(e) => handleDepartmentFilter(e.target.value)}
               size="small"
-              InputProps={{ sx: { borderRadius: 2 } }}
+              InputProps={{ 
+                sx: { 
+                  borderRadius: '8px',
+                  '& fieldset': { borderColor: '#e9ecef' }
+                } 
+              }}
             >
               <MenuItem value="">{t('All Departments')}</MenuItem>
               {departments.map((dept) => (
@@ -423,7 +468,12 @@ const EmployeesPage: React.FC = () => {
               value={statusFilter}
               onChange={(e) => handleStatusFilter(e.target.value)}
               size="small"
-              InputProps={{ sx: { borderRadius: 2 } }}
+              InputProps={{ 
+                sx: { 
+                  borderRadius: '8px',
+                  '& fieldset': { borderColor: '#e9ecef' }
+                } 
+              }}
             >
               <MenuItem value="">{t('All Statuses')}</MenuItem>
               {statusOptions.map((status) => (
@@ -440,7 +490,18 @@ const EmployeesPage: React.FC = () => {
               variant="outlined"
               onClick={clearFilters}
               startIcon={<FilterList />}
-              sx={{ borderRadius: 2, height: 40 }}
+              sx={{ 
+                borderRadius: '8px', 
+                height: 40,
+                borderColor: COLORS.light,
+                color: COLORS.secondary,
+                textTransform: 'none',
+                fontWeight: 600,
+                '&:hover': {
+                  borderColor: COLORS.secondary,
+                  bgcolor: COLORS.light
+                }
+              }}
             >
               {t('Clear Filters')}
             </Button>
@@ -450,17 +511,39 @@ const EmployeesPage: React.FC = () => {
 
       {/* Bulk Actions */}
       {selectedEmployees.length > 0 && (
-        <Alert severity="info" sx={{ mb: 2 }}>
-          <Typography variant="body2">
-            {t('{{count}} employee(s) selected.', { count: selectedEmployees.length })}
+        <Alert 
+          severity="info" 
+          sx={{ 
+            mb: 3, 
+            borderRadius: '8px',
+            bgcolor: alpha(COLORS.info, 0.1),
+            color: COLORS.dark,
+            border: 'none',
+            boxShadow: SHADOWS.xs,
+            '& .MuiAlert-icon': { color: COLORS.info }
+          }}
+        >
+          <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%' }}>
+            <Typography variant="body2" fontWeight="600">
+              {t('{{count}} employee(s) selected.', { count: selectedEmployees.length })}
+            </Typography>
             <Button
               size="small"
+              variant="contained"
               onClick={handleBulkDelete}
-              sx={{ ml: 2 }}
+              startIcon={<Delete />}
+              sx={{ 
+                ml: 2,
+                bgcolor: COLORS.error,
+                borderRadius: '6px',
+                textTransform: 'none',
+                fontWeight: 600,
+                '&:hover': { bgcolor: COLORS.error, opacity: 0.9 }
+              }}
             >
               {t('Delete Selected')}
             </Button>
-          </Typography>
+          </Box>
         </Alert>
       )}
 
@@ -468,16 +551,17 @@ const EmployeesPage: React.FC = () => {
       <Paper 
         elevation={0} 
         sx={{ 
-          border: `1px solid ${theme.palette.divider}`,
-          borderRadius: 2,
+          borderRadius: '12px',
           overflow: 'hidden',
-          bgcolor: 'background.paper'
+          bgcolor: COLORS.white,
+          boxShadow: SHADOWS.sm,
+          border: 'none'
         }}
       >
         <TableContainer>
           <Table size="small">
             <TableHead>
-              <TableRow sx={{ bgcolor: theme.palette.mode === 'light' ? '#F5F6F8' : 'rgba(255,255,255,0.02)' }}>
+              <TableRow sx={{ bgcolor: COLORS.bg }}>
                 <TableCell padding="checkbox">
                   <Checkbox
                     size="small"
@@ -490,14 +574,15 @@ const EmployeesPage: React.FC = () => {
                         setSelectedEmployees([]);
                       }
                     }}
+                    sx={{ color: COLORS.secondary, '&.Mui-checked': { color: COLORS.primary } }}
                   />
                 </TableCell>
-                <TableCell sx={{ fontWeight: 600, color: 'text.secondary', py: 1.5 }}>{t('Employee')}</TableCell>
-                <TableCell sx={{ fontWeight: 600, color: 'text.secondary', py: 1.5 }}>{t('ID')}</TableCell>
-                <TableCell sx={{ fontWeight: 600, color: 'text.secondary', py: 1.5 }}>{t('Department')}</TableCell>
-                <TableCell sx={{ fontWeight: 600, color: 'text.secondary', py: 1.5 }}>{t('Position')}</TableCell>
-                <TableCell sx={{ fontWeight: 600, color: 'text.secondary', py: 1.5 }}>{t('Status')}</TableCell>
-                <TableCell align="center" sx={{ fontWeight: 600, color: 'text.secondary', py: 1.5 }}>{t('Actions')}</TableCell>
+                <TableCell sx={{ fontWeight: 700, color: COLORS.secondary, py: 2, textTransform: 'uppercase', fontSize: '0.7rem', letterSpacing: '0.05em' }}>{t('Employee')}</TableCell>
+                <TableCell sx={{ fontWeight: 700, color: COLORS.secondary, py: 2, textTransform: 'uppercase', fontSize: '0.7rem', letterSpacing: '0.05em' }}>{t('ID')}</TableCell>
+                <TableCell sx={{ fontWeight: 700, color: COLORS.secondary, py: 2, textTransform: 'uppercase', fontSize: '0.7rem', letterSpacing: '0.05em' }}>{t('Department')}</TableCell>
+                <TableCell sx={{ fontWeight: 700, color: COLORS.secondary, py: 2, textTransform: 'uppercase', fontSize: '0.7rem', letterSpacing: '0.05em' }}>{t('Position')}</TableCell>
+                <TableCell sx={{ fontWeight: 700, color: COLORS.secondary, py: 2, textTransform: 'uppercase', fontSize: '0.7rem', letterSpacing: '0.05em' }}>{t('Status')}</TableCell>
+                <TableCell align="center" sx={{ fontWeight: 700, color: COLORS.secondary, py: 2, textTransform: 'uppercase', fontSize: '0.7rem', letterSpacing: '0.05em' }}>{t('Actions')}</TableCell>
               </TableRow>
             </TableHead>
             <TableBody>
@@ -506,8 +591,9 @@ const EmployeesPage: React.FC = () => {
                   key={employee.id} 
                   hover
                   sx={{ 
-                    '&:hover': { bgcolor: alpha(theme.palette.primary.main, 0.02) },
-                    transition: 'background-color 0.2s'
+                    '&:hover': { bgcolor: alpha(COLORS.primary, 0.04) },
+                    transition: 'background-color 0.2s',
+                    '& td': { py: 1.5, borderBottom: '1px solid #f0f2f5' }
                   }}
                 >
                   <TableCell padding="checkbox">
@@ -521,26 +607,28 @@ const EmployeesPage: React.FC = () => {
                           setSelectedEmployees(selectedEmployees.filter(id => id !== employee.id));
                         }
                       }}
+                      sx={{ color: COLORS.secondary, '&.Mui-checked': { color: COLORS.primary } }}
                     />
                   </TableCell>
 
                   <TableCell>
                     <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
                       <Avatar sx={{ 
-                        width: 32, 
-                        height: 32, 
-                        fontSize: '0.875rem',
-                        bgcolor: alpha(theme.palette.primary.main, 0.1),
-                        color: theme.palette.primary.main,
-                        border: `1px solid ${alpha(theme.palette.primary.main, 0.2)}`
+                        width: 36, 
+                        height: 36, 
+                        fontSize: '0.85rem',
+                        fontWeight: 700,
+                        bgcolor: alpha(COLORS.primary, 0.1),
+                        color: COLORS.primary,
+                        border: 'none'
                       }}>
                         {employee.name?.charAt(0)?.toUpperCase() || 'E'}
                       </Avatar>
                       <Box>
-                        <Typography variant="subtitle2" fontWeight="600" sx={{ fontSize: '0.875rem' }}>
+                        <Typography variant="subtitle2" fontWeight="700" color={COLORS.dark} sx={{ fontSize: '0.85rem' }}>
                           {employee.name}
                         </Typography>
-                        <Typography variant="caption" color="text.secondary">
+                        <Typography variant="caption" color={COLORS.secondary} sx={{ fontSize: '0.75rem' }}>
                           {employee.email}
                         </Typography>
                       </Box>
@@ -548,19 +636,19 @@ const EmployeesPage: React.FC = () => {
                   </TableCell>
 
                   <TableCell>
-                    <Typography variant="body2" sx={{ fontSize: '0.875rem', color: 'text.secondary' }}>
+                    <Typography variant="body2" sx={{ fontSize: '0.8rem', color: COLORS.secondary, fontWeight: 600 }}>
                       {employee.employee_id || '-'}
                     </Typography>
                   </TableCell>
 
                   <TableCell>
-                    <Typography variant="body2" sx={{ fontSize: '0.875rem' }}>
+                    <Typography variant="body2" sx={{ fontSize: '0.8rem', color: COLORS.dark, fontWeight: 500 }}>
                       {employee.department || '-'}
                     </Typography>
                   </TableCell>
 
                   <TableCell>
-                    <Typography variant="body2" sx={{ fontSize: '0.875rem' }}>
+                    <Typography variant="body2" sx={{ fontSize: '0.8rem', color: COLORS.dark, fontWeight: 500 }}>
                       {employee.position || '-'}
                     </Typography>
                   </TableCell>
@@ -570,25 +658,25 @@ const EmployeesPage: React.FC = () => {
                   </TableCell>
 
                   <TableCell align="center">
-                    <Box sx={{ display: 'flex', justifyContent: 'center' }}>
+                    <Box sx={{ display: 'flex', justifyContent: 'center', gap: 0.5 }}>
                       <IconButton 
                         size="small" 
                         onClick={() => handleViewEmployee(employee.id)}
-                        sx={{ color: 'text.secondary', '&:hover': { color: 'primary.main', bgcolor: alpha(theme.palette.primary.main, 0.05) } }}
+                        sx={{ color: COLORS.secondary, '&:hover': { color: COLORS.primary, bgcolor: alpha(COLORS.primary, 0.1) } }}
                       >
                         <Visibility fontSize="small" />
                       </IconButton>
                       <IconButton 
                         size="small" 
                         onClick={() => handleEditEmployee(employee.id)}
-                        sx={{ color: 'text.secondary', '&:hover': { color: 'secondary.main', bgcolor: alpha(theme.palette.secondary.main, 0.05) } }}
+                        sx={{ color: COLORS.secondary, '&:hover': { color: COLORS.info, bgcolor: alpha(COLORS.info, 0.1) } }}
                       >
                         <Edit fontSize="small" />
                       </IconButton>
                       <IconButton 
                         size="small" 
                         onClick={() => handleDeleteClick(employee)}
-                        sx={{ color: 'text.secondary', '&:hover': { color: 'error.main', bgcolor: alpha(theme.palette.error.main, 0.05) } }}
+                        sx={{ color: COLORS.secondary, '&:hover': { color: COLORS.error, bgcolor: alpha(COLORS.error, 0.1) } }}
                       >
                         <Delete fontSize="small" />
                       </IconButton>
@@ -608,24 +696,55 @@ const EmployeesPage: React.FC = () => {
           rowsPerPage={rowsPerPage}
           onRowsPerPageChange={handleChangeRowsPerPage}
           labelRowsPerPage={t('Rows per page')}
-          sx={{ borderTop: `1px solid ${theme.palette.divider}` }}
+          sx={{ 
+            borderTop: '1px solid #f0f2f5',
+            '& .MuiTablePagination-selectLabel, & .MuiTablePagination-displayedRows': {
+              color: COLORS.secondary,
+              fontSize: '0.75rem',
+              fontWeight: 600
+            }
+          }}
         />
       </Paper>
 
       {/* Delete Confirmation Dialog */}
-      <Dialog open={deleteDialogOpen} onClose={() => setDeleteDialogOpen(false)}>
-        <DialogTitle>{t('Delete Employee')}</DialogTitle>
+      <Dialog 
+        open={deleteDialogOpen} 
+        onClose={() => setDeleteDialogOpen(false)}
+        PaperProps={{ sx: { borderRadius: '12px', p: 1 } }}
+      >
+        <DialogTitle sx={{ fontWeight: 700, color: COLORS.dark }}>{t('Delete Employee')}</DialogTitle>
         <DialogContent>
-          <Typography>
+          <Typography sx={{ color: COLORS.secondary }}>
             {t('Are you sure you want to delete employee "{{name}}"?', { name: employeeToDelete?.name })}
           </Typography>
         </DialogContent>
-        <DialogActions>
-          <Button onClick={() => setDeleteDialogOpen(false)}>{t('Cancel')}</Button>
-          <Button onClick={handleDeleteConfirm} color="error" variant="contained">{t('Delete')}</Button>
+        <DialogActions sx={{ p: 2 }}>
+          <Button 
+            onClick={() => setDeleteDialogOpen(false)}
+            sx={{ color: COLORS.secondary, textTransform: 'none', fontWeight: 600 }}
+          >
+            {t('Cancel')}
+          </Button>
+          <Button 
+            onClick={handleDeleteConfirm} 
+            color="error" 
+            variant="contained"
+            sx={{ 
+              bgcolor: COLORS.error, 
+              borderRadius: '8px', 
+              textTransform: 'none', 
+              fontWeight: 600,
+              boxShadow: SHADOWS.xs,
+              '&:hover': { bgcolor: COLORS.error, boxShadow: SHADOWS.sm }
+            }}
+          >
+            {t('Delete')}
+          </Button>
         </DialogActions>
       </Dialog>
-    </Container>
+      </Container>
+    </Box>
   );
 };
 

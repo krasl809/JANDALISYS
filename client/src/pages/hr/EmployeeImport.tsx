@@ -5,15 +5,42 @@ import {
   CircularProgress, Snackbar, Alert, AlertColor, Chip, Stack, Card, CardContent,
   Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Checkbox,
   FormControl, Select, MenuItem,
-  LinearProgress, Divider
+  LinearProgress, Divider, IconButton, Tooltip
 } from '@mui/material';
 import {
   CloudUpload, CheckCircle, Error, Warning, ArrowBack,
-  Description, PlayArrow, Cancel, Refresh
+  Description, PlayArrow, Cancel, Refresh, Delete, ChevronRight, ChevronLeft
 } from '@mui/icons-material';
+import { alpha } from '@mui/material/styles';
 
 import api from '../../services/api';
 import BackButton from '../../components/common/BackButton';
+
+// Material Dashboard 2 Pro Style Constants
+const COLORS = {
+    primary: '#5E72E4',
+    secondary: '#8392AB',
+    info: '#11CDEF',
+    success: '#2DCE89',
+    warning: '#FB6340',
+    error: '#F5365C',
+    dark: '#344767',
+    light: '#E9ECEF',
+    bg: '#F8F9FA',
+    white: '#FFFFFF',
+    gradientPrimary: 'linear-gradient(135deg, #5E72E4 0%, #825EE4 100%)',
+    gradientSuccess: 'linear-gradient(135deg, #2DCE89 0%, #2DCECC 100%)',
+    gradientInfo: 'linear-gradient(135deg, #11CDEF 0%, #1171EF 100%)',
+    gradientWarning: 'linear-gradient(135deg, #FB6340 0%, #FBB140 100%)',
+    gradientError: 'linear-gradient(135deg, #F5365C 0%, #F56036 100%)',
+};
+
+const SHADOWS = {
+    xs: '0 1px 5px rgba(0, 0, 0, 0.05)',
+    sm: '0 3px 8px rgba(0, 0, 0, 0.08)',
+    md: '0 7px 14px rgba(50, 50, 93, 0.1)',
+    lg: '0 15px 35px rgba(50, 50, 93, 0.1)',
+};
 
 interface ImportData {
   headers: string[];
@@ -735,80 +762,168 @@ const EmployeeImport: React.FC = () => {
   };
 
   return (
-    <Container maxWidth="xl" sx={{ mt: 4, mb: 12 }}>
-      {/* Header */}
-      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
-        <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-          <BackButton />
-          <Box>
-            <Typography variant="h4" fontWeight="800" color="text.primary">
-              استيراد الموظفين
-            </Typography>
-            <Typography variant="body2" color="text.secondary">
-              استيراد بيانات الموظفين من ملف Excel
-            </Typography>
+    <Box sx={{ bgcolor: COLORS.bg, minHeight: '100vh', py: 4 }}>
+      <Container maxWidth="lg">
+        {/* Header */}
+        <Box sx={{ 
+          display: 'flex', 
+          alignItems: 'center', 
+          justifyContent: 'space-between', 
+          mb: 4,
+          p: 3,
+          borderRadius: '16px',
+          background: COLORS.gradientPrimary,
+          boxShadow: SHADOWS.lg,
+          color: COLORS.white
+        }}>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+            <BackButton />
+            <Box>
+              <Typography variant="h4" fontWeight="800">
+                استيراد الموظفين
+              </Typography>
+              <Typography variant="body2" sx={{ opacity: 0.8, fontWeight: 500 }}>
+                رفع ومزامنة بيانات الموظفين من ملف Excel
+              </Typography>
+            </Box>
           </Box>
         </Box>
-      </Box>
 
-      {/* Stepper */}
-      <Paper elevation={0} sx={{ p: 3, mb: 4, borderRadius: '12px' }}>
-        <Stepper activeStep={activeStep} alternativeLabel>
-          {steps.map((label, index) => (
-            <Step key={index}>
-              <StepLabel
-                sx={{
-                  '& .MuiStepLabel-label': {
-                    fontSize: '0.875rem',
-                    fontWeight: activeStep === index ? 700 : 400
-                  }
-                }}
-              >
-                {label}
-              </StepLabel>
-            </Step>
-          ))}
-        </Stepper>
-      </Paper>
-
-      {/* Step Content */}
-      <Paper elevation={0} sx={{ p: 4, borderRadius: '12px', minHeight: 400 }}>
-        {renderStepContent()}
-      </Paper>
-
-      {/* Navigation */}
-      {activeStep < 5 && (
-        <Box sx={{ display: 'flex', justifyContent: 'space-between', mt: 4 }}>
-          <Button
-            disabled={activeStep === 0}
-            onClick={() => setActiveStep(prev => prev - 1)}
-            startIcon={<ArrowBack />}
+        <Paper 
+          elevation={0}
+          sx={{ 
+            p: 4, 
+            borderRadius: '16px', 
+            boxShadow: SHADOWS.md,
+            bgcolor: COLORS.white
+          }}
+        >
+          <Stepper 
+            activeStep={activeStep} 
+            alternativeLabel 
+            sx={{ 
+              mb: 5,
+              '& .MuiStepLabel-label': { fontWeight: 700, color: COLORS.secondary },
+              '& .MuiStepLabel-label.Mui-active': { color: COLORS.primary },
+              '& .MuiStepLabel-label.Mui-completed': { color: COLORS.success },
+              '& .MuiStepIcon-root': { color: alpha(COLORS.secondary, 0.3) },
+              '& .MuiStepIcon-root.Mui-active': { color: COLORS.primary },
+              '& .MuiStepIcon-root.Mui-completed': { color: COLORS.success }
+            }}
           >
-            السابق
-          </Button>
+            {steps.map((label) => (
+              <Step key={label}>
+                <StepLabel>{label}</StepLabel>
+              </Step>
+            ))}
+          </Stepper>
 
-          <Button
-            variant="contained"
-            onClick={() => setActiveStep(prev => prev + 1)}
-            disabled={!canProceed()}
-            endIcon={<PlayArrow />}
-          >
-            {activeStep === steps.length - 2 ? 'استيراد' : 'التالي'}
-          </Button>
-        </Box>
-      )}
+          <Divider sx={{ mb: 4, opacity: 0.1 }} />
 
-      {/* Snackbar */}
+          {renderStepContent()}
+
+          <Box sx={{ display: 'flex', justifyContent: 'space-between', mt: 5, pt: 3, borderTop: `1px solid ${alpha(COLORS.secondary, 0.1)}` }}>
+            <Button
+              disabled={activeStep === 0 || importing}
+              onClick={() => setActiveStep(prev => prev - 1)}
+              startIcon={<ChevronRight />}
+              sx={{ 
+                fontWeight: 700, 
+                color: COLORS.secondary,
+                borderRadius: '8px',
+                '&:hover': { bgcolor: alpha(COLORS.secondary, 0.05) }
+              }}
+            >
+              السابق
+            </Button>
+            
+            <Box sx={{ display: 'flex', gap: 2 }}>
+              {activeStep === 1 && (
+                <Button
+                  variant="outlined"
+                  onClick={() => setActiveStep(0)}
+                  color="error"
+                  sx={{ borderRadius: '8px', fontWeight: 700 }}
+                >
+                  إلغاء
+                </Button>
+              )}
+
+              {activeStep > 0 && activeStep < 4 && (
+                <Button
+                  variant="contained"
+                  onClick={() => setActiveStep(prev => prev + 1)}
+                  disabled={activeStep === 1 && !validateMappings()}
+                  endIcon={<ChevronLeft />}
+                  sx={{ 
+                    background: COLORS.gradientPrimary,
+                    borderRadius: '8px',
+                    fontWeight: 700,
+                    boxShadow: SHADOWS.sm,
+                    px: 4,
+                    '&:hover': { boxShadow: SHADOWS.md, opacity: 0.9 }
+                  }}
+                >
+                  التالي
+                </Button>
+              )}
+
+              {activeStep === 4 && (
+                <Button
+                  variant="contained"
+                  onClick={handleImport}
+                  disabled={importing}
+                  startIcon={importing ? <CircularProgress size={20} color="inherit" /> : <PlayArrow />}
+                  sx={{ 
+                    background: COLORS.gradientSuccess,
+                    borderRadius: '8px',
+                    fontWeight: 800,
+                    boxShadow: SHADOWS.sm,
+                    px: 4,
+                    '&:hover': { boxShadow: SHADOWS.md, opacity: 0.9 }
+                  }}
+                >
+                  {importing ? 'جاري الاستيراد...' : 'بدء الاستيراد'}
+                </Button>
+              )}
+
+              {activeStep === 5 && (
+                <Button
+                  variant="contained"
+                  onClick={() => navigate('/employees')}
+                  sx={{ 
+                    background: COLORS.gradientPrimary,
+                    borderRadius: '8px',
+                    fontWeight: 700,
+                    px: 4
+                  }}
+                >
+                  الذهاب لقائمة الموظفين
+                </Button>
+              )}
+            </Box>
+          </Box>
+        </Paper>
+      </Container>
+
       <Snackbar
         open={notification.open}
         autoHideDuration={6000}
-        onClose={() => setNotification({ ...notification, open: false })}
+        onClose={() => setNotification(prev => ({ ...prev, open: false }))}
       >
-        <Alert severity={notification.severity}>
+        <Alert 
+          onClose={() => setNotification(prev => ({ ...prev, open: false }))} 
+          severity={notification.severity}
+          sx={{ 
+            borderRadius: '12px', 
+            boxShadow: SHADOWS.lg,
+            fontWeight: 600
+          }}
+        >
           {notification.message}
         </Alert>
       </Snackbar>
-    </Container>
+    </Box>
   );
 };
 

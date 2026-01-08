@@ -1,10 +1,12 @@
-from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Query, Form
-from fastapi.responses import FileResponse
+from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Query, Form, BackgroundTasks
+from fastapi.responses import FileResponse, StreamingResponse
+import zipfile
+import tempfile
 from sqlalchemy.orm import Session
 from sqlalchemy import or_, func
 from pydantic import BaseModel
 from core.database import get_db
-from models import archive_models, core_models
+from models import archive_models, core_models, rbac_models
 import schemas.schemas as schemas
 from core.auth import get_current_user, require_permission, get_user_from_raw_token
 from crud import rbac_crud
@@ -29,23 +31,12 @@ PERM_ARCHIVE_READ = "archive_read"
 PERM_ARCHIVE_WRITE = "archive_write"
 
 # Restrictions
-ALLOWED_EXTENSIONS = {'.pdf', '.doc', '.docx', '.xls', '.xlsx', '.ppt', '.pptx', '.txt', '.csv', '.jpg', '.jpeg', '.png', '.tiff'}
-MAX_FILE_SIZE = 10 * 1024 * 1024  # 10MB
+# ALLOWED_EXTENSIONS removed to allow all file types as requested
+# MAX_FILE_SIZE removed/increased for unlimited uploads
+MAX_FILE_SIZE = 5 * 1024 * 1024 * 1024  # Set to 5GB as a practical "unlimited" for most servers
 
 def validate_file(file: UploadFile):
-    ext = os.path.splitext(file.filename)[1].lower()
-    if ext not in ALLOWED_EXTENSIONS:
-        raise HTTPException(
-            status_code=400, 
-            detail=f"File type {ext} not allowed. Allowed: {', '.join(ALLOWED_EXTENSIONS)}"
-        )
-    
-    # Check size if possible (spool file might not have size)
-    # file.file.seek(0, os.SEEK_END)
-    # size = file.file.tell()
-    # file.file.seek(0)
-    # However, FastAPI's UploadFile doesn't always have a size attribute until read.
-    # We will check size during/after saving for simplicity, or use a workaround.
+    # No extension restriction anymore
     return True
 
 # Base Storage Path - using absolute path to avoid issues
@@ -125,7 +116,105 @@ def _delete_file_thumbnail(file_id: int, file_path: str):
     except Exception as e:
         logger.error(f"Failed to delete thumbnail for {file_id}: {str(e)}")
 
+# --- Helper Functions ---
+def check_item_access(item, current_user, db: Session, required_level: str = "view"):
+    """
+    Professional Access Control Logic for Archive:
+    1. System Admin has full access.
+    2. Archive Admin has full access.
+    3. Item Creator has full access.
+    4. For others: Check explicit permissions or public status.
+    """
+    # 1. System & Archive Admin bypass
+    user_role = getattr(current_user, 'role', 'user')
+    if user_role in ["admin", "archive_admin"]:
+        return True
+        
+    # Determine the folder for permission check
+    folder_id = item.id if isinstance(item, archive_models.ArchiveFolder) else item.folder_id
+    
+    # 2. Check Ownership
+    if item.created_by == current_user.id:
+        return True
+        
+    # 3. Check ACL (Folder Permissions)
+    acl_permission = db.query(archive_models.ArchiveFolderPermission).filter(
+        archive_models.ArchiveFolderPermission.folder_id == folder_id,
+        archive_models.ArchiveFolderPermission.user_id == current_user.id
+    ).first()
+    
+    if acl_permission:
+        levels = {"view": 1, "edit": 2, "full": 3}
+        user_level = levels.get(acl_permission.permission_level, 0)
+        req_level = levels.get(required_level, 1)
+        
+        if user_level >= req_level:
+            return True
+
+    # 4. Public Access (View only)
+    if required_level == "view" and getattr(item, 'is_public', False):
+        return True
+        
+    raise HTTPException(
+        status_code=403, 
+        detail=f"Access denied: You do not have '{required_level}' permission for this item."
+    )
+
 # --- API Routes ---
+
+@router.get("/users", response_model=List[schemas.User])
+def get_archive_users(
+    db: Session = Depends(get_db),
+    current_user = Depends(get_current_user)
+):
+    """
+    Get users who have archive-related permissions or roles.
+    Used for assigning folder permissions.
+    """
+    try:
+        # Debug log
+        logger.info(f"Fetching archive users for user: {current_user.email}, role: {getattr(current_user, 'role', 'N/A')}")
+        
+        # 1. Get ALL users first as a base
+        all_users = db.query(core_models.User).all()
+        logger.info(f"Total users in DB: {len(all_users)}")
+        
+        # 2. Get roles with archive permissions
+        role_names = ["admin", "archive_admin", "archive_viewer", "manager"]
+        try:
+            # Query roles that have any permission starting with 'archive_'
+            roles_with_archive_perms = db.query(rbac_models.Role.name).join(
+                rbac_models.Role.permissions
+            ).filter(
+                rbac_models.Permission.name.like("archive_%")
+            ).all()
+            
+            if roles_with_archive_perms:
+                role_names.extend([r[0] for r in roles_with_archive_perms])
+        except Exception as e:
+            logger.warning(f"Could not fetch roles by permissions: {e}")
+            
+        # 3. Filter users
+        # We include users who have any of the identified roles, OR whose role name contains 'archive'
+        archive_users = [
+            u for u in all_users 
+            if (u.role in role_names or 
+                "archive" in (u.role or "").lower())
+        ]
+        
+        logger.info(f"Filtered archive users: {len(archive_users)}")
+        
+        # If no users found through filtering, or if user is admin, return all users as a safe fallback
+        # This ensures the UI is never empty when trying to manage permissions
+        if not archive_users or getattr(current_user, 'role', '') == 'admin':
+            logger.info("Returning all users as fallback (either empty filter or admin requester)")
+            return all_users
+            
+        return archive_users
+    except Exception as e:
+        logger.error(f"Error in get_archive_users: {str(e)}", exc_info=True)
+        # Final safety net: return all users
+        return db.query(core_models.User).all()
 
 @router.get("/init")
 def init_archive(db: Session = Depends(get_db), current_user = Depends(require_permission("archive_write"))):
@@ -139,6 +228,24 @@ def get_folders(
     current_user = Depends(require_permission("archive_read"))
 ):
     query = db.query(archive_models.ArchiveFolder).filter(archive_models.ArchiveFolder.parent_id == parent_id)
+    
+    # Filter by ownership, public status, or ACL
+    user_role = getattr(current_user, 'role', 'user')
+    if user_role not in ["admin", "archive_admin"]:
+        # Get IDs of folders where user has explicit permission
+        shared_folder_ids = db.query(archive_models.ArchiveFolderPermission.folder_id).filter(
+            archive_models.ArchiveFolderPermission.user_id == current_user.id
+        ).all()
+        shared_folder_ids = [f[0] for f in shared_folder_ids]
+
+        query = query.filter(
+            or_(
+                archive_models.ArchiveFolder.created_by == current_user.id,
+                archive_models.ArchiveFolder.is_public == True,
+                archive_models.ArchiveFolder.id.in_(shared_folder_ids)
+            )
+        )
+        
     return query.all()
 
 @router.post("/folders")
@@ -194,7 +301,25 @@ def get_files(
     db: Session = Depends(get_db),
     current_user = Depends(require_permission("archive_read"))
 ):
+    # First, verify access to the parent folder
+    folder = db.query(archive_models.ArchiveFolder).get(folder_id)
+    if not folder:
+        raise HTTPException(status_code=404, detail="Folder not found")
+    
+    check_item_access(folder, current_user, db)
+    
     query = db.query(archive_models.ArchiveFile).filter(archive_models.ArchiveFile.folder_id == folder_id)
+    
+    # Filter files by ownership or public status
+    user_role = getattr(current_user, 'role', 'user')
+    if user_role not in ["admin", "archive_admin"]:
+        query = query.filter(
+            or_(
+                archive_models.ArchiveFile.created_by == current_user.id,
+                archive_models.ArchiveFile.is_public == True
+            )
+        )
+        
     total = query.count()
     files = query.offset(skip).limit(limit).all()
     return {
@@ -234,6 +359,9 @@ def view_file(
     if not file_record:
         print(f"DEBUG: File {file_id} not found in DB")
         raise HTTPException(status_code=404, detail="File not found")
+    
+    # Check item access
+    check_item_access(file_record, current_user, db)
     
     # Normalize path for Windows
     normalized_path = os.path.normpath(file_record.file_path)
@@ -292,6 +420,9 @@ def get_thumbnail(
     file_record = db.query(archive_models.ArchiveFile).get(file_id)
     if not file_record:
         raise HTTPException(status_code=404, detail="File not found")
+    
+    # Check item access
+    check_item_access(file_record, current_user, db)
     
     # Check if it's an image
     ext = os.path.splitext(file_record.file_path)[1].lower()
@@ -352,6 +483,9 @@ def download_file(
     if not file_record:
         raise HTTPException(status_code=404, detail="File not found")
     
+    # Check item access
+    check_item_access(file_record, current_user, db)
+    
     normalized_path = os.path.normpath(file_record.file_path)
     if not os.path.exists(normalized_path):
         # Try alt path
@@ -379,21 +513,36 @@ def search_archive(
     current_user = Depends(require_permission("archive_read"))
 ):
     # Search in folders and files
-    folders = db.query(archive_models.ArchiveFolder).filter(
+    folder_query = db.query(archive_models.ArchiveFolder).filter(
         archive_models.ArchiveFolder.name.ilike(f"%{q}%")
-    ).all()
+    )
     
-    files = db.query(archive_models.ArchiveFile).filter(
+    file_query = db.query(archive_models.ArchiveFile).filter(
         or_(
             archive_models.ArchiveFile.name.ilike(f"%{q}%"),
             archive_models.ArchiveFile.description.ilike(f"%{q}%"),
             archive_models.ArchiveFile.ocr_text.ilike(f"%{q}%")
         )
-    ).all()
+    )
+
+    # Filter by ownership or public status for non-superusers
+    if not (hasattr(current_user, 'role') and current_user.role == "admin"):
+        folder_query = folder_query.filter(
+            or_(
+                archive_models.ArchiveFolder.created_by == current_user.id,
+                archive_models.ArchiveFolder.is_public == True
+            )
+        )
+        file_query = file_query.filter(
+            or_(
+                archive_models.ArchiveFile.created_by == current_user.id,
+                archive_models.ArchiveFile.is_public == True
+            )
+        )
     
     return {
-        "folders": folders,
-        "files": files
+        "folders": folder_query.all(),
+        "files": file_query.all()
     }
 
 @router.get("/stats")
@@ -777,13 +926,15 @@ async def bulk_upload(
 def delete_file(
     file_id: int,
     db: Session = Depends(get_db),
-    current_user = Depends(require_permission("archive_delete"))
+    current_user = Depends(require_permission("archive_write"))
 ):
     file = db.query(archive_models.ArchiveFile).get(file_id)
     if not file:
         raise HTTPException(status_code=404, detail="File not found")
         
-    # Remove physical file
+    check_item_access(file, current_user, db, required_level="full")
+    
+    # Delete physical file
     if file.file_path and os.path.exists(file.file_path):
         try:
             # Delete thumbnail first
@@ -801,12 +952,14 @@ def delete_file(
 def delete_folder(
     folder_id: int,
     db: Session = Depends(get_db),
-    current_user = Depends(require_permission("archive_delete"))
+    current_user = Depends(require_permission("archive_write"))
 ):
     folder = db.query(archive_models.ArchiveFolder).get(folder_id)
     if not folder:
         raise HTTPException(status_code=404, detail="Folder not found")
         
+    check_item_access(folder, current_user, db, required_level="full")
+    
     # Removed is_system restriction as per user request
     # if folder.is_system:
     #    raise HTTPException(status_code=400, detail="Cannot delete system folder")
@@ -842,6 +995,15 @@ class BulkActionRequest(BaseModel):
     file_ids: List[int] = []
     folder_ids: List[int] = []
     target_folder_id: Optional[int] = None
+
+class ItemUpdate(BaseModel):
+    name: Optional[str] = None
+    description: Optional[str] = None
+    is_public: Optional[bool] = None
+
+class FolderPermissionCreate(BaseModel):
+    user_id: uuid.UUID
+    permission_level: str # view, edit, full
 
 @router.post("/bulk-delete")
 def bulk_delete(
@@ -1038,6 +1200,243 @@ def bulk_copy(
             
             clone_folder(folder, request.target_folder_id, new_path, is_root=True)
 
+    db.commit()
+    return {"status": "success"}
+
+# --- New Features: Zip Download, Edit, Move Tree ---
+
+@router.get("/folders/{folder_id}/download-zip")
+async def download_folder_zip(
+    folder_id: int,
+    background_tasks: BackgroundTasks,
+    token: Optional[str] = Query(None),
+    db: Session = Depends(get_db)
+):
+    # Manual auth check
+    if not token:
+        raise HTTPException(status_code=401, detail="Token required")
+    try:
+        current_user = get_user_from_raw_token(token, db)
+        has_perm, _ = rbac_crud.check_user_permission(db, str(current_user.id), "archive_download")
+        if not has_perm:
+            raise HTTPException(status_code=403, detail="Permission archive_download required")
+    except Exception as e:
+        raise HTTPException(status_code=401, detail=f"Auth failed: {str(e)}")
+
+    folder = db.query(archive_models.ArchiveFolder).get(folder_id)
+    if not folder:
+        raise HTTPException(status_code=404, detail="Folder not found")
+
+    if not os.path.exists(folder.path):
+        raise HTTPException(status_code=404, detail="Physical folder not found")
+
+    # Create a temporary zip file
+    temp_zip = tempfile.NamedTemporaryFile(delete=False, suffix=".zip")
+    temp_zip_path = temp_zip.name
+    temp_zip.close()
+
+    def create_zip():
+        with zipfile.ZipFile(temp_zip_path, 'w', zipfile.ZIP_DEFLATED) as zipf:
+            for root, dirs, files in os.walk(folder.path):
+                for file in files:
+                    file_path = os.path.join(root, file)
+                    arcname = os.path.relpath(file_path, os.path.dirname(folder.path))
+                    zipf.write(file_path, arcname)
+
+    # We run zip creation synchronously here for simplicity, 
+    # but for very large folders, a background task + notification might be better.
+    create_zip()
+
+    # Clean up the temp file after response is sent
+    background_tasks.add_task(os.remove, temp_zip_path)
+
+    return FileResponse(
+        temp_zip_path,
+        filename=f"{folder.name}.zip",
+        media_type="application/x-zip-compressed"
+    )
+
+@router.patch("/files/{file_id}")
+def update_file_metadata(
+    file_id: int,
+    update_data: ItemUpdate,
+    db: Session = Depends(get_db),
+    current_user = Depends(require_permission("archive_write"))
+):
+    file = db.query(archive_models.ArchiveFile).get(file_id)
+    if not file:
+        raise HTTPException(status_code=404, detail="File not found")
+
+    check_item_access(file, current_user, db, required_level="edit")
+
+    if update_data.name:
+        # Note: We only update the DB record name/description, 
+        # we don't necessarily rename the physical file to avoid breaking paths 
+        # unless we also update the physical file path.
+        # However, updating the display name is usually enough.
+        file.original_name = update_data.name
+        
+    if update_data.description is not None:
+        file.description = update_data.description
+
+    db.commit()
+    db.refresh(file)
+    return file
+
+@router.patch("/folders/{folder_id}")
+def update_folder_metadata(
+    folder_id: int,
+    update_data: ItemUpdate,
+    db: Session = Depends(get_db),
+    current_user = Depends(require_permission("archive_write"))
+):
+    folder = db.query(archive_models.ArchiveFolder).get(folder_id)
+    if not folder:
+        raise HTTPException(status_code=404, detail="Folder not found")
+
+    check_item_access(folder, current_user, db, required_level="edit")
+
+    if update_data.name:
+        folder.name = update_data.name
+        
+    if update_data.description is not None:
+        folder.description = update_data.description
+
+    if update_data.is_public is not None:
+        folder.is_public = update_data.is_public
+
+    db.commit()
+    db.refresh(folder)
+    return folder
+
+@router.get("/folder-tree")
+def get_folder_tree(
+    db: Session = Depends(get_db),
+    current_user = Depends(require_permission("archive_read"))
+):
+    """Returns the full folder structure as a tree for move/copy operations."""
+    query = db.query(archive_models.ArchiveFolder)
+    
+    # Filter by ownership, public status, or ACL
+    if not (hasattr(current_user, 'role') and current_user.role == "admin"):
+        shared_folder_ids = db.query(archive_models.ArchiveFolderPermission.folder_id).filter(
+            archive_models.ArchiveFolderPermission.user_id == current_user.id
+        ).all()
+        shared_folder_ids = [f[0] for f in shared_folder_ids]
+
+        query = query.filter(
+            or_(
+                archive_models.ArchiveFolder.created_by == current_user.id,
+                archive_models.ArchiveFolder.is_public == True,
+                archive_models.ArchiveFolder.id.in_(shared_folder_ids)
+            )
+        )
+        
+    all_folders = query.all()
+    
+    # Build tree
+    nodes = {f.id: {"id": f.id, "name": f.name, "parent_id": f.parent_id, "children": []} for f in all_folders}
+    tree = []
+    
+    for f_id, node in nodes.items():
+        parent_id = node["parent_id"]
+        if parent_id is None:
+            tree.append(node)
+        else:
+            if parent_id in nodes:
+                nodes[parent_id]["children"].append(node)
+            else:
+                # Parent might have been deleted or not in list
+                tree.append(node)
+                
+    return tree
+
+# --- ACL / Permission Management ---
+
+@router.get("/folders/{folder_id}/permissions")
+def get_folder_permissions(
+    folder_id: int,
+    db: Session = Depends(get_db),
+    current_user = Depends(require_permission("archive_read"))
+):
+    folder = db.query(archive_models.ArchiveFolder).get(folder_id)
+    if not folder:
+        raise HTTPException(status_code=404, detail="Folder not found")
+        
+    # Only owner or admin can manage permissions
+    if folder.created_by != current_user.id and not (hasattr(current_user, 'role') and current_user.role == "admin"):
+        raise HTTPException(status_code=403, detail="Only folder owner or admin can view permissions")
+        
+    perms = db.query(archive_models.ArchiveFolderPermission).filter(
+        archive_models.ArchiveFolderPermission.folder_id == folder_id
+    ).all()
+    
+    return [
+        {
+            "user_id": p.user_id,
+            "user_email": p.user.email if p.user else "Unknown",
+            "permission_level": p.permission_level,
+            "granted_by": p.granted_by,
+            "created_at": p.created_at
+        } for p in perms
+    ]
+
+@router.post("/folders/{folder_id}/permissions")
+def add_folder_permission(
+    folder_id: int,
+    perm_data: FolderPermissionCreate,
+    db: Session = Depends(get_db),
+    current_user = Depends(require_permission("archive_write"))
+):
+    folder = db.query(archive_models.ArchiveFolder).get(folder_id)
+    if not folder:
+        raise HTTPException(status_code=404, detail="Folder not found")
+        
+    # Only owner or admin can manage permissions
+    if folder.created_by != current_user.id and not (hasattr(current_user, 'role') and current_user.role == "admin"):
+        raise HTTPException(status_code=403, detail="Only folder owner or admin can grant permissions")
+        
+    # Check if permission already exists
+    existing = db.query(archive_models.ArchiveFolderPermission).filter(
+        archive_models.ArchiveFolderPermission.folder_id == folder_id,
+        archive_models.ArchiveFolderPermission.user_id == perm_data.user_id
+    ).first()
+    
+    if existing:
+        existing.permission_level = perm_data.permission_level
+        existing.granted_by = current_user.id
+    else:
+        new_perm = archive_models.ArchiveFolderPermission(
+            folder_id=folder_id,
+            user_id=perm_data.user_id,
+            permission_level=perm_data.permission_level,
+            granted_by=current_user.id
+        )
+        db.add(new_perm)
+        
+    db.commit()
+    return {"status": "success"}
+
+@router.delete("/folders/{folder_id}/permissions/{user_id}")
+def remove_folder_permission(
+    folder_id: int,
+    user_id: uuid.UUID,
+    db: Session = Depends(get_db),
+    current_user = Depends(require_permission("archive_write"))
+):
+    folder = db.query(archive_models.ArchiveFolder).get(folder_id)
+    if not folder:
+        raise HTTPException(status_code=404, detail="Folder not found")
+        
+    # Only owner or admin can manage permissions
+    if folder.created_by != current_user.id and not (hasattr(current_user, 'role') and current_user.role == "admin"):
+        raise HTTPException(status_code=403, detail="Only folder owner or admin can revoke permissions")
+        
+    db.query(archive_models.ArchiveFolderPermission).filter(
+        archive_models.ArchiveFolderPermission.folder_id == folder_id,
+        archive_models.ArchiveFolderPermission.user_id == user_id
+    ).delete()
+    
     db.commit()
     return {"status": "success"}
 

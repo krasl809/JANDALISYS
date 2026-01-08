@@ -58,6 +58,7 @@ import {
   RestartAlt,
   Print,
   OpenInNew,
+  ChevronRight,
   ExpandMore
 } from '@mui/icons-material';
 import { useNavigate } from 'react-router-dom';
@@ -97,8 +98,9 @@ interface ArchiveFile {
   ocr_text?: string;
 }
 
-const ALLOWED_EXTENSIONS = ['.pdf', '.doc', '.docx', '.xls', '.xlsx', '.ppt', '.pptx', '.txt', '.csv', '.jpg', '.jpeg', '.png', '.tiff'];
-const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB
+// Restrictions removed as per user request for unlimited uploads and all file types
+const ALLOWED_EXTENSIONS: string[] = []; 
+const MAX_FILE_SIZE = 5 * 1024 * 1024 * 1024; // 5GB as a practical limit
 
 const ArchiveBrowser: React.FC = () => {
   const { t } = useTranslation();
@@ -196,6 +198,43 @@ const ArchiveBrowser: React.FC = () => {
   const [targetAction, setTargetAction] = useState<'copy' | 'move' | null>(null);
   const [targetFolders, setTargetFolders] = useState<ArchiveFolder[]>([]);
   const [selectedTargetFolder, setSelectedTargetFolder] = useState<number | null>(null);
+  const [folderTree, setFolderTree] = useState<any[]>([]);
+
+  // Edit Dialog
+  const [openEditDialog, setOpenEditDialog] = useState(false);
+  const [editName, setEditName] = useState('');
+  const [editDescription, setEditDescription] = useState('');
+  const [editIsPublic, setEditIsPublic] = useState(false);
+
+  // Permission Management Dialog
+  const [openPermissionDialog, setOpenPermissionDialog] = useState(false);
+  const [permissions, setPermissions] = useState<any[]>([]);
+  const [allUsers, setAllUsers] = useState<any[]>([]);
+  const [loadingUsers, setLoadingUsers] = useState(false);
+  const [selectedUserForPerm, setSelectedUserForPerm] = useState('');
+  const [newPermLevel, setNewPermLevel] = useState('view');
+  const [loadingPerms, setLoadingPerms] = useState(false);
+
+  // Fetch users on mount or when dialog opens
+  const fetchAllUsers = async () => {
+    if (allUsers.length > 0) return;
+    setLoadingUsers(true);
+    try {
+      const usersRes = await api.get('archive/users');
+      console.log("Archive users fetched:", usersRes.data);
+      setAllUsers(usersRes.data || []);
+    } catch (error) {
+      console.error("Failed to fetch archive users", error);
+    } finally {
+      setLoadingUsers(false);
+    }
+  };
+
+  useEffect(() => {
+    if (openPermissionDialog) {
+      fetchAllUsers();
+    }
+  }, [openPermissionDialog]);
 
   // Menu states
   const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null);
@@ -241,10 +280,91 @@ const ArchiveBrowser: React.FC = () => {
 
   const fetchTargetFolders = async () => {
     try {
-      const res = await api.get('archive/folders');
-      setTargetFolders(res.data);
+      const res = await api.get('archive/folder-tree');
+      setFolderTree(res.data);
+      // Also keep targetFolders for compatibility if needed elsewhere
+      const flatFolders = await api.get('archive/folders');
+      setTargetFolders(flatFolders.data);
     } catch (error) {
-      console.error("Failed to fetch target folders", error);
+      console.error("Failed to fetch folder tree", error);
+    }
+  };
+
+  const handleDownloadZip = (folderId: number, folderName: string) => {
+    const token = localStorage.getItem('access_token');
+    let url = `/api/archive/folders/${folderId}/download-zip`;
+    if (token) url += `?token=${token}`;
+    window.open(url, '_blank');
+  };
+
+  const handleOpenEdit = () => {
+    if (!selectedItem) return;
+    setEditName(selectedItem.type === 'file' ? selectedItem.data.original_name : selectedItem.data.name);
+    setEditDescription(selectedItem.data.description || '');
+    setEditIsPublic(selectedItem.data.is_public || false);
+    setOpenEditDialog(true);
+    handleMenuClose();
+  };
+
+  const fetchPermissions = async (folderId: number) => {
+    setLoadingPerms(true);
+    try {
+      const res = await api.get(`archive/folders/${folderId}/permissions`);
+      setPermissions(res.data);
+    } catch (error) {
+      console.error("Failed to fetch permissions", error);
+    } finally {
+      setLoadingPerms(false);
+    }
+  };
+
+  const handleOpenPermissions = () => {
+    if (!selectedItem || selectedItem.type !== 'folder') return;
+    fetchPermissions(selectedItem.id);
+    setOpenPermissionDialog(true);
+    handleMenuClose();
+  };
+
+  const handleAddPermission = async () => {
+    if (!selectedItem || !selectedUserForPerm) return;
+    try {
+      await api.post(`archive/folders/${selectedItem.id}/permissions`, {
+        user_id: selectedUserForPerm,
+        permission_level: newPermLevel
+      });
+      fetchPermissions(selectedItem.id);
+      setSelectedUserForPerm('');
+    } catch (error) {
+      console.error("Failed to add permission", error);
+      alert(t('Failed to add permission'), t('Error'), 'error');
+    }
+  };
+
+  const handleRemovePermission = async (userId: string) => {
+    if (!selectedItem) return;
+    try {
+      await api.delete(`archive/folders/${selectedItem.id}/permissions/${userId}`);
+      fetchPermissions(selectedItem.id);
+    } catch (error) {
+      console.error("Failed to remove permission", error);
+      alert(t('Failed to remove permission'), t('Error'), 'error');
+    }
+  };
+
+  const handleUpdateMetadata = async () => {
+    if (!selectedItem) return;
+    try {
+      const endpoint = selectedItem.type === 'file' ? `archive/files/${selectedItem.id}` : `archive/folders/${selectedItem.id}`;
+      await api.patch(endpoint, {
+        name: editName,
+        description: editDescription,
+        is_public: editIsPublic
+      });
+      setOpenEditDialog(false);
+      fetchContent(currentFolder?.id || null);
+    } catch (error) {
+      console.error("Update failed", error);
+      alert(t('Failed to update item'), t('Error'), 'error');
     }
   };
 
@@ -531,6 +651,76 @@ const ArchiveBrowser: React.FC = () => {
     return isImage(fileType) || fileType.toLowerCase() === 'pdf';
   };
 
+  const FolderTreeItem: React.FC<{ node: any, depth: number }> = ({ node, depth }) => {
+    const isSelected = selectedTargetFolder === node.id;
+    const [isExpanded, setIsExpanded] = useState(false);
+    const hasChildren = node.children && node.children.length > 0;
+
+    const handleToggle = (e: React.MouseEvent) => {
+      e.stopPropagation();
+      setIsExpanded(!isExpanded);
+    };
+
+    return (
+      <Box key={node.id}>
+        <ListItemButton 
+          onClick={() => setSelectedTargetFolder(node.id)}
+          selected={isSelected}
+          sx={{ 
+            pl: depth * 2 + 1,
+            borderRadius: 1,
+            mb: 0.5,
+            '&.Mui-selected': {
+              bgcolor: alpha(theme.palette.primary.main, 0.1),
+              '&:hover': { bgcolor: alpha(theme.palette.primary.main, 0.2) }
+            }
+          }}
+        >
+          <Box 
+            onClick={handleToggle}
+            sx={{ 
+              display: 'flex', 
+              alignItems: 'center', 
+              justifyContent: 'center',
+              width: 24,
+              height: 24,
+              mr: 0.5,
+              cursor: 'pointer',
+              visibility: hasChildren ? 'visible' : 'hidden',
+              '&:hover': { bgcolor: alpha(theme.palette.action.hover, 0.1), borderRadius: '50%' }
+            }}
+          >
+            {isExpanded ? <ExpandMore fontSize="small" /> : <ChevronRight fontSize="small" />}
+          </Box>
+          <ListItemIcon sx={{ minWidth: 30 }}>
+            <Folder color={isSelected ? "primary" : "inherit"} sx={{ fontSize: '1.2rem' }} />
+          </ListItemIcon>
+          <ListItemText 
+            primary={node.name} 
+            primaryTypographyProps={{ 
+              variant: 'body2', 
+              fontWeight: isSelected ? 700 : 400 
+            }} 
+          />
+        </ListItemButton>
+        <AnimatePresence>
+          {hasChildren && isExpanded && (
+            <motion.div
+              initial={{ height: 0, opacity: 0 }}
+              animate={{ height: 'auto', opacity: 1 }}
+              exit={{ height: 0, opacity: 0 }}
+              style={{ overflow: 'hidden' }}
+            >
+              {node.children.map((child: any) => (
+                <FolderTreeItem key={child.id} node={child} depth={depth + 1} />
+              ))}
+            </motion.div>
+          )}
+        </AnimatePresence>
+      </Box>
+    );
+  };
+
   const handleCreateFolder = async () => {
     if (!canUpload) {
       alert(t('You do not have permission to create folders'), t('Warning'), 'warning');
@@ -699,32 +889,6 @@ const ArchiveBrowser: React.FC = () => {
       if (folderInputRef.current) {
         folderInputRef.current.value = '';
       }
-    }
-  };
-
-  const handleDownloadFolder = async (folder: any) => {
-    if (!canDownload) {
-      alert(t('You do not have permission to download'), t('Warning'), 'warning');
-      return;
-    }
-    
-    try {
-      const response = await api.get(`archive/folders/${folder.id}/download`, {
-        responseType: 'blob'
-      });
-      
-      const url = window.URL.createObjectURL(new Blob([response.data]));
-      const link = document.createElement('a');
-      link.href = url;
-      link.setAttribute('download', `${folder.name}.zip`);
-      document.body.appendChild(link);
-      link.click();
-      link.remove();
-      
-      alert(t('Download started'), t('Success'), 'success');
-    } catch (error) {
-      console.error('Download failed', error);
-      alert(t('Download failed'), t('Error'), 'error');
     }
   };
 
@@ -1462,23 +1626,22 @@ const ArchiveBrowser: React.FC = () => {
 
       {/* Target Folder Selection Dialog (for Copy/Move) */}
       <Dialog open={openTargetDialog} onClose={() => setOpenTargetDialog(false)} maxWidth="sm" fullWidth>
-        <DialogTitle>
+        <DialogTitle sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+          {targetAction === 'move' ? <DriveFileMove /> : <ContentCopy />}
           {targetAction === 'move' ? t('Move Items To') : t('Copy Items To')}
         </DialogTitle>
-        <DialogContent dividers>
-           <List>
-             {targetFolders.map((folder) => (
-               <ListItemButton 
-                 key={folder.id}
-                 selected={selectedTargetFolder === folder.id}
-                 onClick={() => setSelectedTargetFolder(folder.id)}
-               >
-                 <ListItemIcon><Folder sx={{ color: '#ffd700' }} /></ListItemIcon>
-                 <ListItemText primary={t(folder.name)} secondary={folder.description} />
-               </ListItemButton>
-             ))}
-            {targetFolders.length === 0 && (
-              <Typography sx={{ p: 2, textAlign: 'center' }}>{t('No target folders available')}</Typography>
+        <DialogContent dividers sx={{ minHeight: 300 }}>
+          <Typography variant="caption" color="text.secondary" sx={{ mb: 2, display: 'block' }}>
+            {t('Select destination folder from the tree below:')}
+          </Typography>
+          <List>
+            {folderTree.map((node) => (
+              <FolderTreeItem key={node.id} node={node} depth={0} />
+            ))}
+            {folderTree.length === 0 && (
+              <Typography sx={{ p: 2, textAlign: 'center', opacity: 0.6 }}>
+                {t('No target folders available')}
+              </Typography>
             )}
           </List>
         </DialogContent>
@@ -1488,9 +1651,173 @@ const ArchiveBrowser: React.FC = () => {
             onClick={handleBulkAction} 
             variant="contained" 
             disabled={!selectedTargetFolder}
+            startIcon={targetAction === 'move' ? <DriveFileMove /> : <ContentCopy />}
           >
             {targetAction === 'move' ? t('Move Here') : t('Copy Here')}
           </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Edit Metadata Dialog */}
+      <Dialog open={openEditDialog} onClose={() => setOpenEditDialog(false)} maxWidth="xs" fullWidth>
+        <DialogTitle>{t('Edit Item Details')}</DialogTitle>
+        <DialogContent dividers>
+          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, pt: 1 }}>
+            <TextField
+              label={t('Name')}
+              fullWidth
+              variant="outlined"
+              value={editName}
+              onChange={(e) => setEditName(e.target.value)}
+              autoFocus
+            />
+            <TextField
+              label={t('Description')}
+              fullWidth
+              variant="outlined"
+              multiline
+              rows={3}
+              value={editDescription}
+              onChange={(e) => setEditDescription(e.target.value)}
+            />
+            {selectedItem?.type === 'folder' && (
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, p: 1, bgcolor: alpha(theme.palette.primary.main, 0.05), borderRadius: 1 }}>
+                <Checkbox 
+                  checked={editIsPublic}
+                  onChange={(e) => setEditIsPublic(e.target.checked)}
+                />
+                <Box>
+                  <Typography variant="body2" fontWeight="bold">{t('Public Folder')}</Typography>
+                  <Typography variant="caption" color="text.secondary">{t('Anyone with archive access can see this folder')}</Typography>
+                </Box>
+              </Box>
+            )}
+          </Box>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setOpenEditDialog(false)}>{t('Cancel')}</Button>
+          <Button onClick={handleUpdateMetadata} variant="contained" color="primary">
+            {t('Save Changes')}
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Permissions Dialog */}
+      <Dialog open={openPermissionDialog} onClose={() => setOpenPermissionDialog(false)} fullWidth maxWidth="md">
+        <DialogTitle>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+            <CheckBox color="primary" />
+            <Typography variant="h6">{t('Manage Permissions')}: {selectedItem?.data.name}</Typography>
+          </Box>
+        </DialogTitle>
+        <DialogContent dividers>
+          <Box sx={{ mb: 3, p: 2, bgcolor: alpha(theme.palette.primary.main, 0.02), borderRadius: 2, border: `1px dashed ${theme.palette.primary.main}` }}>
+            <Typography variant="subtitle2" gutterBottom fontWeight="bold">{t('Grant Access to User')}</Typography>
+            <Grid container spacing={2} alignItems="center">
+              <Grid item xs={12} sm={6}>
+                <FormControl fullWidth size="small">
+                  <InputLabel>{t('Select User')}</InputLabel>
+                  <Select
+                    value={selectedUserForPerm}
+                    onChange={(e) => setSelectedUserForPerm(e.target.value)}
+                    label={t('Select User')}
+                    disabled={loadingUsers}
+                  >
+                    {loadingUsers ? (
+                      <MenuItem disabled>
+                        <CircularProgress size={20} sx={{ mr: 1 }} />
+                        {t('Loading Users...')}
+                      </MenuItem>
+                    ) : allUsers.length === 0 ? (
+                      <MenuItem disabled>{t('No archive users found')}</MenuItem>
+                    ) : (
+                      allUsers.map((u) => (
+                        <MenuItem key={u.id} value={u.id}>
+                          {u.name} ({u.email})
+                        </MenuItem>
+                      ))
+                    )}
+                  </Select>
+                </FormControl>
+              </Grid>
+              <Grid item xs={12} sm={4}>
+                <FormControl fullWidth size="small">
+                  <InputLabel>{t('Permission Level')}</InputLabel>
+                  <Select
+                    value={newPermLevel}
+                    onChange={(e) => setNewPermLevel(e.target.value)}
+                    label={t('Permission Level')}
+                  >
+                    <MenuItem value="view">{t('View Only')}</MenuItem>
+                    <MenuItem value="edit">{t('View & Edit')}</MenuItem>
+                    <MenuItem value="full">{t('Full Control')}</MenuItem>
+                  </Select>
+                </FormControl>
+              </Grid>
+              <Grid item xs={12} sm={2}>
+                <Button 
+                  fullWidth 
+                  variant="contained" 
+                  onClick={handleAddPermission}
+                  disabled={!selectedUserForPerm}
+                >
+                  {t('Add')}
+                </Button>
+              </Grid>
+            </Grid>
+          </Box>
+
+          <Typography variant="subtitle2" gutterBottom fontWeight="bold">{t('Users with Access')}</Typography>
+          {loadingPerms ? (
+            <Box sx={{ display: 'flex', justifyContent: 'center', p: 3 }}>
+              <CircularProgress size={30} />
+            </Box>
+          ) : permissions.length === 0 ? (
+            <Paper variant="outlined" sx={{ py: 4, textAlign: 'center', bgcolor: alpha(theme.palette.divider, 0.02) }}>
+              <Info sx={{ color: 'text.disabled', mb: 1 }} />
+              <Typography variant="body2" color="text.secondary">
+                {t('No special permissions granted yet.')}
+              </Typography>
+            </Paper>
+          ) : (
+            <TableContainer component={Paper} variant="outlined">
+              <Table size="small">
+                <TableHead sx={{ bgcolor: alpha(theme.palette.primary.main, 0.05) }}>
+                  <TableRow>
+                    <TableCell sx={{ fontWeight: 'bold' }}>{t('User')}</TableCell>
+                    <TableCell sx={{ fontWeight: 'bold' }}>{t('Level')}</TableCell>
+                    <TableCell sx={{ fontWeight: 'bold' }} align="right">{t('Actions')}</TableCell>
+                  </TableRow>
+                </TableHead>
+                <TableBody>
+                  {permissions.map((p) => (
+                    <TableRow key={p.user_id}>
+                      <TableCell>
+                        <Typography variant="body2" fontWeight="medium">{p.user_email}</Typography>
+                      </TableCell>
+                      <TableCell>
+                        <Chip 
+                          size="small" 
+                          label={t(p.permission_level)} 
+                          color={p.permission_level === 'full' ? 'primary' : p.permission_level === 'edit' ? 'secondary' : 'default'}
+                          variant="filled"
+                          sx={{ fontWeight: 'bold' }}
+                        />
+                      </TableCell>
+                      <TableCell align="right">
+                        <IconButton size="small" color="error" onClick={() => handleRemovePermission(p.user_id)}>
+                          <Delete fontSize="small" />
+                        </IconButton>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </TableContainer>
+          )}
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setOpenPermissionDialog(false)}>{t('Close')}</Button>
         </DialogActions>
       </Dialog>
 
@@ -1509,13 +1836,17 @@ const ArchiveBrowser: React.FC = () => {
               <ListItemIcon><Explore fontSize="small" /></ListItemIcon>
               <ListItemText>{t('Explore Local')}</ListItemText>
             </MenuItem>
+            <MenuItem onClick={handleOpenPermissions}>
+              <ListItemIcon><CheckBox fontSize="small" /></ListItemIcon>
+              <ListItemText>{t('Manage Permissions')}</ListItemText>
+            </MenuItem>
             {canDownload && (
               <MenuItem onClick={() => {
-                handleDownloadFolder(selectedItem.data);
+                handleDownloadZip(selectedItem.id, selectedItem.data.name);
                 handleMenuClose();
               }}>
                 <ListItemIcon><Download fontSize="small" /></ListItemIcon>
-                <ListItemText>{t('Download Folder (ZIP)')}</ListItemText>
+                <ListItemText>{t('Download as ZIP')}</ListItemText>
               </MenuItem>
             )}
           </Box>
@@ -1538,6 +1869,10 @@ const ArchiveBrowser: React.FC = () => {
             </MenuItem>
           </Box>
         )}
+        <MenuItem onClick={handleOpenEdit}>
+          <ListItemIcon><Settings fontSize="small" /></ListItemIcon>
+          <ListItemText>{t('Rename / Description')}</ListItemText>
+        </MenuItem>
         {canDelete && (
           <MenuItem 
             onClick={() => { 
@@ -1865,22 +2200,10 @@ const ArchiveBrowser: React.FC = () => {
               <input
                 type="file"
                 hidden
-                accept={ALLOWED_EXTENSIONS.join(',')}
                 onChange={(e) => {
                   if (e.target.files && e.target.files[0]) {
                     const file = e.target.files[0];
-                    const ext = '.' + file.name.split('.').pop()?.toLowerCase();
-                    
-                    if (!ALLOWED_EXTENSIONS.includes(ext)) {
-                      alert(`${t('File type not allowed')}: ${ext}`, t('Warning'), 'warning');
-                      return;
-                    }
-                    
-                    if (file.size > MAX_FILE_SIZE) {
-                      alert(`${t('File too large')}: ${(file.size / (1024 * 1024)).toFixed(2)}MB. ${t('Max')}: 10MB`, t('Warning'), 'warning');
-                      return;
-                    }
-
+                    // Removed restrictions as per user request
                     setUploadFile(file);
                     setUploadName(file.name);
                   }

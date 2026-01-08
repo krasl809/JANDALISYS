@@ -50,7 +50,7 @@ const LoadingFallback = () => (
 const SettingsPage: React.FC = () => {
   const { t } = useTranslation();
   const theme = useTheme();
-  const { user } = useAuth();
+  const { user, hasPermission } = useAuth();
   const isMobile = useMediaQuery(theme.breakpoints.down('md'));
   const [currentTab, setCurrentTab] = useState(0);
 
@@ -63,18 +63,22 @@ const SettingsPage: React.FC = () => {
   const allTabs = [
     { label: t('My Profile') || 'My Profile', icon: <PeopleIcon />, component: <ProfileSettings /> },
     { label: t('User & Access') || 'User & Access', icon: <PeopleIcon />, component: <UserManagementNew />, adminOnly: true },
-    { label: t('Articles'), icon: <InventoryIcon />, component: <ArticlesList /> },
-    { label: t('Buyers'), icon: <PeopleIcon />, component: <BuyersList /> },
-    { label: t('Sellers'), icon: <PeopleIcon />, component: <SellersList /> },
-    { label: t('Brokers'), icon: <BrokerIcon />, component: <BrokersList /> },
-    { label: t('Shippers'), icon: <ShippingIcon />, component: <ShippersList /> },
-    { label: t('Agents'), icon: <BusinessCenter />, component: <AgentsList /> },
-    { label: t('Documents'), icon: <DocumentIcon />, component: <DocumentsList /> },
-    { label: t('Payment Terms'), icon: <PaymentIcon />, component: <PaymentTermsList /> },
-    { label: t('Incoterms'), icon: <IncotermIcon />, component: <IncotermsList /> },
+    { label: t('Articles'), icon: <InventoryIcon />, component: <ArticlesList />, permission: 'read_articles' },
+    { label: t('Buyers'), icon: <PeopleIcon />, component: <BuyersList />, permission: 'read_buyers' },
+    { label: t('Sellers'), icon: <PeopleIcon />, component: <SellersList />, permission: 'read_sellers' },
+    { label: t('Brokers'), icon: <BrokerIcon />, component: <BrokersList />, permission: 'read_brokers' },
+    { label: t('Shippers'), icon: <ShippingIcon />, component: <ShippersList />, permission: 'read_shippers' },
+    { label: t('Agents'), icon: <BusinessCenter />, component: <AgentsList />, permission: 'view_agents' },
+    { label: t('Documents'), icon: <DocumentIcon />, component: <DocumentsList />, permission: 'read_document_types' },
+    { label: t('Payment Terms'), icon: <PaymentIcon />, component: <PaymentTermsList />, permission: 'read_payment_terms' },
+    { label: t('Incoterms'), icon: <IncotermIcon />, component: <IncotermsList />, permission: 'read_incoterms' },
   ];
 
-  const tabs = allTabs.filter(tab => !tab.adminOnly || isAdmin);
+  const tabs = allTabs.filter(tab => {
+    if (tab.adminOnly && !isAdmin) return false;
+    if (tab.permission && !hasPermission(tab.permission)) return false;
+    return true;
+  });
 
   return (
     <Container maxWidth="xl" sx={{ mt: 4, mb: 8 }}>

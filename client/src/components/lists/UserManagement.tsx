@@ -97,7 +97,7 @@ interface Position {
   level?: string;
 }
 
-const roles = ['admin', 'manager', 'finance', 'user', 'viewer'];
+const roles = ['admin', 'manager', 'finance', 'user', 'viewer', 'archive_admin', 'archive_viewer'];
 
 const UserManagement: React.FC = () => {
   const { t } = useTranslation();

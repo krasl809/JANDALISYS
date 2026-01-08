@@ -108,6 +108,26 @@ const SystemAccessSection: React.FC<SystemAccessSectionProps> = ({
         can_access_inventory: false,
         can_access_contracts: true,
         can_access_reports: false
+      },
+      archive_admin: {
+        permissions: [
+          'view_dashboard', 'archive_read', 'archive_upload', 'archive_download', 'archive_delete', 'archive_write'
+        ],
+        can_access_hr: false,
+        can_access_finance: false,
+        can_access_inventory: false,
+        can_access_contracts: false,
+        can_access_reports: false
+      },
+      archive_viewer: {
+        permissions: [
+          'view_dashboard', 'archive_read', 'archive_download'
+        ],
+        can_access_hr: false,
+        can_access_finance: false,
+        can_access_inventory: false,
+        can_access_contracts: false,
+        can_access_reports: false
       }
     };
 
@@ -120,7 +140,9 @@ const SystemAccessSection: React.FC<SystemAccessSectionProps> = ({
     { value: 'finance_manager', label: 'Finance Manager', description: 'Financial data and contracts' },
     { value: 'manager', label: 'Manager', description: 'Department management and contracts' },
     { value: 'employee', label: 'Employee', description: 'Basic employee access' },
-    { value: 'viewer', label: 'Viewer', description: 'Read-only access' }
+    { value: 'viewer', label: 'Viewer', description: 'Read-only access' },
+    { value: 'archive_admin', label: 'Archive Administrator', description: 'Full access to electronic archive only' },
+    { value: 'archive_viewer', label: 'Archive Viewer', description: 'View and download from electronic archive only' }
   ];
 
   const getSelectedRoleInfo = () => {

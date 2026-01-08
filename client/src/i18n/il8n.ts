@@ -646,10 +646,12 @@ const resources = {
       "errorUpdatingUser": "خطأ في تحديث المستخدم",
       "confirmDeleteUser": "هل أنت متأكد من حذف هذا المستخدم؟",
       "errorDeletingUser": "خطأ في حذف المستخدم",
-      "admin": "مدير",
+      "admin": "مدير النظام",
       "manager": "مدير",
       "finance": "مالية",
       "viewer": "مشاهد",
+      "archive_admin": "مدير الأرشيف",
+      "archive_viewer": "مستعرض الأرشيف",
       // Navigation Menu Translations
       "Main Menu": "القائمة الرئيسية",
       "Operations": "العمليات",

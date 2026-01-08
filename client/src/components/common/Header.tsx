@@ -85,12 +85,12 @@ const Header: React.FC<{ handleDrawerToggle: () => void }> = ({ handleDrawerTogg
   const [notifAnchorEl, setNotifAnchorEl] = useState<null | HTMLElement>(null);
   const open = Boolean(anchorEl);
   const notifOpen = Boolean(notifAnchorEl);
-  const isRTL = i18n.language === 'ar';
-
   const accountButtonRef = useRef<HTMLButtonElement>(null);
   const notifButtonRef = useRef<HTMLButtonElement>(null);
 
-  const toggleLanguage = () => i18n.changeLanguage(i18n.language === 'en' ? 'ar' : 'en');
+  const isRTL = i18n.language.startsWith('ar');
+
+  const toggleLanguage = () => i18n.changeLanguage(i18n.language.startsWith('ar') ? 'en' : 'ar');
 
   const handleMenu = () => {
     setAnchorEl(accountButtonRef.current);

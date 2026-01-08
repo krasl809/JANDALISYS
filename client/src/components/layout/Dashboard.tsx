@@ -511,8 +511,8 @@ const ProfitChart = React.memo(() => {
                     <Typography color="text.secondary" variant="body2">{t('dashboard.noDataAvailable')}</Typography>
                 </Box>
             ) : (
-                <Box sx={{ height: 220, width: '100%', position: 'relative', minHeight: 220, minWidth: 0 }}>
-                    <ResponsiveContainer width="100%" height="100%">
+                <Box sx={{ height: 220, width: '100%', position: 'relative', minHeight: 220, minWidth: 0, overflow: 'hidden' }}>
+                    <ResponsiveContainer width="100%" height="100%" debounce={50}>
                         <BarChart data={data} margin={{ top: 0, right: 0, left: -20, bottom: 0 }}>
                             <defs>
                                 {barColors.map((color, i) => (

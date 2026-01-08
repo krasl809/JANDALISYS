@@ -21,7 +21,7 @@ import { ar } from 'date-fns/locale';
 const ArchiveDashboard = () => {
   const theme = useTheme();
   const { t, i18n } = useTranslation();
-  const isRtl = i18n.language === 'ar';
+  const isRtl = i18n.language.startsWith('ar');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [stats, setStats] = useState<any>(null);
@@ -44,9 +44,15 @@ const ArchiveDashboard = () => {
   };
 
   const formatSize = (bytes: number) => {
-    if (!bytes || bytes === 0) return '0 Bytes';
+    if (!bytes || bytes === 0) return `0 ${t('common.units.bytes', { defaultValue: 'Bytes' })}`;
     const k = 1024;
-    const sizes = ['Bytes', 'KB', 'MB', 'GB', 'TB'];
+    const sizes = [
+      t('common.units.bytes', { defaultValue: 'Bytes' }),
+      t('common.units.kb', { defaultValue: 'KB' }),
+      t('common.units.mb', { defaultValue: 'MB' }),
+      t('common.units.gb', { defaultValue: 'GB' }),
+      t('common.units.tb', { defaultValue: 'TB' })
+    ];
     const i = Math.floor(Math.log(bytes) / Math.log(k));
     return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
   };
@@ -66,7 +72,9 @@ const ArchiveDashboard = () => {
   const COLORS = [theme.palette.primary.main, theme.palette.secondary.main, theme.palette.success.main, theme.palette.warning.main, theme.palette.error.main];
 
   return (
-    <Box sx={{ p: { xs: 2, md: 4 }, bgcolor: 'background.default', minHeight: '100vh' }}>
+    <Box sx={{ 
+      direction: isRtl ? 'rtl' : 'ltr'
+    }}>
       <Box mb={6} display="flex" justifyContent="space-between" alignItems="center">
         <Box>
           <Typography variant="h4" fontWeight="700" sx={{ mb: 1, color: 'text.primary' }}>
@@ -79,7 +87,8 @@ const ArchiveDashboard = () => {
         <Button 
           variant="outlined" 
           size="small"
-          startIcon={<Print />} 
+          startIcon={isRtl ? null : <Print />} 
+          endIcon={isRtl ? <Print /> : null}
           onClick={() => window.print()}
           sx={{ borderRadius: '4px' }}
         >
@@ -157,9 +166,9 @@ const ArchiveDashboard = () => {
             <Typography variant="h6" fontWeight="700" mb={3}>
               {t('archive.upload_activity')}
             </Typography>
-            <Box sx={{ height: 300, minHeight: 300, width: '100%', position: 'relative', minWidth: 0 }}>
+            <Box sx={{ height: 300, minHeight: 300, width: '100%', position: 'relative', minWidth: 0, overflow: 'hidden' }}>
               {stats?.monthly_stats && stats.monthly_stats.length > 0 ? (
-                <ResponsiveContainer width="100%" height="100%">
+                <ResponsiveContainer width="100%" height="100%" debounce={50}>
                   <AreaChart data={stats.monthly_stats}>
                     <defs>
                       <linearGradient id="colorCount" x1="0" y1="0" x2="0" y2="1">
@@ -171,14 +180,16 @@ const ArchiveDashboard = () => {
                       dataKey="month" 
                       axisLine={false} 
                       tickLine={false} 
-                      tick={{ fontSize: 12, fill: theme.palette.text.secondary }}
+                      tick={{ fontSize: 10, fill: theme.palette.text.secondary }}
                       reversed={isRtl}
+                      dy={10}
                     />
                     <YAxis 
                       axisLine={false} 
                       tickLine={false} 
-                      tick={{ fontSize: 12, fill: theme.palette.text.secondary }}
+                      tick={{ fontSize: 10, fill: theme.palette.text.secondary }}
                       orientation={isRtl ? 'right' : 'left'}
+                      dx={isRtl ? 10 : -10}
                     />
                     <RechartsTooltip 
                       contentStyle={{ 
@@ -201,7 +212,7 @@ const ArchiveDashboard = () => {
                 </ResponsiveContainer>
               ) : (
                 <Box display="flex" justifyContent="center" alignItems="center" height="100%">
-                  <Typography color="textSecondary">{t('dashboard.noDataAvailable')}</Typography>
+                  <Typography color="textSecondary">{t('archive.noDataAvailable')}</Typography>
                 </Box>
               )}
             </Box>
@@ -223,10 +234,10 @@ const ArchiveDashboard = () => {
             <Typography variant="h6" fontWeight="700" mb={3}>
               {t('archive.file_types')}
             </Typography>
-            <Box sx={{ height: 300, minHeight: 300, width: '100%', position: 'relative', display: 'flex', flexDirection: 'column', justifyContent: 'center', minWidth: 0 }}>
-              <Box sx={{ height: 200, minHeight: 200, width: '100%', position: 'relative', minWidth: 0 }}>
+            <Box sx={{ height: 300, minHeight: 300, width: '100%', position: 'relative', display: 'flex', flexDirection: 'column', justifyContent: 'center', minWidth: 0, overflow: 'hidden' }}>
+              <Box sx={{ height: 200, minHeight: 200, width: '100%', position: 'relative', minWidth: 0, overflow: 'hidden' }}>
                 {stats?.files_by_ext && stats.files_by_ext.length > 0 ? (
-                  <ResponsiveContainer width="100%" height="100%">
+                  <ResponsiveContainer width="100%" height="100%" debounce={50}>
                     <PieChart>
                       <Pie
                         data={stats.files_by_ext}
@@ -254,18 +265,18 @@ const ArchiveDashboard = () => {
                   </ResponsiveContainer>
                 ) : (
                   <Box display="flex" justifyContent="center" alignItems="center" height="100%">
-                    <Typography color="textSecondary">{t('dashboard.noDataAvailable')}</Typography>
+                    <Typography color="textSecondary">{t('archive.noDataAvailable')}</Typography>
                   </Box>
                 )}
               </Box>
               <Stack spacing={1} mt={2}>
                 {stats?.files_by_ext?.map((entry: any, index: number) => (
                   <Box key={index} display="flex" justifyContent="space-between" alignItems="center">
-                    <Stack direction="row" spacing={1} alignItems="center">
-                      <Box sx={{ width: 8, height: 8, borderRadius: '50%', bgcolor: COLORS[index % COLORS.length] }} />
-                      <Typography variant="caption" color="text.secondary">{entry.ext}</Typography>
+                    <Stack direction="row" spacing={1} alignItems="center" sx={{ overflow: 'hidden' }}>
+                      <Box sx={{ minWidth: 8, width: 8, height: 8, borderRadius: '50%', bgcolor: COLORS[index % COLORS.length] }} />
+                      <Typography variant="caption" color="text.secondary" noWrap>{entry.ext}</Typography>
                     </Stack>
-                    <Typography variant="caption" fontWeight="700">{entry.count}</Typography>
+                    <Typography variant="caption" fontWeight="700" sx={{ ml: isRtl ? 0 : 1, mr: isRtl ? 1 : 0 }}>{entry.count}</Typography>
                   </Box>
                 ))}
               </Stack>

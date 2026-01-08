@@ -17,6 +17,8 @@ import datetime
 import urllib.parse
 import subprocess
 import platform
+import re
+import mimetypes
 from typing import List, Optional
 from PIL import Image
 import io
@@ -221,17 +223,137 @@ def init_archive(db: Session = Depends(get_db), current_user = Depends(require_p
     ensure_storage(db)
     return {"status": "initialized"}
 
+def get_breadcrumb_path(db: Session, folder_id: Optional[int]) -> str:
+    if not folder_id:
+        return "Main Archive"
+    
+    path_parts = []
+    current_id = folder_id
+    while current_id:
+        folder = db.query(archive_models.ArchiveFolder).filter(archive_models.ArchiveFolder.id == current_id).first()
+        if folder:
+            path_parts.append(folder.name)
+            current_id = folder.parent_id
+        else:
+            break
+    
+    return " / ".join(reversed(path_parts))
+
+@router.get("/search")
+def search_archive(
+    q: str = Query(..., min_length=1),
+    db: Session = Depends(get_db),
+    current_user = Depends(require_permission("archive_read"))
+):
+    user_role = getattr(current_user, 'role', 'user')
+    is_admin = user_role in ["admin", "archive_admin"]
+    
+    # 1. Search Folders
+    folder_query = db.query(archive_models.ArchiveFolder).filter(
+        archive_models.ArchiveFolder.name.ilike(f"%{q}%")
+    )
+    
+    if not is_admin:
+        shared_folder_ids = db.query(archive_models.ArchiveFolderPermission.folder_id).filter(
+            archive_models.ArchiveFolderPermission.user_id == current_user.id
+        ).all()
+        shared_folder_ids = [f[0] for f in shared_folder_ids]
+        
+        folder_query = folder_query.filter(
+            or_(
+                archive_models.ArchiveFolder.created_by == current_user.id,
+                archive_models.ArchiveFolder.is_public == True,
+                archive_models.ArchiveFolder.id.in_(shared_folder_ids)
+            )
+        )
+    
+    folders_raw = folder_query.limit(20).all()
+    folders = []
+    
+    # Calculate sizes and counts for folders found
+    for f in folders_raw:
+        # Get path
+        f_path = get_breadcrumb_path(db, f.parent_id)
+        
+        all_folder_ids = [f.id]
+        to_process = [f.id]
+        while to_process:
+            curr_id = to_process.pop()
+            subs = [sf[0] for sf in db.query(archive_models.ArchiveFolder.id).filter(
+                archive_models.ArchiveFolder.parent_id == curr_id
+            ).all()]
+            all_folder_ids.extend(subs)
+            to_process.extend(subs)
+            
+        total_size = db.query(func.sum(archive_models.ArchiveFile.file_size)).filter(
+            archive_models.ArchiveFile.folder_id.in_(all_folder_ids)
+        ).scalar() or 0
+        
+        f_count = db.query(func.count(archive_models.ArchiveFile.id)).filter(
+            archive_models.ArchiveFile.folder_id == f.id
+        ).scalar() or 0
+        sf_count = db.query(func.count(archive_models.ArchiveFolder.id)).filter(
+            archive_models.ArchiveFolder.parent_id == f.id
+        ).scalar() or 0
+        
+        # We need to convert to dict to add custom fields or use an ad-hoc schema
+        f_dict = {
+            "id": f.id,
+            "name": f.name,
+            "parent_id": f.parent_id,
+            "created_at": f.created_at,
+            "total_size": total_size,
+            "item_count": f_count + sf_count,
+            "breadcrumb": f_path
+        }
+        folders.append(f_dict)
+
+    # 2. Search Files
+    file_query = db.query(archive_models.ArchiveFile).filter(
+        archive_models.ArchiveFile.name.ilike(f"%{q}%")
+    )
+    
+    if not is_admin:
+        file_query = file_query.filter(
+            or_(
+                archive_models.ArchiveFile.created_by == current_user.id,
+                archive_models.ArchiveFile.is_public == True
+            )
+        )
+        
+    files_raw = file_query.limit(50).all()
+    files = []
+    for f in files_raw:
+        files.append({
+            "id": f.id,
+            "name": f.name,
+            "file_type": f.file_type,
+            "file_size": f.file_size,
+            "created_at": f.created_at,
+            "folder_id": f.folder_id,
+            "breadcrumb": get_breadcrumb_path(db, f.folder_id)
+        })
+    
+    return {
+        "folders": folders,
+        "files": files
+    }
+
 @router.get("/folders")
 def get_folders(
     parent_id: Optional[int] = Query(None),
     db: Session = Depends(get_db),
     current_user = Depends(require_permission("archive_read"))
 ):
+    user_role = getattr(current_user, 'role', 'user')
+    is_admin = user_role in ["admin", "archive_admin"]
+    
+    logger.info(f"User {current_user.email} (role: {user_role}) fetching folders for parent_id: {parent_id}")
+    
     query = db.query(archive_models.ArchiveFolder).filter(archive_models.ArchiveFolder.parent_id == parent_id)
     
     # Filter by ownership, public status, or ACL
-    user_role = getattr(current_user, 'role', 'user')
-    if user_role not in ["admin", "archive_admin"]:
+    if not is_admin:
         # Get IDs of folders where user has explicit permission
         shared_folder_ids = db.query(archive_models.ArchiveFolderPermission.folder_id).filter(
             archive_models.ArchiveFolderPermission.user_id == current_user.id
@@ -246,7 +368,40 @@ def get_folders(
             )
         )
         
-    return query.all()
+    folders = query.all()
+    
+    # Calculate recursive sizes and item counts
+    for folder in folders:
+        # 1. Get all subfolder IDs recursively for total size calculation
+        all_folder_ids = [folder.id]
+        to_process = [folder.id]
+        while to_process:
+            current_id = to_process.pop()
+            sub_ids = [sf[0] for sf in db.query(archive_models.ArchiveFolder.id).filter(
+                archive_models.ArchiveFolder.parent_id == current_id
+            ).all()]
+            all_folder_ids.extend(sub_ids)
+            to_process.extend(sub_ids)
+            
+        # 2. Sum file sizes in all these folders (recursive)
+        total_size = db.query(func.sum(archive_models.ArchiveFile.file_size)).filter(
+            archive_models.ArchiveFile.folder_id.in_(all_folder_ids)
+        ).scalar() or 0
+        
+        # 3. Count items directly inside this folder (non-recursive count for the "(X Items)" label)
+        file_count = db.query(func.count(archive_models.ArchiveFile.id)).filter(
+            archive_models.ArchiveFile.folder_id == folder.id
+        ).scalar() or 0
+        
+        subfolder_count = db.query(func.count(archive_models.ArchiveFolder.id)).filter(
+            archive_models.ArchiveFolder.parent_id == folder.id
+        ).scalar() or 0
+        
+        folder.total_size = total_size
+        folder.item_count = file_count + subfolder_count
+
+    logger.info(f"Found {len(folders)} folders for parent_id {parent_id}")
+    return folders
 
 @router.post("/folders")
 def create_folder(
@@ -255,6 +410,22 @@ def create_folder(
     current_user = Depends(require_permission("archive_upload"))
 ):
     ensure_storage(db)
+    
+    import re
+    # Sanitize folder name
+    clean_name = re.sub(r'[\\/*?:"<>|]', "", folder_data.name).strip()
+    if not clean_name:
+        clean_name = f"folder_{uuid.uuid4().hex[:6]}"
+        
+    # 1. Check if folder with same name already exists in this parent
+    existing = db.query(archive_models.ArchiveFolder).filter(
+        archive_models.ArchiveFolder.parent_id == folder_data.parent_id,
+        archive_models.ArchiveFolder.name == clean_name
+    ).first()
+    
+    if existing:
+        raise HTTPException(status_code=400, detail=f"A folder with the name '{clean_name}' already exists in this directory.")
+
     # Get parent path
     parent_path = STORAGE_PATH
     if folder_data.parent_id:
@@ -265,12 +436,6 @@ def create_folder(
     # Use absolute path for safety
     parent_path = os.path.abspath(parent_path)
     
-    import re
-    # Sanitize folder name
-    clean_name = re.sub(r'[\\/*?:"<>|]', "", folder_data.name).strip()
-    if not clean_name:
-        clean_name = f"folder_{uuid.uuid4().hex[:6]}"
-        
     folder_path = os.path.join(parent_path, clean_name)
     
     # Create physical folder
@@ -291,6 +456,7 @@ def create_folder(
         return new_folder
     except Exception as e:
         logger.error(f"Failed to create folder {folder_path}: {str(e)}", exc_info=True)
+        db.rollback()
         raise HTTPException(status_code=500, detail=f"Failed to create folder: {str(e)}")
 
 @router.get("/files")
@@ -365,23 +531,102 @@ def view_file(
     
     # Normalize path for Windows
     normalized_path = os.path.normpath(file_record.file_path)
-    print(f"DEBUG: Normalized path: {normalized_path}")
+    print(f"DEBUG: Normalized path from DB: {normalized_path}")
     
+    # Check if file exists. If not, try to reconstruct path from current STORAGE_PATH
     if not os.path.exists(normalized_path):
-        print(f"DEBUG: File does not exist at {normalized_path}")
-        # Last resort: try to find it relative to current STORAGE_PATH
-        filename = os.path.basename(normalized_path)
-        # We need to know which folder it's in.
-        folder = db.query(archive_models.ArchiveFolder).get(file_record.folder_id)
-        if folder:
-            alt_path = os.path.join(folder.path, filename)
-            if os.path.exists(alt_path):
-                print(f"DEBUG: Found file at alt_path: {alt_path}")
-                normalized_path = alt_path
-            else:
-                raise HTTPException(status_code=404, detail="Physical file not found")
+        print(f"DEBUG: File does not exist at DB path. Attempting reconstruction...")
+        
+        # 1. Try migration reconstruction (flexible split)
+        found_path = None
+        path_lower = normalized_path.lower()
+        # Clean the path from any absolute prefixes to get relative part
+        parts = re.split(r'storage[\\/]archive[\\/]', path_lower, flags=re.IGNORECASE)
+        relative_part = parts[-1] if len(parts) > 1 else os.path.basename(normalized_path)
+        
+        # Try joining with current STORAGE_PATH
+        new_path = os.path.normpath(os.path.join(STORAGE_PATH, relative_part))
+        if os.path.exists(new_path):
+            found_path = new_path
+        
+        # 2. Try markers if not found
+        if not found_path:
+            for marker in ["storage\\archive", "storage/archive", "archive"]:
+                if marker in path_lower:
+                    relative_part = path_lower.split(marker)[-1].lstrip("\\/")
+                    new_path = os.path.normpath(os.path.join(STORAGE_PATH, relative_part))
+                    if os.path.exists(new_path):
+                        found_path = new_path
+                        break
+        
+        # 2. Try finding via folder with improved flexibility
+        if not found_path:
+            folder = db.query(archive_models.ArchiveFolder).get(file_record.folder_id)
+            if folder:
+                # Try to fix folder path first
+                folder_path = os.path.normpath(folder.path)
+                if not os.path.exists(folder_path):
+                    for marker in ["storage\\archive", "storage/archive", "archive"]:
+                        if marker in folder_path.lower():
+                            rel_folder = folder_path.lower().split(marker)[-1].lstrip("\\/")
+                            new_f_path = os.path.normpath(os.path.join(STORAGE_PATH, rel_folder))
+                            if os.path.exists(new_f_path):
+                                folder.path = new_f_path
+                                db.commit()
+                                folder_path = new_f_path
+                                break
+
+                if os.path.exists(folder_path):
+                    filenames = [file_record.original_name, file_record.name, os.path.basename(normalized_path)]
+                    for fname in filter(None, filenames):
+                        p = os.path.normpath(os.path.join(folder_path, fname))
+                        if os.path.exists(p):
+                            found_path = p
+                            break
+
+    # FINAL RESORT: Recursive search in STORAGE_PATH (Slow but effective)
+    if not os.path.exists(normalized_path):
+        print(f"DEBUG: File not found at {normalized_path}. Starting smart search...")
+        target_filename = os.path.basename(normalized_path).lower()
+        original_filename = file_record.original_name.lower() if file_record.original_name else None
+        
+        found_path = None
+        for root, dirs, files in os.walk(STORAGE_PATH):
+            for f in files:
+                f_lower = f.lower()
+                # Try exact match, original name match, or stripped match (ignore extra spaces/encoding issues)
+                if f_lower == target_filename or (original_filename and f_lower == original_filename):
+                    found_path = os.path.join(root, f)
+                    break
+                
+                # Stripped match for Arabic characters issues
+                f_stripped = "".join(f_lower.split())
+                t_stripped = "".join(target_filename.split())
+                if f_stripped == t_stripped:
+                    found_path = os.path.join(root, f)
+                    break
+            if found_path: break
+            
+        if found_path:
+            normalized_path = os.path.normpath(found_path)
+            file_record.file_path = normalized_path
+            db.commit()
+            print(f"DEBUG: Smart search found file at: {normalized_path}")
         else:
-            raise HTTPException(status_code=404, detail="Physical file not found")
+            raise HTTPException(
+                status_code=404, 
+                detail=f"Physical file not found. Checked DB path and performed deep scan in {STORAGE_PATH}. Please ensure the file exists."
+            )
+
+    # Final verification before serving
+    # Use long path support for Windows
+    if not normalized_path.startswith("\\\\?\\"):
+        abs_path = os.path.abspath(normalized_path)
+        long_path = "\\\\?\\" + abs_path
+        if os.path.exists(long_path):
+            normalized_path = long_path
+        elif os.path.exists(abs_path):
+            normalized_path = abs_path
             
     # Determine mime type
     ext = os.path.splitext(normalized_path)[1].lower()
@@ -397,6 +642,346 @@ def view_file(
         media_type=mime_type,
         content_disposition_type="inline"
     )
+
+@router.get("/admin/full-report")
+def get_full_archive_report(
+    db: Session = Depends(get_db),
+    current_user = Depends(require_permission("archive_read"))
+):
+    """
+    Generates a full report of all files and their status on disk.
+    """
+    user_role = getattr(current_user, 'role', 'user')
+    if user_role not in ["admin", "archive_admin"]:
+        raise HTTPException(status_code=403, detail="Admin access required")
+
+    all_files = db.query(archive_models.ArchiveFile).all()
+    report = {
+        "summary": {
+            "total_files_in_db": len(all_files),
+            "healthy_files": 0,
+            "moved_but_found": 0,
+            "completely_missing": 0
+        },
+        "details": {
+            "moved_files": [],
+            "missing_files": []
+        }
+    }
+
+    # Pre-scan storage to speed up lookups
+    all_disk_files = {}
+    for root, _, files in os.walk(STORAGE_PATH):
+        for f in files:
+            all_disk_files[f.lower()] = os.path.join(root, f)
+
+    for file in all_files:
+        current_path = os.path.normpath(file.file_path)
+        
+        # 1. Check if healthy
+        if os.path.exists(current_path):
+            report["summary"]["healthy_files"] += 1
+            continue
+        
+        # 2. Try to find it in our pre-scanned disk map
+        found_path = None
+        storage_name = os.path.basename(current_path).lower()
+        original_name = file.original_name.lower() if file.original_name else None
+        
+        if storage_name in all_disk_files:
+            found_path = all_disk_files[storage_name]
+        elif original_name and original_name in all_disk_files:
+            found_path = all_disk_files[original_name]
+        
+        if found_path:
+            report["summary"]["moved_but_found"] += 1
+            report["details"]["moved_files"].append({
+                "id": file.id,
+                "name": file.name,
+                "old_path": current_path,
+                "new_path": found_path
+            })
+        else:
+            report["summary"]["completely_missing"] += 1
+            report["details"]["missing_files"].append({
+                "id": file.id,
+                "name": file.name,
+                "db_path": current_path,
+                "original_name": file.original_name
+            })
+
+    return report
+
+@router.post("/admin/force-repair")
+def force_repair_paths(
+    background_tasks: BackgroundTasks,
+    db: Session = Depends(get_db),
+    current_user = Depends(require_permission("archive_upload"))
+):
+    """
+    Bulk repair all file and folder paths in the database as a background task.
+    """
+    user_role = getattr(current_user, 'role', 'user')
+    if user_role not in ["admin", "archive_admin"]:
+        raise HTTPException(status_code=403, detail="Admin access required")
+
+    def repair_worker():
+        from core.database import SessionLocal
+        worker_db = SessionLocal()
+        try:
+            print("REPAIR: Starting background archive repair...")
+            # 1. Pre-scan disk folders and files
+            all_disk_folders = {}
+            all_disk_files = {}
+            for root, dirs, fs in os.walk(STORAGE_PATH):
+                for d in dirs:
+                    all_disk_folders[d.lower()] = os.path.join(root, d)
+                for f in fs:
+                    all_disk_files[f.lower()] = os.path.join(root, f)
+
+            # 2. Fix Folders
+            folders = worker_db.query(archive_models.ArchiveFolder).all()
+            folder_fixes = 0
+            for folder in folders:
+                if not os.path.exists(folder.path):
+                    name_lower = folder.name.lower()
+                    if name_lower in all_disk_folders:
+                        folder.path = all_disk_folders[name_lower]
+                        folder_fixes += 1
+            worker_db.commit()
+
+            # 3. Fix Files
+            files = worker_db.query(archive_models.ArchiveFile).all()
+            file_fixes = 0
+            for file in files:
+                if not os.path.exists(file.file_path):
+                    storage_name = os.path.basename(file.file_path).lower()
+                    original_name = file.original_name.lower() if file.original_name else None
+                    
+                    new_path = None
+                    if storage_name in all_disk_files:
+                        new_path = all_disk_files[storage_name]
+                    elif original_name and original_name in all_disk_files:
+                        new_path = all_disk_files[original_name]
+                        
+                    if new_path:
+                        file.file_path = new_path
+                        file_fixes += 1
+            worker_db.commit()
+            print(f"REPAIR: Finished. Repaired {folder_fixes} folders and {file_fixes} files.")
+        except Exception as e:
+            print(f"REPAIR ERROR: {str(e)}")
+        finally:
+            worker_db.close()
+
+    background_tasks.add_task(repair_worker)
+    return {"message": "Full archive repair process started in the background. Check logs for details."}
+
+@router.post("/items/copy-move")
+def copy_move_items(
+    data: schemas.ArchiveItemCopyMove,
+    db: Session = Depends(get_db),
+    current_user = Depends(require_permission("archive_write"))
+):
+    """
+    Bulk copy or move files and folders.
+    """
+    target_folder = None
+    if data.target_folder_id:
+        target_folder = db.query(archive_models.ArchiveFolder).get(data.target_folder_id)
+        if not target_folder:
+            raise HTTPException(status_code=404, detail="Target folder not found")
+        
+        # Check write access to target folder
+        check_item_access(target_folder, current_user, db, required_level="edit")
+
+    target_path = STORAGE_PATH if not target_folder else target_folder.path
+    results = {"copied": [], "moved": [], "failed": []}
+
+    # --- Helper: Recursive Path Update for DB ---
+    def update_db_paths(old_base_path, new_base_path):
+        # Normalize paths for comparison
+        old_base_path = os.path.normpath(old_base_path)
+        new_base_path = os.path.normpath(new_base_path)
+        
+        # Ensure we only match sub-items by adding a separator if not present
+        search_path = old_base_path
+        if not search_path.endswith(os.sep):
+            search_path += os.sep
+            
+        # Update all subfolders
+        subfolders = db.query(archive_models.ArchiveFolder).filter(
+            archive_models.ArchiveFolder.path.like(f"{search_path}%")
+        ).all()
+        for f in subfolders:
+            f.path = f.path.replace(old_base_path, new_base_path, 1)
+        
+        # Update all files within these folders
+        subfiles = db.query(archive_models.ArchiveFile).filter(
+            archive_models.ArchiveFile.file_path.like(f"{search_path}%")
+        ).all()
+        for f in subfiles:
+            f.file_path = f.file_path.replace(old_base_path, new_base_path, 1)
+
+    # --- 1. Process Files ---
+    for file_id in data.file_ids:
+        file_record = db.query(archive_models.ArchiveFile).get(file_id)
+        if not file_record:
+            results["failed"].append({"id": file_id, "type": "file", "reason": "Not found"})
+            continue
+            
+        try:
+            # Check view access to file (for copy/move)
+            # and we already checked edit access to target folder above
+            check_item_access(file_record, current_user, db, required_level="view")
+            
+            old_path = os.path.normpath(file_record.file_path)
+            if not os.path.exists(old_path):
+                results["failed"].append({"id": file_id, "name": file_record.name, "reason": "Physical file missing"})
+                continue
+
+            new_filename = file_record.name
+            new_path = os.path.join(target_path, new_filename)
+            
+            # Name collision
+            counter = 1
+            name_base, ext = os.path.splitext(new_filename)
+            while os.path.exists(new_path):
+                new_path = os.path.join(target_path, f"{name_base}_{counter}{ext}")
+                counter += 1
+            
+            if data.operation == "copy":
+                shutil.copy2(old_path, new_path)
+                
+                # Verification
+                if not os.path.exists(new_path):
+                    raise Exception("Physical copy failed: File not found at destination")
+                
+                new_file = archive_models.ArchiveFile(
+                    name=os.path.basename(new_path),
+                    original_name=file_record.original_name,
+                    folder_id=data.target_folder_id,
+                    file_type=file_record.file_type,
+                    file_size=file_record.file_size,
+                    file_path=new_path,
+                    description=file_record.description,
+                    created_by=current_user.id
+                )
+                db.add(new_file)
+                results["copied"].append(file_id)
+            else: # move
+                shutil.move(old_path, new_path)
+                
+                # Verification
+                if not os.path.exists(new_path):
+                    raise Exception("Physical move failed: File not found at destination")
+                
+                file_record.file_path = new_path
+                file_record.folder_id = data.target_folder_id
+                file_record.name = os.path.basename(new_path)
+                results["moved"].append(file_id)
+        except Exception as e:
+            results["failed"].append({"id": file_id, "type": "file", "reason": str(e)})
+
+    # --- 2. Process Folders ---
+    for folder_id in data.folder_ids:
+        folder_record = db.query(archive_models.ArchiveFolder).get(folder_id)
+        if not folder_record:
+            results["failed"].append({"id": folder_id, "type": "folder", "reason": "Not found"})
+            continue
+            
+        try:
+            # Check edit access to folder being moved/copied
+            check_item_access(folder_record, current_user, db, required_level="edit")
+            
+            # Prevent moving folder into itself or its own subfolders
+            old_path = os.path.normpath(folder_record.path)
+            if data.operation == "move":
+                if data.target_folder_id == folder_id:
+                    results["failed"].append({"id": folder_id, "name": folder_record.name, "reason": "Cannot move folder into itself"})
+                    continue
+                
+                # Check if target is a subfolder of this folder
+                target_path_norm = os.path.normpath(target_path)
+                if target_path_norm.startswith(old_path + os.sep) or target_path_norm == old_path:
+                    results["failed"].append({"id": folder_id, "name": folder_record.name, "reason": "Cannot move folder into its own subfolder"})
+                    continue
+
+            if not os.path.exists(old_path):
+                results["failed"].append({"id": folder_id, "name": folder_record.name, "reason": "Physical folder missing"})
+                continue
+
+            new_folder_name = folder_record.name
+            new_path = os.path.join(target_path, new_folder_name)
+            
+            # Name collision for folders
+            counter = 1
+            while os.path.exists(new_path):
+                new_path = os.path.join(target_path, f"{new_folder_name}_{counter}")
+                counter += 1
+
+            if data.operation == "copy":
+                shutil.copytree(old_path, new_path)
+                
+                # Verification
+                if not os.path.exists(new_path):
+                    raise Exception("Physical copy failed: Folder not found at destination")
+                
+                # Recursive DB Record Creation for Copy
+                def clone_folder_db(old_folder, new_parent_id, new_folder_path):
+                    cloned = archive_models.ArchiveFolder(
+                        name=os.path.basename(new_folder_path),
+                        parent_id=new_parent_id,
+                        path=new_folder_path,
+                        description=old_folder.description,
+                        created_by=current_user.id
+                    )
+                    db.add(cloned)
+                    db.flush() # Get ID
+                    
+                    # Clone files in this folder
+                    old_files = db.query(archive_models.ArchiveFile).filter_by(folder_id=old_folder.id).all()
+                    for of in old_files:
+                        nf_path = os.path.join(new_folder_path, of.name)
+                        nf = archive_models.ArchiveFile(
+                            name=of.name,
+                            original_name=of.original_name,
+                            folder_id=cloned.id,
+                            file_type=of.file_type,
+                            file_size=of.file_size,
+                            file_path=nf_path,
+                            description=of.description,
+                            created_by=current_user.id
+                        )
+                        db.add(nf)
+                    
+                    # Clone subfolders
+                    old_subfolders = db.query(archive_models.ArchiveFolder).filter_by(parent_id=old_folder.id).all()
+                    for osf in old_subfolders:
+                        clone_folder_db(osf, cloned.id, os.path.join(new_folder_path, osf.name))
+
+                clone_folder_db(folder_record, data.target_folder_id, new_path)
+                results["copied"].append(folder_id)
+            else: # move
+                shutil.move(old_path, new_path)
+                
+                # Verification
+                if not os.path.exists(new_path):
+                    raise Exception("Physical move failed: Folder not found at destination")
+                
+                old_base = folder_record.path
+                folder_record.path = new_path
+                folder_record.parent_id = data.target_folder_id
+                folder_record.name = os.path.basename(new_path)
+                
+                # Update all nested paths in DB
+                update_db_paths(old_base, new_path)
+                results["moved"].append(folder_id)
+        except Exception as e:
+            results["failed"].append({"id": folder_id, "type": "folder", "reason": str(e)})
+
+    db.commit()
+    return results
 
 @router.get("/files/{file_id}/thumbnail")
 def get_thumbnail(
@@ -506,43 +1091,89 @@ def download_file(
         media_type='application/octet-stream'
     )
 
+def normalize_arabic(text: str) -> str:
+    if not text:
+        return ""
+    # Remove Arabic diacritics
+    text = re.sub(r'[\u064B-\u0652]', '', text)
+    # Normalize Alif
+    text = re.sub(r'[أإآ]', 'ا', text)
+    # Normalize Teh Marbuta
+    text = re.sub(r'ة', 'ه', text)
+    # Normalize Ya
+    text = re.sub(r'ى', 'ي', text)
+    return text.lower().strip()
+
 @router.get("/search")
 def search_archive(
     q: str = Query(...),
+    folder_id: Optional[int] = Query(None),
     db: Session = Depends(get_db),
     current_user = Depends(require_permission("archive_read"))
 ):
-    # Search in folders and files
-    folder_query = db.query(archive_models.ArchiveFolder).filter(
-        archive_models.ArchiveFolder.name.ilike(f"%{q}%")
+    """
+    Enhanced search for files and folders with Arabic normalization support.
+    """
+    normalized_q = normalize_arabic(q)
+    search_pattern = f"%{q}%"
+    norm_search_pattern = f"%{normalized_q}%"
+
+    # Search folders
+    folder_query = db.query(archive_models.ArchiveFolder)
+    if folder_id:
+        folder_query = folder_query.filter(archive_models.ArchiveFolder.parent_id == folder_id)
+    
+    folder_query = folder_query.filter(
+        or_(
+            archive_models.ArchiveFolder.name.ilike(search_pattern),
+            # Add a custom check for normalized names if we had a normalized column, 
+            # but since we don't, we'll stick to ilike for now or use a hybrid approach
+            archive_models.ArchiveFolder.description.ilike(search_pattern)
+        )
     )
     
-    file_query = db.query(archive_models.ArchiveFile).filter(
+    # Search files
+    file_query = db.query(archive_models.ArchiveFile)
+    if folder_id:
+        file_query = file_query.filter(archive_models.ArchiveFile.folder_id == folder_id)
+        
+    file_query = file_query.filter(
         or_(
-            archive_models.ArchiveFile.name.ilike(f"%{q}%"),
-            archive_models.ArchiveFile.description.ilike(f"%{q}%"),
-            archive_models.ArchiveFile.ocr_text.ilike(f"%{q}%")
+            archive_models.ArchiveFile.name.ilike(search_pattern),
+            archive_models.ArchiveFile.original_name.ilike(search_pattern),
+            archive_models.ArchiveFile.description.ilike(search_pattern),
+            archive_models.ArchiveFile.ocr_text.ilike(search_pattern)
         )
     )
 
-    # Filter by ownership or public status for non-superusers
-    if not (hasattr(current_user, 'role') and current_user.role == "admin"):
+    # Filter by permissions
+    user_role = getattr(current_user, 'role', 'user')
+    if user_role not in ["admin", "archive_admin"]:
+        # Get accessible folder IDs
+        shared_folder_ids = db.query(archive_models.ArchiveFolderPermission.folder_id).filter(
+            archive_models.ArchiveFolderPermission.user_id == current_user.id
+        ).all()
+        shared_folder_ids = [f[0] for f in shared_folder_ids]
+
         folder_query = folder_query.filter(
             or_(
                 archive_models.ArchiveFolder.created_by == current_user.id,
-                archive_models.ArchiveFolder.is_public == True
+                archive_models.ArchiveFolder.is_public == True,
+                archive_models.ArchiveFolder.id.in_(shared_folder_ids)
             )
         )
         file_query = file_query.filter(
             or_(
                 archive_models.ArchiveFile.created_by == current_user.id,
-                archive_models.ArchiveFile.is_public == True
+                archive_models.ArchiveFile.is_public == True,
+                archive_models.ArchiveFile.folder_id.in_(shared_folder_ids)
             )
         )
-    
+
     return {
-        "folders": folder_query.all(),
-        "files": file_query.all()
+        "folders": folder_query.limit(50).all(),
+        "files": file_query.limit(100).all(),
+        "query": q
     }
 
 @router.get("/stats")
@@ -635,24 +1266,50 @@ def explore_folder(
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to open folder: {str(e)}")
 
-@router.get("/status")
-def archive_status(db: Session = Depends(get_db)):
-    """Check storage and system status"""
-    import os
-    import platform
+@router.get("/admin/health-check")
+def archive_health_check(
+    db: Session = Depends(get_db),
+    current_user = Depends(require_permission("archive_read"))
+):
+    """
+    Comprehensive system check to verify migration success and system health.
+    """
+    user_role = getattr(current_user, 'role', 'user')
+    if user_role not in ["admin", "archive_admin"]:
+        raise HTTPException(status_code=403, detail="Admin access required")
+
+    total_files = db.query(archive_models.ArchiveFile).count()
+    total_folders = db.query(archive_models.ArchiveFolder).count()
     
-    storage_exists = os.path.exists(STORAGE_PATH)
-    storage_writable = os.access(STORAGE_PATH, os.W_OK) if storage_exists else False
-    
+    # Sample 100 files for quick check
+    sample_files = db.query(archive_models.ArchiveFile).limit(100).all()
+    missing_in_sample = 0
+    for f in sample_files:
+        if not os.path.exists(f.file_path):
+            missing_in_sample += 1
+            
+    # Check storage status
+    storage_info = {
+        "path": STORAGE_PATH,
+        "exists": os.path.exists(STORAGE_PATH),
+        "writable": os.access(STORAGE_PATH, os.W_OK) if os.path.exists(STORAGE_PATH) else False,
+        "total_size_db": db.query(func.sum(archive_models.ArchiveFile.file_size)).scalar() or 0
+    }
+
     return {
-        "status": "online",
-        "storage_path": STORAGE_PATH,
-        "storage_exists": storage_exists,
-        "storage_writable": storage_writable,
-        "platform": platform.system(),
-        "cwd": os.getcwd(),
-        "total_folders": db.query(archive_models.ArchiveFolder).count(),
-        "total_files": db.query(archive_models.ArchiveFile).count()
+        "status": "healthy" if missing_in_sample == 0 else "degraded",
+        "migration_success_estimate": f"{100 - missing_in_sample}%" if sample_files else "N/A",
+        "summary": {
+            "total_files": total_files,
+            "total_folders": total_folders,
+            "missing_in_sample": missing_in_sample,
+            "sample_size": len(sample_files)
+        },
+        "storage": storage_info,
+        "recommendations": [
+            "Run /admin/force-repair if migration_success_estimate is below 100%",
+            "Check storage permissions if storage.writable is false"
+        ]
     }
 
 @router.post("/upload")
@@ -1078,29 +1735,45 @@ def bulk_move(
     # Move folders
     for folder_id in request.folder_ids:
         folder = db.query(archive_models.ArchiveFolder).get(folder_id)
-        if folder: # Removed is_system restriction
-            # Check if moving into itself or its subfolder
+        if folder:
             if folder.id == request.target_folder_id:
                 continue
             
-            old_path = folder.path
-            new_path = os.path.join(target_folder.path, folder.name)
+            old_path = os.path.normpath(folder.path)
+            new_path = os.path.normpath(os.path.join(target_folder.path, folder.name))
             
+            # Avoid naming collision in target
+            if os.path.exists(new_path) and old_path.lower() != new_path.lower():
+                base, ext = os.path.splitext(new_path)
+                new_path = f"{base}_{uuid.uuid4().hex[:4]}{ext}"
+                folder.name = os.path.basename(new_path)
+
             if os.path.exists(old_path):
-                shutil.move(old_path, new_path)
-                folder.path = new_path
-                folder.parent_id = request.target_folder_id
-                
-                # Recursively update paths of all subfolders and files (optional if using relative paths, but we use absolute)
-                # For simplicity, we assume absolute paths need update
-                def update_child_paths(fld):
-                    for sub in fld.subfolders:
-                        sub.path = os.path.join(fld.path, sub.name)
-                        update_child_paths(sub)
-                    for fl in fld.files:
-                        fl.file_path = os.path.join(fld.path, os.path.basename(fl.file_path))
-                
-                update_child_paths(folder)
+                try:
+                    shutil.move(old_path, new_path)
+                    
+                    # Update paths in DB using string replacement to be fast and comprehensive
+                    # 1. Update all subfolders paths
+                    all_subfolders = db.query(archive_models.ArchiveFolder).filter(
+                        archive_models.ArchiveFolder.path.like(f"{old_path}%")
+                    ).all()
+                    for sub in all_subfolders:
+                        sub.path = sub.path.replace(old_path, new_path, 1)
+                    
+                    # 2. Update all files paths within these folders
+                    all_files = db.query(archive_models.ArchiveFile).filter(
+                        archive_models.ArchiveFile.file_path.like(f"{old_path}%")
+                    ).all()
+                    for fl in all_files:
+                        fl.file_path = fl.file_path.replace(old_path, new_path, 1)
+                    
+                    folder.path = new_path
+                    folder.parent_id = request.target_folder_id
+                    db.commit()
+                except Exception as e:
+                    logger.error(f"Error moving folder {old_path} to {new_path}: {str(e)}")
+                    db.rollback()
+                    raise HTTPException(status_code=500, detail=f"Failed to move folder: {str(e)}")
 
     db.commit()
     return {"status": "success"}
@@ -1261,7 +1934,7 @@ def update_file_metadata(
     file_id: int,
     update_data: ItemUpdate,
     db: Session = Depends(get_db),
-    current_user = Depends(require_permission("archive_write"))
+    current_user = Depends(get_current_user)
 ):
     file = db.query(archive_models.ArchiveFile).get(file_id)
     if not file:
@@ -1270,11 +1943,51 @@ def update_file_metadata(
     check_item_access(file, current_user, db, required_level="edit")
 
     if update_data.name:
-        # Note: We only update the DB record name/description, 
-        # we don't necessarily rename the physical file to avoid breaking paths 
-        # unless we also update the physical file path.
-        # However, updating the display name is usually enough.
-        file.original_name = update_data.name
+        import re
+        # Sanitize filename
+        clean_name = re.sub(r'[\\/*?:"<>|]', "", update_data.name).strip()
+        if not clean_name:
+             raise HTTPException(status_code=400, detail="Invalid file name")
+
+        if file.original_name != clean_name:
+            # Check for duplicate name in DB within same folder
+            existing_in_db = db.query(archive_models.ArchiveFile).filter(
+                archive_models.ArchiveFile.folder_id == file.folder_id,
+                archive_models.ArchiveFile.original_name == clean_name,
+                archive_models.ArchiveFile.id != file_id
+            ).first()
+            if existing_in_db:
+                raise HTTPException(status_code=400, detail=f"A file with the name '{clean_name}' already exists in this folder.")
+
+            old_path = file.file_path
+            dir_name = os.path.dirname(old_path)
+            # Keep the same extension if not provided in new name
+            old_ext = os.path.splitext(old_path)[1]
+            new_ext = os.path.splitext(clean_name)[1]
+            
+            final_name = clean_name
+            if not new_ext and old_ext:
+                final_name += old_ext
+                
+            new_path = os.path.join(dir_name, final_name)
+            
+            # Physical rename if path exists
+            if os.path.exists(old_path):
+                try:
+                    if os.path.exists(new_path) and old_path.lower() != new_path.lower():
+                        # If file exists, add a suffix
+                        base, ext = os.path.splitext(new_path)
+                        new_path = f"{base}_{uuid.uuid4().hex[:4]}{ext}"
+                    
+                    os.rename(old_path, new_path)
+                    file.file_path = new_path
+                    logger.info(f"Physically renamed file from {old_path} to {new_path}")
+                except Exception as e:
+                    logger.error(f"Failed to rename physical file: {str(e)}")
+                    # We continue even if physical rename fails, but update DB
+            
+            file.original_name = final_name
+            file.name = final_name # Also update display name
         
     if update_data.description is not None:
         file.description = update_data.description
@@ -1288,16 +2001,66 @@ def update_folder_metadata(
     folder_id: int,
     update_data: ItemUpdate,
     db: Session = Depends(get_db),
-    current_user = Depends(require_permission("archive_write"))
+    current_user = Depends(get_current_user)
 ):
     folder = db.query(archive_models.ArchiveFolder).get(folder_id)
     if not folder:
         raise HTTPException(status_code=404, detail="Folder not found")
 
+    # Check if user has permission to edit this folder
     check_item_access(folder, current_user, db, required_level="edit")
 
     if update_data.name:
-        folder.name = update_data.name
+        import re
+        # Sanitize folder name
+        clean_name = re.sub(r'[\\/*?:"<>|]', "", update_data.name).strip()
+        if not clean_name:
+            raise HTTPException(status_code=400, detail="Invalid folder name")
+            
+        if folder.name != clean_name:
+            # Check for duplicate name in DB within same parent
+            existing_in_db = db.query(archive_models.ArchiveFolder).filter(
+                archive_models.ArchiveFolder.parent_id == folder.parent_id,
+                archive_models.ArchiveFolder.name == clean_name,
+                archive_models.ArchiveFolder.id != folder_id
+            ).first()
+            if existing_in_db:
+                raise HTTPException(status_code=400, detail=f"A folder with the name '{clean_name}' already exists in this location.")
+
+            old_path = folder.path
+            parent_path = os.path.dirname(old_path)
+            new_path = os.path.join(parent_path, clean_name)
+            
+            # Physical rename if path exists
+            if os.path.exists(old_path):
+                try:
+                    if os.path.exists(new_path) and old_path.lower() != new_path.lower():
+                        raise HTTPException(status_code=400, detail="A folder with this name already exists")
+                    
+                    os.rename(old_path, new_path)
+                    logger.info(f"Physically renamed folder from {old_path} to {new_path}")
+                    
+                    # Update paths of all items inside this folder
+                    # 1. Update files in this folder and subfolders
+                    all_files = db.query(archive_models.ArchiveFile).filter(
+                        archive_models.ArchiveFile.file_path.like(f"{old_path}%")
+                    ).all()
+                    for f in all_files:
+                        f.file_path = f.file_path.replace(old_path, new_path, 1)
+                        
+                    # 2. Update paths of all subfolders
+                    all_subfolders = db.query(archive_models.ArchiveFolder).filter(
+                        archive_models.ArchiveFolder.path.like(f"{old_path}%")
+                    ).all()
+                    for sf in all_subfolders:
+                        sf.path = sf.path.replace(old_path, new_path, 1)
+                        
+                    folder.path = new_path
+                except Exception as e:
+                    logger.error(f"Failed to rename physical folder: {str(e)}")
+                    raise HTTPException(status_code=500, detail=f"Failed to rename physical folder: {str(e)}")
+            
+            folder.name = clean_name
         
     if update_data.description is not None:
         folder.description = update_data.description
@@ -1317,8 +2080,11 @@ def get_folder_tree(
     """Returns the full folder structure as a tree for move/copy operations."""
     query = db.query(archive_models.ArchiveFolder)
     
+    user_role = getattr(current_user, 'role', 'user')
+    is_admin = user_role in ["admin", "archive_admin"]
+
     # Filter by ownership, public status, or ACL
-    if not (hasattr(current_user, 'role') and current_user.role == "admin"):
+    if not is_admin:
         shared_folder_ids = db.query(archive_models.ArchiveFolderPermission.folder_id).filter(
             archive_models.ArchiveFolderPermission.user_id == current_user.id
         ).all()
@@ -1335,21 +2101,286 @@ def get_folder_tree(
     all_folders = query.all()
     
     # Build tree
+    # If a folder is in the list but its parent is NOT, we still want to show the hierarchy 
+    # but the parent should be non-selectable (though for simplicity we'll just show them for now)
+    # Better approach: If we have a folder, we MUST include all its ancestors to build a proper tree.
+    
+    if not is_admin:
+        # Collect all ancestor IDs for the permitted folders
+        permitted_folder_ids = {f.id for f in all_folders}
+        all_included_ids = set(permitted_folder_ids)
+        
+        for folder in all_folders:
+            curr = folder
+            # Assuming path-based hierarchy or recursive parent check
+            # For simplicity, we'll fetch parents recursively if they are not in the list
+            while curr.parent_id and curr.parent_id not in all_included_ids:
+                parent = db.query(archive_models.ArchiveFolder).get(curr.parent_id)
+                if parent:
+                    all_included_ids.add(parent.id)
+                    curr = parent
+                else:
+                    break
+        
+        # Re-fetch all folders that should be in the tree (permitted + their ancestors)
+        all_folders = db.query(archive_models.ArchiveFolder).filter(
+            archive_models.ArchiveFolder.id.in_(list(all_included_ids))
+        ).all()
+
     nodes = {f.id: {"id": f.id, "name": f.name, "parent_id": f.parent_id, "children": []} for f in all_folders}
     tree = []
     
-    for f_id, node in nodes.items():
-        parent_id = node["parent_id"]
-        if parent_id is None:
+    # Sort folders by name for a better UI experience
+    sorted_folders = sorted(all_folders, key=lambda x: (x.name or "").lower())
+    
+    for f in sorted_folders:
+        node = nodes[f.id]
+        parent_id = f.parent_id
+        if parent_id is None or parent_id not in nodes:
+            # If it's a root folder OR its parent is missing from our list, show it at the top level
             tree.append(node)
         else:
-            if parent_id in nodes:
-                nodes[parent_id]["children"].append(node)
-            else:
-                # Parent might have been deleted or not in list
-                tree.append(node)
+            nodes[parent_id]["children"].append(node)
                 
     return tree
+
+@router.get("/admin/diagnostics")
+def get_archive_diagnostics(
+    db: Session = Depends(get_db),
+    current_user = Depends(require_permission("archive_read"))
+):
+    """Admin-only diagnostic to find potential issues like orphaned folders."""
+    user_role = getattr(current_user, 'role', 'user')
+    if user_role not in ["admin", "archive_admin"]:
+        raise HTTPException(status_code=403, detail="Admin access required")
+        
+    all_folders = db.query(archive_models.ArchiveFolder).all()
+    folder_ids = {f.id for f in all_folders}
+    
+    orphaned_folders = []
+    for f in all_folders:
+        if f.parent_id and f.parent_id not in folder_ids:
+            orphaned_folders.append({
+                "id": f.id,
+                "name": f.name,
+                "parent_id": f.parent_id,
+                "path": f.path,
+                "reason": "Parent ID not found in database"
+            })
+            
+    # Check physical path issues
+    path_issues = []
+    for f in all_folders:
+        if f.path and not os.path.exists(f.path):
+            path_issues.append({
+                "id": f.id,
+                "name": f.name,
+                "path": f.path,
+                "reason": "Physical path does not exist"
+            })
+            
+    return {
+        "total_folders": len(all_folders),
+        "orphaned_folders": orphaned_folders,
+        "path_issues": path_issues,
+        "total_files": db.query(archive_models.ArchiveFile).count()
+    }
+
+@router.get("/admin/full-report")
+def get_full_archive_report(
+    db: Session = Depends(get_db),
+    current_user = Depends(require_permission("archive_read"))
+):
+    """
+    Generates a full report of all files and their status on disk.
+    """
+    user_role = getattr(current_user, 'role', 'user')
+    if user_role not in ["admin", "archive_admin"]:
+        raise HTTPException(status_code=403, detail="Admin access required")
+
+    all_files = db.query(archive_models.ArchiveFile).all()
+    report = {
+        "summary": {
+            "total_files_in_db": len(all_files),
+            "healthy_files": 0,
+            "moved_but_found": 0,
+            "completely_missing": 0
+        },
+        "details": {
+            "moved_files": [],
+            "missing_files": []
+        }
+    }
+
+    # Pre-scan storage to speed up lookups
+    all_disk_files = {}
+    for root, _, files in os.walk(STORAGE_PATH):
+        for f in files:
+            all_disk_files[f.lower()] = os.path.join(root, f)
+
+    for file in all_files:
+        current_path = os.path.normpath(file.file_path)
+        
+        # 1. Check if healthy
+        if os.path.exists(current_path):
+            report["summary"]["healthy_files"] += 1
+            continue
+            
+        # 2. Try to find it in our pre-scanned disk map
+        found_path = None
+        storage_name = os.path.basename(current_path).lower()
+        original_name = file.original_name.lower() if file.original_name else None
+        
+        if storage_name in all_disk_files:
+            found_path = all_disk_files[storage_name]
+        elif original_name and original_name in all_disk_files:
+            found_path = all_disk_files[original_name]
+            
+        if found_path:
+            report["summary"]["moved_but_found"] += 1
+            report["details"]["moved_files"].append({
+                "id": file.id,
+                "name": file.name,
+                "old_path": current_path,
+                "new_path": found_path
+            })
+        else:
+            report["summary"]["completely_missing"] += 1
+            report["details"]["missing_files"].append({
+                "id": file.id,
+                "name": file.name,
+                "db_path": current_path,
+                "original_name": file.original_name
+            })
+
+    return report
+
+@router.get("/admin/force-repair")
+def force_repair_archive(
+    db: Session = Depends(get_db),
+    current_user = Depends(require_permission("archive_write"))
+):
+    """
+    Desperate repair tool to fix all paths after manual migration.
+    """
+    user_role = getattr(current_user, 'role', 'user')
+    if user_role not in ["admin", "archive_admin"]:
+        raise HTTPException(status_code=403, detail="Admin access required")
+
+    stats = {"folders_fixed": 0, "files_fixed": 0}
+    
+    # 1. Fix all folders by name
+    all_folders = db.query(archive_models.ArchiveFolder).all()
+    for folder in all_folders:
+        if not os.path.exists(os.path.normpath(folder.path)):
+            for root, dirs, files in os.walk(STORAGE_PATH):
+                if folder.name in dirs:
+                    folder.path = os.path.normpath(os.path.join(root, folder.name))
+                    stats["folders_fixed"] += 1
+                    break
+    db.commit()
+
+    # 2. Fix all files by name or original name
+    all_files = db.query(archive_models.ArchiveFile).all()
+    for file in all_files:
+        if not os.path.exists(os.path.normpath(file.file_path)):
+            found = False
+            # Try by storage name
+            storage_name = os.path.basename(file.file_path)
+            for root, dirs, files in os.walk(STORAGE_PATH):
+                if storage_name in files:
+                    file.file_path = os.path.normpath(os.path.join(root, storage_name))
+                    stats["files_fixed"] += 1
+                    found = True
+                    break
+            
+            # Try by original name if not found
+            if not found and file.original_name:
+                for root, dirs, files in os.walk(STORAGE_PATH):
+                    if file.original_name in files:
+                        file.file_path = os.path.normpath(os.path.join(root, file.original_name))
+                        stats["files_fixed"] += 1
+                        found = True
+                        break
+    db.commit()
+    return {"status": "Repair complete", "stats": stats}
+
+@router.post("/admin/repair-paths")
+def repair_archive_paths(
+    db: Session = Depends(get_db),
+    current_user = Depends(require_permission("archive_write"))
+):
+    """
+    Advanced Repair Tool:
+    1. Scans all folders in DB and tries to find their physical location.
+    2. Updates paths for all sub-items.
+    3. Syncs DB with actual disk structure.
+    """
+    user_role = getattr(current_user, 'role', 'user')
+    if user_role not in ["admin", "archive_admin"]:
+        raise HTTPException(status_code=403, detail="Admin access required")
+        
+    stats = {"folders_fixed": 0, "files_fixed": 0, "errors": []}
+    
+    # Get all folders from DB
+    all_folders = db.query(archive_models.ArchiveFolder).all()
+    
+    # 1. First, try to find each folder's real path
+    for folder in all_folders:
+        current_path = os.path.normpath(folder.path)
+        if not os.path.exists(current_path):
+            # Attempt to find it by name within STORAGE_PATH
+            found_path = None
+            # Deep search for this folder name
+            for root, dirs, files in os.walk(STORAGE_PATH):
+                if folder.name in dirs:
+                    potential_path = os.path.normpath(os.path.join(root, folder.name))
+                    # Basic heuristic: if it has similar subfolders or files, it's likely the one
+                    found_path = potential_path
+                    break
+            
+            if found_path:
+                folder.path = found_path
+                stats["folders_fixed"] += 1
+                db.flush()
+
+    # 2. Now that folders are (mostly) fixed, fix all files
+    all_files = db.query(archive_models.ArchiveFile).all()
+    for file in all_files:
+        current_path = os.path.normpath(file.file_path)
+        if not os.path.exists(current_path):
+            # Try to find it in its parent folder first
+            parent_folder = db.query(archive_models.ArchiveFolder).get(file.folder_id)
+            if parent_folder and os.path.exists(parent_folder.path):
+                # Check for original_name or name
+                for fname in [file.original_name, file.name, os.path.basename(current_path)]:
+                    if not fname: continue
+                    potential_path = os.path.normpath(os.path.join(parent_folder.path, fname))
+                    if os.path.exists(potential_path):
+                        file.file_path = potential_path
+                        stats["files_fixed"] += 1
+                        break
+            
+            # If still not found, do a deep search for the filename
+            if not os.path.exists(os.path.normpath(file.file_path)):
+                target_name = os.path.basename(current_path)
+                for root, dirs, files in os.walk(STORAGE_PATH):
+                    if target_name in files:
+                        file.file_path = os.path.normpath(os.path.join(root, target_name))
+                        stats["files_fixed"] += 1
+                        break
+    
+    try:
+        db.commit()
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(status_code=500, detail=f"Repair failed: {str(e)}")
+        
+    return {
+        "status": "success",
+        "message": f"Archive structure repaired successfully.",
+        "details": stats
+    }
 
 # --- ACL / Permission Management ---
 

@@ -206,8 +206,8 @@ const AttendanceAnalytics: React.FC<AttendanceAnalyticsProps> = ({ data, employe
                         <Typography variant="h6" fontWeight="800" color={COLORS.dark} sx={{ mb: 3 }}>
                             {t('Attendance & Lateness Trend (%)')}
                         </Typography>
-                        <Box sx={{ width: '100%', height: '85%' }}>
-                            <ResponsiveContainer width="100%" height="100%">
+                        <Box sx={{ width: '100%', height: '85%', overflow: 'hidden' }}>
+                            <ResponsiveContainer width="100%" height="100%" debounce={50}>
                                 <AreaChart data={trendData}>
                                     <defs>
                                         <linearGradient id="colorRate" x1="0" y1="0" x2="0" y2="1">
@@ -285,8 +285,8 @@ const AttendanceAnalytics: React.FC<AttendanceAnalyticsProps> = ({ data, employe
                         <Typography variant="h6" fontWeight="800" color={COLORS.dark} sx={{ mb: 3 }}>
                             {t('Overall Status')}
                         </Typography>
-                        <Box sx={{ width: '100%', height: '85%' }}>
-                            <ResponsiveContainer width="100%" height="100%">
+                        <Box sx={{ width: '100%', height: '85%', overflow: 'hidden' }}>
+                            <ResponsiveContainer width="100%" height="100%" debounce={50}>
                                 <PieChart>
                                     <Pie
                                         data={statusData}
@@ -320,8 +320,8 @@ const AttendanceAnalytics: React.FC<AttendanceAnalyticsProps> = ({ data, employe
                         <Typography variant="h6" fontWeight="800" color={COLORS.dark} sx={{ mb: 3 }}>
                             {t('Overtime Distribution (Count)')}
                         </Typography>
-                        <Box sx={{ height: '85%', width: '100%' }}>
-                            <ResponsiveContainer width="100%" height="100%">
+                        <Box sx={{ height: '85%', width: '100%', overflow: 'hidden' }}>
+                            <ResponsiveContainer width="100%" height="100%" debounce={50}>
                                 <BarChart data={overtimeData}>
                                     <CartesianGrid strokeDasharray="3 3" vertical={false} stroke={COLORS.light} />
                                     <XAxis 
@@ -360,8 +360,8 @@ const AttendanceAnalytics: React.FC<AttendanceAnalyticsProps> = ({ data, employe
                         <Typography variant="h6" fontWeight="800" color={COLORS.dark} sx={{ mb: 3 }}>
                             {t('Department Ranking (%)')}
                         </Typography>
-                        <Box sx={{ height: '85%', width: '100%' }}>
-                            <ResponsiveContainer width="100%" height="100%">
+                        <Box sx={{ height: '85%', width: '100%', overflow: 'hidden' }}>
+                            <ResponsiveContainer width="100%" height="100%" debounce={50}>
                                 <BarChart data={deptData} layout="vertical" margin={{ left: 20, right: 30 }}>
                                     <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke={COLORS.light} />
                                     <XAxis type="number" domain={[0, 100]} hide />

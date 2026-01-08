@@ -345,8 +345,16 @@ class ArchiveFolder(ArchiveFolderBase):
     id: int
     is_system: bool
     created_at: datetime
+    total_size: Optional[int] = 0
+    item_count: Optional[int] = 0
     class Config:
         from_attributes = True
+
+class ArchiveItemCopyMove(BaseModel):
+    file_ids: List[int] = []
+    folder_ids: List[int] = []
+    target_folder_id: Optional[int] = None
+    operation: str  # "copy" or "move"
 
 class ArchiveFileBase(BaseModel):
     name: str

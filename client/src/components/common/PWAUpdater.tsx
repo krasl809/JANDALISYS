@@ -39,7 +39,12 @@ const PWAUpdater = () => {
 
       console.error = (...args: any[]) => {
         const message = args.join(' ');
-        if (message.includes('aria-hidden') || message.includes('Blocked aria-hidden') || message.includes('ariaHidden')) {
+        if (
+          message.includes('aria-hidden') || 
+          message.includes('Blocked aria-hidden') || 
+          message.includes('ariaHidden') ||
+          message.includes('width(-1) and height(-1)')
+        ) {
           return;
         }
         originalError.apply(console, args);
@@ -47,7 +52,12 @@ const PWAUpdater = () => {
 
       console.warn = (...args: any[]) => {
         const message = args.join(' ');
-        if (message.includes('aria-hidden') || message.includes('Blocked aria-hidden') || message.includes('ariaHidden')) {
+        if (
+          message.includes('aria-hidden') || 
+          message.includes('Blocked aria-hidden') || 
+          message.includes('ariaHidden') ||
+          message.includes('width(-1) and height(-1)')
+        ) {
           return;
         }
         originalWarn.apply(console, args);

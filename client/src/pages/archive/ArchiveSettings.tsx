@@ -151,19 +151,19 @@ const ArchiveSettings: React.FC = () => {
                         <FormControl fullWidth>
                             <InputLabel>{t('Device Type')}</InputLabel>
                             <Select
-                                value={newScanner.device_type}
-                                label={t('Device Type')}
-                                onChange={(e) => setNewScanner({ ...newScanner, device_type: e.target.value })}
-                            >
-                                <MenuItem value="WIA">WIA (Windows Image Acquisition)</MenuItem>
-                                <MenuItem value="TWAIN">TWAIN</MenuItem>
-                                <MenuItem value="Network">Network / IP</MenuItem>
-                            </Select>
+                                    value={newScanner.device_type}
+                                    label={t('Device Type')}
+                                    onChange={(e) => setNewScanner({ ...newScanner, device_type: e.target.value })}
+                                >
+                                    <MenuItem value="WIA">{t('WIA (Windows Image Acquisition)')}</MenuItem>
+                                    <MenuItem value="TWAIN">{t('TWAIN')}</MenuItem>
+                                    <MenuItem value="Network">{t('Network / IP')}</MenuItem>
+                                </Select>
                         </FormControl>
                         <TextField
                             label={t('Connection String / IP')}
                             fullWidth
-                            placeholder="e.g. 192.168.1.50 or DeviceID"
+                            placeholder={t('e.g. 192.168.1.50 or DeviceID')}
                             value={newScanner.connection_string}
                             onChange={(e) => setNewScanner({ ...newScanner, connection_string: e.target.value })}
                         />
@@ -194,9 +194,9 @@ const ArchiveSettings: React.FC = () => {
                                     label={t('Device Type')}
                                     onChange={(e) => setEditingScanner({ ...editingScanner, device_type: e.target.value })}
                                 >
-                                    <MenuItem value="WIA">WIA</MenuItem>
-                                    <MenuItem value="TWAIN">TWAIN</MenuItem>
-                                    <MenuItem value="Network">Network / IP</MenuItem>
+                                    <MenuItem value="WIA">{t('WIA (Windows Image Acquisition)')}</MenuItem>
+                                    <MenuItem value="TWAIN">{t('TWAIN')}</MenuItem>
+                                    <MenuItem value="Network">{t('Network / IP')}</MenuItem>
                                 </Select>
                             </FormControl>
                             <TextField

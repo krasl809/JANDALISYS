@@ -168,8 +168,8 @@ const Reports = () => {
                             <Typography variant="h6" fontWeight="bold">Revenue & Profit Trend</Typography>
                             <Chip label="YTD Performance" size="small" variant="outlined" />
                         </Box>
-                        <Box sx={{ height: 350, minHeight: 350, width: '100%', position: 'relative', minWidth: 0 }}>
-                            <ResponsiveContainer width="100%" height="100%">
+                        <Box sx={{ height: 350, minHeight: 350, width: '100%', position: 'relative', minWidth: 0, overflow: 'hidden' }}>
+                            <ResponsiveContainer width="100%" height="100%" debounce={50}>
                                 <AreaChart data={monthlyData} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
                                 <defs>
                                     <linearGradient id="colorRev" x1="0" y1="0" x2="0" y2="1">
@@ -198,8 +198,8 @@ const Reports = () => {
                 <Grid item xs={12} md={4}>
                     <Card sx={{ borderRadius: 3, p: 3, height: '100%', boxShadow: 'none', border: `1px solid ${theme.palette.divider}` }}>
                         <Typography variant="h6" fontWeight="bold" mb={2}>Cost Breakdown</Typography>
-                        <Box sx={{ display: 'flex', justifyContent: 'center', height: 250, minHeight: 250, width: '100%', position: 'relative', minWidth: 0 }}>
-                             <ResponsiveContainer width="100%" height="100%">
+                        <Box sx={{ display: 'flex', justifyContent: 'center', height: 250, minHeight: 250, width: '100%', position: 'relative', minWidth: 0, overflow: 'hidden' }}>
+                             <ResponsiveContainer width="100%" height="100%" debounce={50}>
                                 <PieChart>
                                     <Pie
                                         data={[
@@ -236,8 +236,8 @@ const Reports = () => {
                 <Grid item xs={12} md={6}>
                     <Card sx={{ borderRadius: 3, p: 3, height: '100%', boxShadow: 'none', border: `1px solid ${theme.palette.divider}` }}>
                         <Typography variant="h6" fontWeight="bold" mb={3}>Volume by Commodity</Typography>
-                        <Box sx={{ height: 300, minHeight: 300, width: '100%', position: 'relative', minWidth: 0 }}>
-                            <ResponsiveContainer width="100%" height="100%">
+                        <Box sx={{ height: 300, minHeight: 300, width: '100%', position: 'relative', minWidth: 0, overflow: 'hidden' }}>
+                            <ResponsiveContainer width="100%" height="100%" debounce={50}>
                                 <BarChart layout="vertical" data={commodityData} margin={{ top: 5, right: 30, left: 20, bottom: 5 }}>
                                 <CartesianGrid strokeDasharray="3 3" horizontal={true} vertical={false} />
                                 <XAxis type="number" hide />

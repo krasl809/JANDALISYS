@@ -28,7 +28,7 @@ const cacheRtl = createCache({
 
 export const AppThemeProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { i18n } = useTranslation();
-  const isRTL = i18n.language === 'ar';
+  const isRTL = i18n.language.startsWith('ar');
 
   // قراءة الوضع من LocalStorage
   const [mode, setMode] = useState<'light' | 'dark'>(() => {

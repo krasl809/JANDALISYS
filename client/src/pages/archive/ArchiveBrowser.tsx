@@ -86,6 +86,10 @@ interface ArchiveFolder {
   parent_id: number | null;
   description?: string;
   is_system?: boolean;
+  created_at?: string;
+  total_size?: number;
+  item_count?: number;
+  breadcrumb?: string;
 }
 
 interface ArchiveFile {
@@ -96,6 +100,7 @@ interface ArchiveFile {
   created_at: string;
   description?: string;
   ocr_text?: string;
+  breadcrumb?: string;
 }
 
 // Restrictions removed as per user request for unlimited uploads and all file types
@@ -103,7 +108,8 @@ const ALLOWED_EXTENSIONS: string[] = [];
 const MAX_FILE_SIZE = 5 * 1024 * 1024 * 1024; // 5GB as a practical limit
 
 const ArchiveBrowser: React.FC = () => {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
+  const isRTL = i18n.language.startsWith('ar');
   const { confirm, alert } = useConfirm();
   const theme = useTheme();
   const navigate = useNavigate();
@@ -117,6 +123,20 @@ const ArchiveBrowser: React.FC = () => {
         staggerChildren: 0.05
       }
     }
+  };
+
+  const formatSize = (bytes: number) => {
+    if (!bytes || bytes === 0) return `0 ${t('common.units.bytes', { defaultValue: 'Bytes' })}`;
+    const k = 1024;
+    const sizes = [
+      t('common.units.bytes', { defaultValue: 'Bytes' }),
+      t('common.units.kb', { defaultValue: 'KB' }),
+      t('common.units.mb', { defaultValue: 'MB' }),
+      t('common.units.gb', { defaultValue: 'GB' }),
+      t('common.units.tb', { defaultValue: 'TB' })
+    ];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
   };
 
   const itemVariants: any = {
@@ -145,6 +165,7 @@ const ArchiveBrowser: React.FC = () => {
   const [searchQuery, setSearchQuery] = useState('');
 
   // Selection states
+  const [selectionMode, setSelectionMode] = useState(false);
   const [selectedFiles, setSelectedFiles] = useState<number[]>([]);
   const [selectedFolders, setSelectedFolders] = useState<number[]>([]);
 
@@ -248,7 +269,8 @@ const ArchiveBrowser: React.FC = () => {
 
   const handleMenuClose = () => {
     setAnchorEl(null);
-    setSelectedItem(null);
+    // Don't clear selectedItem here, as it's needed by the dialogs
+    // We'll clear it when dialogs are closed if needed
   };
 
   const toggleFileSelection = (id: number) => {
@@ -267,15 +289,18 @@ const ArchiveBrowser: React.FC = () => {
     if (checked) {
       setSelectedFiles(files.map(f => f.id));
       setSelectedFolders(folders.map(f => f.id));
+      setSelectionMode(true);
     } else {
       setSelectedFiles([]);
       setSelectedFolders([]);
+      setSelectionMode(false);
     }
   };
 
   const clearSelection = () => {
     setSelectedFiles([]);
     setSelectedFolders([]);
+    setSelectionMode(false);
   };
 
   const fetchTargetFolders = async () => {
@@ -361,6 +386,7 @@ const ArchiveBrowser: React.FC = () => {
         is_public: editIsPublic
       });
       setOpenEditDialog(false);
+      setSelectedItem(null);
       fetchContent(currentFolder?.id || null);
     } catch (error) {
       console.error("Update failed", error);
@@ -396,14 +422,15 @@ const ArchiveBrowser: React.FC = () => {
     
     setLoading(true);
     try {
-      const endpoint = targetAction === 'move' ? 'archive/bulk-move' : 'archive/bulk-copy';
-      await api.post(endpoint, {
+      await api.post('archive/items/copy-move', {
         file_ids: selectedFiles,
         folder_ids: selectedFolders,
-        target_folder_id: selectedTargetFolder
+        target_folder_id: selectedTargetFolder,
+        operation: targetAction
       });
       setOpenTargetDialog(false);
       clearSelection();
+      setSelectionMode(false);
       fetchContent(currentFolder?.id || null);
     } catch (error) {
       console.error(`${targetAction} failed`, error);
@@ -411,6 +438,22 @@ const ArchiveBrowser: React.FC = () => {
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleSingleItemAction = (type: 'copy' | 'move') => {
+    if (!selectedItem) return;
+    setTargetAction(type);
+    // Prepare for bulk logic but with single item
+    if (selectedItem.type === 'file') {
+      setSelectedFiles([selectedItem.id]);
+      setSelectedFolders([]);
+    } else {
+      setSelectedFolders([selectedItem.id]);
+      setSelectedFiles([]);
+    }
+    fetchTargetFolders();
+    setOpenTargetDialog(true);
+    handleMenuClose();
   };
 
   const handleExploreFolder = async (folderId?: number) => {
@@ -443,6 +486,17 @@ const ArchiveBrowser: React.FC = () => {
     }
 
     try {
+      // If there's a search query, perform global search instead of folder-specific fetch
+      if (searchQuery.trim()) {
+        const res = await api.get(`archive/search?q=${encodeURIComponent(searchQuery)}`);
+        setFolders(res.data.folders);
+        setFiles(res.data.files);
+        setTotalFiles(res.data.files.length);
+        setLoading(false);
+        setLoadingMore(false);
+        return;
+      }
+
       // Initialize archive if needed (ensures system folders exist)
       if (folderId === null && reset) {
         try {
@@ -529,6 +583,14 @@ const ArchiveBrowser: React.FC = () => {
   };
 
   useEffect(() => {
+    const delayDebounceFn = setTimeout(() => {
+      fetchContent(currentFolder?.id || null);
+    }, 500);
+
+    return () => clearTimeout(delayDebounceFn);
+  }, [searchQuery]);
+
+  useEffect(() => {
     fetchContent(null);
   }, []);
 
@@ -541,7 +603,7 @@ const ArchiveBrowser: React.FC = () => {
   const handleBreadcrumbClick = (index: number) => {
     const target = breadcrumbs[index];
     setBreadcrumbs(breadcrumbs.slice(0, index + 1));
-    setCurrentFolder(target.id ? { id: target.id, name: target.name, parent_id: null } : null);
+    setCurrentFolder(target.id ? { id: target.id, name: target.name, parent_id: null } as ArchiveFolder : null);
     fetchContent(target.id);
   };
 
@@ -774,7 +836,9 @@ const ArchiveBrowser: React.FC = () => {
         try {
             const formData = new FormData();
             formData.append('scanner_id', scanData.scanner_id);
-            formData.append('folder_id', currentFolder?.id.toString() || '');
+            if (currentFolder) {
+                formData.append('folder_id', currentFolder.id.toString());
+            }
             formData.append('filename', scanData.filename);
             formData.append('description', scanData.description);
 
@@ -794,13 +858,15 @@ const ArchiveBrowser: React.FC = () => {
             alert(t('You do not have permission to upload files'), t('Warning'), 'warning');
             return;
         }
-        if (!uploadFile || !currentFolder) return;
+        if (!uploadFile) return;
 
         setUploading(true);
         try {
             const formData = new FormData();
             formData.append('file', uploadFile);
-            formData.append('folder_id', currentFolder.id.toString());
+            if (currentFolder) {
+                formData.append('folder_id', currentFolder.id.toString());
+            }
             if (uploadName) {
                 formData.append('name', uploadName);
             }
@@ -818,7 +884,7 @@ const ArchiveBrowser: React.FC = () => {
             setUploadFile(null);
             setUploadName('');
             setUploadDescription('');
-            fetchContent(currentFolder.id);
+            fetchContent(currentFolder?.id || null);
         } catch (error: any) {
             console.error('Upload failed', error);
             const errorMessage = error.response?.data?.detail || error.message || "Upload failed";
@@ -830,13 +896,15 @@ const ArchiveBrowser: React.FC = () => {
 
     const handleFolderUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
         const files = event.target.files;
-        if (!files || files.length === 0 || !currentFolder) return;
+        if (!files || files.length === 0) return;
 
         setBulkUploading(true);
         setBulkProgress(0);
 
         const formData = new FormData();
-        formData.append('parent_folder_id', currentFolder.id.toString());
+        if (currentFolder) {
+            formData.append('parent_folder_id', currentFolder.id.toString());
+        }
         
         const relativePaths: string[] = [];
         
@@ -878,7 +946,7 @@ const ArchiveBrowser: React.FC = () => {
                 },
             });
             
-            fetchContent(currentFolder.id);
+            fetchContent(currentFolder?.id || null);
       alert(t('Folder structure uploaded successfully'), t('Success'), 'success');
     } catch (error: any) {
       console.error('Bulk upload failed', error);
@@ -896,7 +964,7 @@ const ArchiveBrowser: React.FC = () => {
 
   const handleDragOver = (e: React.DragEvent) => {
     e.preventDefault();
-    if (canUpload && currentFolder) {
+    if (canUpload) {
       setIsDragging(true);
     }
   };
@@ -910,7 +978,7 @@ const ArchiveBrowser: React.FC = () => {
     e.preventDefault();
     setIsDragging(false);
 
-    if (!canUpload || !currentFolder) return;
+    if (!canUpload) return;
 
     const items = e.dataTransfer.items;
     if (!items || items.length === 0) return;
@@ -971,7 +1039,9 @@ const ArchiveBrowser: React.FC = () => {
 
       if (filesToUpload.length > 0) {
         const formData = new FormData();
-        formData.append('parent_folder_id', currentFolder.id.toString());
+        if (currentFolder) {
+          formData.append('parent_folder_id', currentFolder.id.toString());
+        }
         filesToUpload.forEach(file => formData.append('files', file));
         formData.append('relative_paths', JSON.stringify(pathsToUpload));
 
@@ -983,7 +1053,7 @@ const ArchiveBrowser: React.FC = () => {
           },
         });
 
-        fetchContent(currentFolder.id);
+        fetchContent(currentFolder?.id || null);
         alert(t('Files and folders uploaded successfully'), t('Success'), 'success');
       } else {
         alert(t('No valid files or folders found to upload'), t('Warning'), 'warning');
@@ -1067,7 +1137,7 @@ const ArchiveBrowser: React.FC = () => {
                   startIcon={<CreateNewFolder />}
                   onClick={() => setOpenFolderDialog(true)}
                 >
-                  {t('New Folder')}
+                  {t('NEW FOLDER')}
                 </Button>
                 <Button
                   variant="outlined"
@@ -1076,17 +1146,17 @@ const ArchiveBrowser: React.FC = () => {
                     fetchScanners();
                     setOpenScanDialog(true);
                   }}
-                  disabled={!currentFolder}
+                  // Enabled even in root
                 >
-                  {t('Scan')}
+                  {t('SCAN DOCUMENT')}
                 </Button>
                 <Button
                   variant="contained"
                   startIcon={<CloudUpload />}
                   onClick={() => setOpenUploadDialog(true)}
-                  disabled={!currentFolder || bulkUploading}
+                  disabled={bulkUploading}
                 >
-                  {t('Upload File')}
+                  {t('UPLOAD FILE')}
                 </Button>
                 <input
                   type="file"
@@ -1101,9 +1171,9 @@ const ArchiveBrowser: React.FC = () => {
                   color="secondary"
                   startIcon={bulkUploading ? <CircularProgress size={20} color="inherit" /> : <CreateNewFolder />}
                   onClick={() => folderInputRef.current?.click()}
-                  disabled={!currentFolder || bulkUploading}
+                  disabled={bulkUploading}
                 >
-                  {bulkUploading ? `${bulkProgress}%` : t('Upload Folder Tree')}
+                  {bulkUploading ? `${bulkProgress}%` : t('UPLOAD FOLDER TREE')}
                 </Button>
               </>
             )}
@@ -1125,7 +1195,8 @@ const ArchiveBrowser: React.FC = () => {
                     '&:hover': { bgcolor: alpha(theme.palette.primary.main, 0.2) },
                     '&.Mui-disabled': { bgcolor: 'transparent' },
                     boxShadow: breadcrumbs.length > 1 ? 2 : 0,
-                    transition: 'all 0.2s'
+                    transition: 'all 0.2s',
+                    transform: isRTL ? 'rotate(180deg)' : 'none'
                   }}
                 >
                   <ArrowBack fontSize="large" />
@@ -1159,14 +1230,26 @@ const ArchiveBrowser: React.FC = () => {
 
           {/* Search and View Controls */}
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-            {viewMode === 'grid' && (
+            <Tooltip title={selectionMode ? t('Disable Selection') : t('Enable Selection')}>
+              <IconButton 
+                onClick={() => {
+                  if (selectionMode) clearSelection();
+                  else setSelectionMode(true);
+                }}
+                size="small"
+                color={selectionMode ? 'primary' : 'default'}
+              >
+                <CheckBox />
+              </IconButton>
+            </Tooltip>
+            {selectionMode && (
               <Tooltip title={t('Select All')}>
                 <IconButton 
                   onClick={() => handleSelectAll(selectedFiles.length === 0 && selectedFolders.length === 0)}
                   size="small"
                   color={(selectedFiles.length > 0 || selectedFolders.length > 0) ? 'primary' : 'default'}
                 >
-                  <CheckBox />
+                  <CheckBox sx={{ opacity: 0.5 }} />
                 </IconButton>
               </Tooltip>
             )}
@@ -1332,15 +1415,17 @@ const ArchiveBrowser: React.FC = () => {
                       onClick={() => handleFolderClick(folder)}
                     >
                       <Box sx={{ position: 'absolute', top: 8, right: 8, zIndex: 1, display: 'flex', alignItems: 'center', gap: 0.5 }}>
-                        <Checkbox 
-                          size="small" 
-                          checked={selectedFolders.includes(folder.id)}
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            toggleFolderSelection(folder.id);
-                          }}
-                          sx={{ color: alpha(theme.palette.primary.main, 0.5) }}
-                        />
+                        {selectionMode && (
+                          <Checkbox 
+                            size="small" 
+                            checked={selectedFolders.includes(folder.id)}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              toggleFolderSelection(folder.id);
+                            }}
+                            sx={{ color: alpha(theme.palette.primary.main, 0.5) }}
+                          />
+                        )}
                         <IconButton 
                           size="small" 
                           onClick={(e) => handleMenuOpen(e, 'folder', folder)}
@@ -1350,9 +1435,36 @@ const ArchiveBrowser: React.FC = () => {
                         </IconButton>
                       </Box>
                       <Folder className="folder-icon" sx={{ fontSize: 64, color: '#FFD700', mb: 1.5, transition: 'transform 0.3s ease' }} />
-                      <Typography variant="body2" fontWeight="600" noWrap sx={{ maxWidth: '100%', textAlign: 'center' }}>
+                      <Typography variant="body2" fontWeight="600" noWrap sx={{ maxWidth: '100%', textAlign: 'center', mb: 0.5 }}>
                         {t(folder.name)}
                       </Typography>
+                      {folder.breadcrumb && (
+                        <Typography 
+                          variant="caption" 
+                          color="primary" 
+                          sx={{ 
+                            display: 'flex', 
+                            alignItems: 'center', 
+                            gap: 0.5, 
+                            opacity: 0.8, 
+                            mb: 0.5,
+                            maxWidth: '100%',
+                            overflow: 'hidden',
+                            textOverflow: 'ellipsis',
+                            whiteSpace: 'nowrap'
+                          }}
+                        >
+                          <Explore sx={{ fontSize: 12 }} /> {folder.breadcrumb}
+                        </Typography>
+                      )}
+                      <Typography variant="caption" color="text.secondary" sx={{ opacity: 0.7 }}>
+                        {folder.created_at ? new Date(folder.created_at).toLocaleDateString() : '-'}
+                      </Typography>
+                      {folder.item_count !== undefined && (
+                        <Typography variant="caption" color="text.secondary" sx={{ opacity: 0.6 }}>
+                          {folder.item_count} {t('items')}
+                        </Typography>
+                      )}
                     </Paper>
                   </motion.div>
                 </Grid>
@@ -1387,15 +1499,17 @@ const ArchiveBrowser: React.FC = () => {
                       onClick={() => handleFileClick(file)}
                     >
                       <Box sx={{ position: 'absolute', top: 8, right: 8, zIndex: 1, display: 'flex', alignItems: 'center', gap: 0.5 }}>
-                        <Checkbox 
-                          size="small" 
-                          checked={selectedFiles.includes(file.id)}
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            toggleFileSelection(file.id);
-                          }}
-                          sx={{ color: alpha(theme.palette.primary.main, 0.5) }}
-                        />
+                        {selectionMode && (
+                          <Checkbox 
+                            size="small" 
+                            checked={selectedFiles.includes(file.id)}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              toggleFileSelection(file.id);
+                            }}
+                            sx={{ color: alpha(theme.palette.primary.main, 0.5) }}
+                          />
+                        )}
                         <IconButton 
                           size="small" 
                           onClick={(e) => handleMenuOpen(e, 'file', file)}
@@ -1434,6 +1548,25 @@ const ArchiveBrowser: React.FC = () => {
                       <Typography variant="body2" fontWeight="600" noWrap sx={{ maxWidth: '100%', mb: 0.5 }}>
                         {file.name}
                       </Typography>
+                      {file.breadcrumb && (
+                        <Typography 
+                          variant="caption" 
+                          color="primary" 
+                          sx={{ 
+                            display: 'flex', 
+                            alignItems: 'center', 
+                            gap: 0.5, 
+                            opacity: 0.8, 
+                            mb: 0.5,
+                            maxWidth: '100%',
+                            overflow: 'hidden',
+                            textOverflow: 'ellipsis',
+                            whiteSpace: 'nowrap'
+                          }}
+                        >
+                          <Explore sx={{ fontSize: 12 }} /> {file.breadcrumb}
+                        </Typography>
+                      )}
                       <Typography variant="caption" color="text.secondary" sx={{ opacity: 0.8 }}>
                         {(file.file_size / 1024).toFixed(1)} KB
                       </Typography>
@@ -1476,17 +1609,19 @@ const ArchiveBrowser: React.FC = () => {
           <Table size="small">
             <TableHead>
               <TableRow sx={{ bgcolor: alpha(theme.palette.primary.main, 0.02) }}>
-                <TableCell padding="checkbox">
-                  <Checkbox 
-                    size="small"
-                    indeterminate={
-                      (selectedFiles.length > 0 || selectedFolders.length > 0) &&
-                      (selectedFiles.length < files.length || selectedFolders.length < folders.length)
-                    }
-                    checked={(files.length > 0 || folders.length > 0) && selectedFiles.length === files.length && selectedFolders.length === folders.length}
-                    onChange={(e) => handleSelectAll(e.target.checked)}
-                  />
-                </TableCell>
+                {selectionMode && (
+                  <TableCell padding="checkbox">
+                    <Checkbox 
+                      size="small"
+                      indeterminate={
+                        (selectedFiles.length > 0 || selectedFolders.length > 0) &&
+                        (selectedFiles.length < files.length || selectedFolders.length < folders.length)
+                      }
+                      checked={(files.length > 0 || folders.length > 0) && selectedFiles.length === files.length && selectedFolders.length === folders.length}
+                      onChange={(e) => handleSelectAll(e.target.checked)}
+                    />
+                  </TableCell>
+                )}
                 <TableCell sx={{ fontWeight: 600 }}>{t('Name')}</TableCell>
                 <TableCell sx={{ fontWeight: 600 }}>{t('Type')}</TableCell>
                 <TableCell sx={{ fontWeight: 600 }}>{t('Size')}</TableCell>
@@ -1494,8 +1629,9 @@ const ArchiveBrowser: React.FC = () => {
                 <TableCell align="right" sx={{ fontWeight: 600 }}>{t('Actions')}</TableCell>
               </TableRow>
             </TableHead>
-            <TableBody component={AnimatePresence as any}>
-              {filteredFolders.map((folder) => (
+            <TableBody>
+              <AnimatePresence mode="popLayout">
+                {filteredFolders.map((folder) => (
                 <TableRow 
                   key={`folder-${folder.id}`}
                   component={motion.tr as any}
@@ -1510,20 +1646,29 @@ const ArchiveBrowser: React.FC = () => {
                     '&:hover': { bgcolor: alpha(theme.palette.primary.main, 0.04) }
                   }}
                 >
-                  <TableCell padding="checkbox">
-                  <Checkbox 
-                    size="small"
-                    checked={selectedFolders.includes(folder.id)}
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      toggleFolderSelection(folder.id);
-                    }}
-                  />
-                </TableCell>
+                  {selectionMode && (
+                    <TableCell padding="checkbox">
+                      <Checkbox 
+                        size="small"
+                        checked={selectedFolders.includes(folder.id)}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          toggleFolderSelection(folder.id);
+                        }}
+                      />
+                    </TableCell>
+                  )}
                   <TableCell>
                     <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
                       <Folder sx={{ color: '#FFD700' }} fontSize="small" />
-                      <Typography variant="body2" fontWeight="500">{t(folder.name)}</Typography>
+                      <Box sx={{ display: 'flex', flexDirection: 'column' }}>
+                        <Typography variant="body2" fontWeight="500">{t(folder.name)}</Typography>
+                        {folder.breadcrumb && (
+                          <Typography variant="caption" color="primary" sx={{ display: 'flex', alignItems: 'center', gap: 0.5, opacity: 0.7 }}>
+                            <Explore sx={{ fontSize: 10 }} /> {folder.breadcrumb}
+                          </Typography>
+                        )}
+                      </Box>
                     </Box>
                   </TableCell>
                   <TableCell>
@@ -1531,8 +1676,13 @@ const ArchiveBrowser: React.FC = () => {
                       {t('Folder')}
                     </Typography>
                   </TableCell>
-                  <TableCell>-</TableCell>
-                  <TableCell>-</TableCell>
+                  <TableCell>
+                    {folder.total_size !== undefined && folder.total_size !== null 
+                      ? formatSize(folder.total_size) 
+                      : `0 ${t('common.units.kb', { defaultValue: 'KB' })}`}
+                    {folder.item_count !== undefined && folder.item_count !== null ? ` (${folder.item_count} ${t('items')})` : ''}
+                  </TableCell>
+                  <TableCell>{folder.created_at ? new Date(folder.created_at).toLocaleDateString() : '-'}</TableCell>
                   <TableCell align="right">
                     <IconButton size="small" onClick={(e) => handleMenuOpen(e, 'folder', folder)}>
                       <MoreVert fontSize="small" />
@@ -1555,16 +1705,18 @@ const ArchiveBrowser: React.FC = () => {
                     '&:hover': { bgcolor: alpha(theme.palette.primary.main, 0.04) }
                   }}
                 >
-                  <TableCell padding="checkbox">
-                    <Checkbox 
-                      size="small"
-                      checked={selectedFiles.includes(file.id)}
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        toggleFileSelection(file.id);
-                      }}
-                    />
-                  </TableCell>
+                  {selectionMode && (
+                    <TableCell padding="checkbox">
+                      <Checkbox 
+                        size="small"
+                        checked={selectedFiles.includes(file.id)}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          toggleFileSelection(file.id);
+                        }}
+                      />
+                    </TableCell>
+                  )}
                   <TableCell>
                     <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
                       {isImage(file.file_type) ? (
@@ -1574,7 +1726,14 @@ const ArchiveBrowser: React.FC = () => {
                       ) : (
                         <InsertDriveFile color="primary" fontSize="small" />
                       )}
-                      <Typography variant="body2" fontWeight="500">{file.name}</Typography>
+                      <Box sx={{ display: 'flex', flexDirection: 'column' }}>
+                        <Typography variant="body2" fontWeight="500">{file.name}</Typography>
+                        {file.breadcrumb && (
+                          <Typography variant="caption" color="primary" sx={{ display: 'flex', alignItems: 'center', gap: 0.5, opacity: 0.7 }}>
+                            <Explore sx={{ fontSize: 10 }} /> {file.breadcrumb}
+                          </Typography>
+                        )}
+                      </Box>
                     </Box>
                   </TableCell>
                   <TableCell>
@@ -1582,7 +1741,7 @@ const ArchiveBrowser: React.FC = () => {
                       {file.file_type.toUpperCase()}
                     </Typography>
                   </TableCell>
-                  <TableCell>{(file.file_size / 1024).toFixed(1)} KB</TableCell>
+                  <TableCell>{formatSize(file.file_size)}</TableCell>
                   <TableCell>{new Date(file.created_at).toLocaleDateString()}</TableCell>
                   <TableCell align="right">
                     <Box sx={{ display: 'flex', justifyContent: 'flex-end', gap: 0.5 }}>
@@ -1599,6 +1758,7 @@ const ArchiveBrowser: React.FC = () => {
                   </TableCell>
                 </TableRow>
               ))}
+              </AnimatePresence>
             </TableBody>
           </Table>
           {files.length < totalFiles && (
@@ -1659,7 +1819,7 @@ const ArchiveBrowser: React.FC = () => {
       </Dialog>
 
       {/* Edit Metadata Dialog */}
-      <Dialog open={openEditDialog} onClose={() => setOpenEditDialog(false)} maxWidth="xs" fullWidth>
+      <Dialog open={openEditDialog} onClose={() => { setOpenEditDialog(false); setSelectedItem(null); }} maxWidth="xs" fullWidth>
         <DialogTitle>{t('Edit Item Details')}</DialogTitle>
         <DialogContent dividers>
           <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, pt: 1 }}>
@@ -1695,7 +1855,7 @@ const ArchiveBrowser: React.FC = () => {
           </Box>
         </DialogContent>
         <DialogActions>
-          <Button onClick={() => setOpenEditDialog(false)}>{t('Cancel')}</Button>
+          <Button onClick={() => { setOpenEditDialog(false); setSelectedItem(null); }}>{t('Cancel')}</Button>
           <Button onClick={handleUpdateMetadata} variant="contained" color="primary">
             {t('Save Changes')}
           </Button>
@@ -1703,7 +1863,7 @@ const ArchiveBrowser: React.FC = () => {
       </Dialog>
 
       {/* Permissions Dialog */}
-      <Dialog open={openPermissionDialog} onClose={() => setOpenPermissionDialog(false)} fullWidth maxWidth="md">
+      <Dialog open={openPermissionDialog} onClose={() => { setOpenPermissionDialog(false); setSelectedItem(null); }} fullWidth maxWidth="md">
         <DialogTitle>
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
             <CheckBox color="primary" />
@@ -1817,7 +1977,7 @@ const ArchiveBrowser: React.FC = () => {
           )}
         </DialogContent>
         <DialogActions>
-          <Button onClick={() => setOpenPermissionDialog(false)}>{t('Close')}</Button>
+          <Button onClick={() => { setOpenPermissionDialog(false); setSelectedItem(null); }}>{t('Close')}</Button>
         </DialogActions>
       </Dialog>
 
@@ -1827,6 +1987,26 @@ const ArchiveBrowser: React.FC = () => {
         open={Boolean(anchorEl)}
         onClose={handleMenuClose}
       >
+        <MenuItem onClick={() => {
+          setSelectionMode(true);
+          if (selectedItem?.type === 'folder') toggleFolderSelection(selectedItem.id);
+          else if (selectedItem?.type === 'file') toggleFileSelection(selectedItem.id);
+          handleMenuClose();
+        }}>
+          <ListItemIcon><CheckBox fontSize="small" /></ListItemIcon>
+          <ListItemText>{t('Select')}</ListItemText>
+        </MenuItem>
+        
+        <MenuItem onClick={() => handleSingleItemAction('copy')}>
+          <ListItemIcon><ContentCopy fontSize="small" /></ListItemIcon>
+          <ListItemText>{t('Copy')}</ListItemText>
+        </MenuItem>
+        
+        <MenuItem onClick={() => handleSingleItemAction('move')}>
+          <ListItemIcon><DriveFileMove fontSize="small" /></ListItemIcon>
+          <ListItemText>{t('Move')}</ListItemText>
+        </MenuItem>
+
         {selectedItem?.type === 'folder' && (
           <Box>
             <MenuItem onClick={() => {
@@ -1969,7 +2149,7 @@ const ArchiveBrowser: React.FC = () => {
         </DialogTitle>
         
         <Box sx={{ borderBottom: 1, borderColor: 'divider', bgcolor: 'background.paper' }}>
-          <Tabs value={previewTab} onChange={(_, val) => setPreviewTab(val)} aria-label="preview tabs">
+          <Tabs value={previewTab} onChange={(_, val) => setPreviewTab(val)} aria-label={t('preview tabs')}>
             <Tab label={t('Preview')} icon={<ImageIcon fontSize="small" />} iconPosition="start" />
             <Tab label={t('Details & OCR')} icon={<Info fontSize="small" />} iconPosition="start" />
           </Tabs>

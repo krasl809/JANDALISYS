@@ -66,7 +66,7 @@ const Navigation: React.FC<NavProps> = ({ width, mobileOpen, handleDrawerToggle 
   const theme = useTheme();
   const { hasPermission } = useAuth();
 
-  const isRTL = i18n.language === 'ar';
+  const isRTL = i18n.language.startsWith('ar');
   const [invOpen, setInvOpen] = React.useState(true);
   const [empOpen, setEmpOpen] = React.useState(true);
 
@@ -111,10 +111,17 @@ const Navigation: React.FC<NavProps> = ({ width, mobileOpen, handleDrawerToggle 
   const canManageHR = React.useMemo(() => hasPermission(PERMISSIONS.MANAGE_HR), [hasPermission]);
 
   const drawerContent = React.useMemo(() => (
-    <Box sx={{ height: '100%', display: 'flex', flexDirection: 'column', bgcolor: sidebarBg, color: textInactive }}>
+    <Box dir={isRTL ? 'rtl' : 'ltr'} sx={{ height: '100%', display: 'flex', flexDirection: 'column', bgcolor: sidebarBg, color: textInactive }}>
 
       {/* Brand */}
-      <Box sx={{ p: 3, display: 'flex', alignItems: 'center', gap: 2 }}>
+      <Box sx={{ 
+        p: 3, 
+        display: 'flex', 
+        alignItems: 'center', 
+        gap: 2,
+        // في وضع RTL الـ row الطبيعي يبدأ من اليمين
+        flexDirection: 'row'
+      }}>
         <Box sx={{
           width: 36, height: 36, bgcolor: accentColor, borderRadius: 1.5,
           display: 'flex', alignItems: 'center', justifyContent: 'center',
@@ -123,7 +130,7 @@ const Navigation: React.FC<NavProps> = ({ width, mobileOpen, handleDrawerToggle 
         }}>
           J
         </Box>
-        <Box>
+        <Box sx={{ textAlign: isRTL ? 'right' : 'left' }}>
           <Typography variant="h6" sx={{ color: '#fff', fontWeight: 800, letterSpacing: '0.05em', fontSize: '1.1rem' }}>
             {t('JANDALISYS')}
           </Typography>
@@ -135,7 +142,15 @@ const Navigation: React.FC<NavProps> = ({ width, mobileOpen, handleDrawerToggle 
       {/* Menu Items */}
       <Box sx={{ flexGrow: 1, overflowY: 'auto', px: 1.5 }}>
         <List>
-          <Typography variant="caption" sx={{ px: 2, mb: 1, mt: 2, display: 'block', fontWeight: 600, fontSize: '0.75rem', color: textInactive, opacity: 0.8 }}>
+          <Typography variant="caption" sx={{ 
+            px: 2, mb: 1, mt: 2, 
+            display: 'block', 
+            fontWeight: 600, 
+            fontSize: '0.75rem', 
+            color: textInactive, 
+            opacity: 0.8,
+            textAlign: isRTL ? 'right' : 'left'
+          }}>
             {t('Main Menu')}
           </Typography>
 
@@ -149,6 +164,8 @@ const Navigation: React.FC<NavProps> = ({ width, mobileOpen, handleDrawerToggle 
                     borderRadius: '8px',
                     py: 1.2,
                     px: 2,
+                    // الترتيب الطبيعي flex-direction: row مع dir="rtl" يضع الأيقونة أولاً على اليمين
+                    flexDirection: 'row',
                     color: isActive ? textActive : textInactive,
                     background: isActive ? COLORS.gradientPrimary : 'transparent',
                     boxShadow: isActive ? SHADOWS.sm : 'none',
@@ -156,17 +173,37 @@ const Navigation: React.FC<NavProps> = ({ width, mobileOpen, handleDrawerToggle 
                     '&:hover': { 
                       bgcolor: isActive ? accentColor : hoverBg,
                       color: isActive ? textActive : (isDark ? '#fff' : COLORS.dark),
-                      transform: 'translateX(4px)'
+                      transform: isRTL ? 'translateX(-4px)' : 'translateX(4px)'
                     },
                   }}
                 >
-                  <ListItemIcon sx={{ minWidth: 32, color: isActive ? textActive : 'inherit' }}>
+                  <ListItemIcon sx={{ 
+                    minWidth: 'auto', 
+                    marginInlineEnd: 2,
+                    color: isActive ? textActive : 'inherit',
+                    display: 'flex',
+                    alignItems: 'center'
+                  }}>
                     {React.cloneElement(item.icon as React.ReactElement, { sx: { fontSize: 18 } })}
                   </ListItemIcon>
                   <ListItemText
                     primary={item.text}
-                    primaryTypographyProps={{ fontSize: '0.875rem', fontWeight: isActive ? 700 : 400 }}
-                    sx={{ textAlign: isRTL ? 'right' : 'left' }}
+                    primaryTypographyProps={{ 
+                      fontSize: '0.875rem', 
+                      fontWeight: isActive ? 700 : 400,
+                      textAlign: isRTL ? 'right' : 'left',
+                      sx: { 
+                        display: 'block',
+                        width: '100%'
+                      }
+                    }}
+                    sx={{ 
+                      m: 0,
+                      '& .MuiListItemText-primary': {
+                        display: 'flex',
+                        justifyContent: isRTL ? 'flex-start' : 'flex-start' // في RTL الـ row يبدأ من اليمين
+                      }
+                    }}
                   />
                 </ListItemButton>
               </ListItem>
@@ -187,14 +224,34 @@ const Navigation: React.FC<NavProps> = ({ width, mobileOpen, handleDrawerToggle 
                   borderRadius: 1, 
                   mb: 0.2, 
                   px: 2,
+                  flexDirection: 'row',
                   color: location.pathname.includes('inventory') ? textActive : textInactive,
                   '&:hover': { bgcolor: hoverBg, color: isDark ? '#fff' : '#323338' }
                 }}
               >
-                <ListItemIcon sx={{ minWidth: 36, color: location.pathname.includes('inventory') ? accentColor : 'inherit' }}>
+                <ListItemIcon sx={{ 
+                  minWidth: 'auto', 
+                  marginInlineEnd: 2,
+                  color: location.pathname.includes('inventory') ? accentColor : 'inherit' 
+                }}>
                   <LocalShipping sx={{ fontSize: 20 }} />
                 </ListItemIcon>
-                <ListItemText primary={t('Logistics')} primaryTypographyProps={{ fontSize: '0.85rem', fontWeight: 400 }} sx={{ textAlign: isRTL ? 'right' : 'left' }} />
+                <ListItemText 
+                  primary={t('Logistics')} 
+                  primaryTypographyProps={{ 
+                    fontSize: '0.85rem', 
+                    fontWeight: 400,
+                    textAlign: isRTL ? 'right' : 'left',
+                    sx: { display: 'block', width: '100%' }
+                  }} 
+                  sx={{ 
+                    m: 0,
+                    '& .MuiListItemText-primary': {
+                      display: 'flex',
+                      justifyContent: 'flex-start'
+                    }
+                  }}
+                />
                 {invOpen ? <ExpandLess sx={{ opacity: 0.5, fontSize: 18 }} /> : <ExpandMore sx={{ opacity: 0.5, fontSize: 18 }} />}
               </ListItemButton>
 
@@ -238,6 +295,7 @@ const Navigation: React.FC<NavProps> = ({ width, mobileOpen, handleDrawerToggle 
                   mx: 1.5,
                   px: 2,
                   py: 1.2,
+                  flexDirection: 'row',
                   color: location.pathname === '/hr' ? textActive : textInactive,
                   background: location.pathname === '/hr' ? COLORS.gradientPrimary : 'transparent',
                   boxShadow: location.pathname === '/hr' ? SHADOWS.sm : 'none',
@@ -245,14 +303,33 @@ const Navigation: React.FC<NavProps> = ({ width, mobileOpen, handleDrawerToggle 
                   '&:hover': { 
                     bgcolor: location.pathname === '/hr' ? accentColor : hoverBg,
                     color: location.pathname === '/hr' ? textActive : (isDark ? '#fff' : COLORS.dark),
-                    transform: 'translateX(4px)'
+                    transform: isRTL ? 'translateX(-4px)' : 'translateX(4px)'
                   }
                 }}
               >
-                <ListItemIcon sx={{ minWidth: 32, color: location.pathname === '/hr' ? textActive : 'inherit' }}>
+                <ListItemIcon sx={{ 
+                  minWidth: 'auto', 
+                  marginInlineEnd: 2,
+                  color: location.pathname === '/hr' ? textActive : 'inherit' 
+                }}>
                   <Dashboard sx={{ fontSize: 18 }} />
                 </ListItemIcon>
-                <ListItemText primary={t('HR Dashboard')} primaryTypographyProps={{ fontSize: '0.875rem', fontWeight: location.pathname === '/hr' ? 700 : 400 }} sx={{ textAlign: isRTL ? 'right' : 'left' }} />
+                <ListItemText 
+                  primary={t('HR Dashboard')} 
+                  primaryTypographyProps={{ 
+                    fontSize: '0.875rem', 
+                    fontWeight: location.pathname === '/hr' ? 700 : 400,
+                    textAlign: isRTL ? 'right' : 'left',
+                    sx: { display: 'block', width: '100%' }
+                  }} 
+                  sx={{ 
+                    m: 0,
+                    '& .MuiListItemText-primary': {
+                      display: 'flex',
+                      justifyContent: 'flex-start'
+                    }
+                  }}
+                />
               </ListItemButton>
 
               <ListItemButton
@@ -263,6 +340,7 @@ const Navigation: React.FC<NavProps> = ({ width, mobileOpen, handleDrawerToggle 
                   mx: 1.5,
                   px: 2,
                   py: 1.2,
+                  flexDirection: 'row',
                   color: location.pathname.startsWith('/employees') ? textActive : textInactive,
                   background: location.pathname.startsWith('/employees') ? COLORS.gradientPrimary : 'transparent',
                   boxShadow: location.pathname.startsWith('/employees') ? SHADOWS.sm : 'none',
@@ -270,14 +348,33 @@ const Navigation: React.FC<NavProps> = ({ width, mobileOpen, handleDrawerToggle 
                   '&:hover': { 
                     bgcolor: location.pathname.startsWith('/employees') ? accentColor : hoverBg,
                     color: location.pathname.startsWith('/employees') ? textActive : (isDark ? '#fff' : COLORS.dark),
-                    transform: 'translateX(4px)'
+                    transform: isRTL ? 'translateX(-4px)' : 'translateX(4px)'
                   }
                 }}
               >
-                <ListItemIcon sx={{ minWidth: 32, color: location.pathname.startsWith('/employees') ? textActive : 'inherit' }}>
+                <ListItemIcon sx={{ 
+                  minWidth: 'auto', 
+                  marginInlineEnd: 2,
+                  color: location.pathname.startsWith('/employees') ? textActive : 'inherit' 
+                }}>
                   <People sx={{ fontSize: 18 }} />
                 </ListItemIcon>
-                <ListItemText primary={t('Human Resources')} primaryTypographyProps={{ fontSize: '0.875rem', fontWeight: location.pathname.startsWith('/employees') ? 700 : 400 }} sx={{ textAlign: isRTL ? 'right' : 'left' }} />
+                <ListItemText 
+                  primary={t('Human Resources')} 
+                  primaryTypographyProps={{ 
+                    fontSize: '0.875rem', 
+                    fontWeight: location.pathname.startsWith('/employees') ? 700 : 400,
+                    textAlign: isRTL ? 'right' : 'left',
+                    sx: { display: 'block', width: '100%' }
+                  }} 
+                  sx={{ 
+                    m: 0,
+                    '& .MuiListItemText-primary': {
+                      display: 'flex',
+                      justifyContent: 'flex-start'
+                    }
+                  }}
+                />
                 {empOpen ? <ExpandLess sx={{ opacity: 0.8, fontSize: 18, color: location.pathname.startsWith('/employees') ? textActive : 'inherit' }} /> : <ExpandMore sx={{ opacity: 0.8, fontSize: 18, color: location.pathname.startsWith('/employees') ? textActive : 'inherit' }} />}
               </ListItemButton>
 
@@ -288,12 +385,28 @@ const Navigation: React.FC<NavProps> = ({ width, mobileOpen, handleDrawerToggle 
                     sx={{
                       pl: isRTL ? 2 : 6.5, pr: isRTL ? 6.5 : 2,
                       borderRadius: '8px', mb: 0.2,
+                      flexDirection: 'row',
                       color: location.pathname === '/employees' ? textActive : textInactive,
                       background: location.pathname === '/employees' ? alpha(COLORS.primary, 0.1) : 'transparent',
                       '&:hover': { bgcolor: alpha(COLORS.primary, 0.15) }
                     }}
                   >
-                    <ListItemText primary={t('All Employees')} primaryTypographyProps={{ fontSize: '0.8rem', fontWeight: location.pathname === '/employees' ? 600 : 400 }} sx={{ textAlign: isRTL ? 'right' : 'left' }} />
+                    <ListItemText 
+                      primary={t('All Employees')} 
+                      primaryTypographyProps={{ 
+                        fontSize: '0.8rem', 
+                        fontWeight: location.pathname === '/employees' ? 600 : 400,
+                        textAlign: isRTL ? 'right' : 'left',
+                        sx: { display: 'block', width: '100%' }
+                      }} 
+                      sx={{ 
+                        m: 0,
+                        '& .MuiListItemText-primary': {
+                          display: 'flex',
+                          justifyContent: 'flex-start'
+                        }
+                      }}
+                    />
                   </ListItemButton>
   
                   {canManageHR && (
@@ -303,12 +416,28 @@ const Navigation: React.FC<NavProps> = ({ width, mobileOpen, handleDrawerToggle 
                         sx={{
                           pl: isRTL ? 2 : 6.5, pr: isRTL ? 6.5 : 2,
                           borderRadius: '8px', mb: 0.2,
+                          flexDirection: 'row',
                           color: location.pathname === '/employees/import' ? textActive : textInactive,
                           background: location.pathname === '/employees/import' ? alpha(COLORS.primary, 0.1) : 'transparent',
                           '&:hover': { bgcolor: alpha(COLORS.primary, 0.15) }
                         }}
                       >
-                        <ListItemText primary={t('Import Employees')} primaryTypographyProps={{ fontSize: '0.8rem', fontWeight: location.pathname === '/employees/import' ? 600 : 400 }} sx={{ textAlign: isRTL ? 'right' : 'left' }} />
+                        <ListItemText 
+                          primary={t('Import Employees')} 
+                          primaryTypographyProps={{ 
+                            fontSize: '0.8rem', 
+                            fontWeight: location.pathname === '/employees/import' ? 600 : 400,
+                            textAlign: isRTL ? 'right' : 'left',
+                            sx: { display: 'block', width: '100%' }
+                          }} 
+                          sx={{ 
+                            m: 0,
+                            '& .MuiListItemText-primary': {
+                              display: 'flex',
+                              justifyContent: 'flex-start'
+                            }
+                          }}
+                        />
                       </ListItemButton>
 
                       <ListItemButton
@@ -316,12 +445,28 @@ const Navigation: React.FC<NavProps> = ({ width, mobileOpen, handleDrawerToggle 
                         sx={{
                           pl: isRTL ? 2 : 6.5, pr: isRTL ? 6.5 : 2,
                           borderRadius: '8px', mb: 0.2,
+                          flexDirection: 'row',
                           color: location.pathname === '/employees/add' ? textActive : textInactive,
                           background: location.pathname === '/employees/add' ? alpha(COLORS.primary, 0.1) : 'transparent',
                           '&:hover': { bgcolor: alpha(COLORS.primary, 0.15) }
                         }}
                       >
-                        <ListItemText primary={t('Add Employee')} primaryTypographyProps={{ fontSize: '0.8rem', fontWeight: location.pathname === '/employees/add' ? 600 : 400 }} sx={{ textAlign: isRTL ? 'right' : 'left' }} />
+                        <ListItemText 
+                          primary={t('Add Employee')} 
+                          primaryTypographyProps={{ 
+                            fontSize: '0.8rem', 
+                            fontWeight: location.pathname === '/employees/add' ? 600 : 400,
+                            textAlign: isRTL ? 'right' : 'left',
+                            sx: { display: 'block', width: '100%' }
+                          }} 
+                          sx={{ 
+                            m: 0,
+                            '& .MuiListItemText-primary': {
+                              display: 'flex',
+                              justifyContent: 'flex-start'
+                            }
+                          }}
+                        />
                       </ListItemButton>
                     </>
                   )}
@@ -336,6 +481,7 @@ const Navigation: React.FC<NavProps> = ({ width, mobileOpen, handleDrawerToggle 
                   mx: 1.5,
                   px: 2,
                   py: 1.2,
+                  flexDirection: 'row',
                   color: location.pathname === '/hr/attendance' ? textActive : textInactive,
                   background: location.pathname === '/hr/attendance' ? COLORS.gradientPrimary : 'transparent',
                   boxShadow: location.pathname === '/hr/attendance' ? SHADOWS.sm : 'none',
@@ -343,14 +489,33 @@ const Navigation: React.FC<NavProps> = ({ width, mobileOpen, handleDrawerToggle 
                   '&:hover': { 
                     bgcolor: location.pathname === '/hr/attendance' ? accentColor : hoverBg,
                     color: location.pathname === '/hr/attendance' ? textActive : (isDark ? '#fff' : COLORS.dark),
-                    transform: 'translateX(4px)'
+                    transform: isRTL ? 'translateX(-4px)' : 'translateX(4px)'
                   }
                 }}
               >
-                <ListItemIcon sx={{ minWidth: 32, color: location.pathname === '/hr/attendance' ? textActive : 'inherit' }}>
+                <ListItemIcon sx={{ 
+                  minWidth: 'auto', 
+                  marginInlineEnd: 2,
+                  color: location.pathname === '/hr/attendance' ? textActive : 'inherit' 
+                }}>
                   <AccessTime sx={{ fontSize: 18 }} />
                 </ListItemIcon>
-                <ListItemText primary={t('Attendance')} primaryTypographyProps={{ fontSize: '0.875rem', fontWeight: location.pathname === '/hr/attendance' ? 700 : 400 }} sx={{ textAlign: isRTL ? 'right' : 'left' }} />
+                <ListItemText 
+                  primary={t('Attendance')} 
+                  primaryTypographyProps={{ 
+                    fontSize: '0.875rem', 
+                    fontWeight: location.pathname === '/hr/attendance' ? 700 : 400,
+                    textAlign: isRTL ? 'right' : 'left',
+                    sx: { display: 'block', width: '100%' }
+                  }} 
+                  sx={{ 
+                    m: 0,
+                    '& .MuiListItemText-primary': {
+                      display: 'flex',
+                      justifyContent: 'flex-start'
+                    }
+                  }}
+                />
               </ListItemButton>
 
               <ListItemButton
@@ -361,6 +526,7 @@ const Navigation: React.FC<NavProps> = ({ width, mobileOpen, handleDrawerToggle 
                   mx: 1.5,
                   px: 2,
                   py: 1.2,
+                  flexDirection: 'row',
                   color: location.pathname === '/hr/shifts' ? textActive : textInactive,
                   background: location.pathname === '/hr/shifts' ? COLORS.gradientPrimary : 'transparent',
                   boxShadow: location.pathname === '/hr/shifts' ? SHADOWS.sm : 'none',
@@ -368,16 +534,35 @@ const Navigation: React.FC<NavProps> = ({ width, mobileOpen, handleDrawerToggle 
                   '&:hover': { 
                     bgcolor: location.pathname === '/hr/shifts' ? accentColor : hoverBg,
                     color: location.pathname === '/hr/shifts' ? textActive : (isDark ? '#fff' : COLORS.dark),
-                    transform: 'translateX(4px)'
+                    transform: isRTL ? 'translateX(-4px)' : 'translateX(4px)'
                   }
                 }}
               >
-                <ListItemIcon sx={{ minWidth: 32, color: location.pathname === '/hr/shifts' ? textActive : 'inherit' }}>
+                <ListItemIcon sx={{ 
+                  minWidth: 'auto', 
+                  marginInlineEnd: 2,
+                  color: location.pathname === '/hr/shifts' ? textActive : 'inherit' 
+                }}>
                   <Schedule sx={{ fontSize: 18 }} />
                 </ListItemIcon>
-                <ListItemText primary={t('Shift Settings')} primaryTypographyProps={{ fontSize: '0.875rem', fontWeight: location.pathname === '/hr/shifts' ? 700 : 400 }} sx={{ textAlign: isRTL ? 'right' : 'left' }} />
+                <ListItemText 
+                  primary={t('Shift Settings')} 
+                  primaryTypographyProps={{ 
+                    fontSize: '0.875rem', 
+                    fontWeight: location.pathname === '/hr/shifts' ? 700 : 400,
+                    textAlign: isRTL ? 'right' : 'left',
+                    sx: { display: 'block', width: '100%' }
+                  }} 
+                  sx={{ 
+                    m: 0,
+                    '& .MuiListItemText-primary': {
+                      display: 'flex',
+                      justifyContent: 'flex-start'
+                    }
+                  }}
+                />
               </ListItemButton>
-  
+
               {canManageHR && (
                 <ListItemButton
                   onClick={() => navigate('/hr/devices')}
@@ -387,6 +572,7 @@ const Navigation: React.FC<NavProps> = ({ width, mobileOpen, handleDrawerToggle 
                     mx: 1.5,
                     px: 2,
                     py: 1.2,
+                    flexDirection: 'row',
                     color: location.pathname === '/hr/devices' ? textActive : textInactive,
                     background: location.pathname === '/hr/devices' ? COLORS.gradientPrimary : 'transparent',
                     boxShadow: location.pathname === '/hr/devices' ? SHADOWS.sm : 'none',
@@ -394,14 +580,33 @@ const Navigation: React.FC<NavProps> = ({ width, mobileOpen, handleDrawerToggle 
                     '&:hover': { 
                       bgcolor: location.pathname === '/hr/devices' ? accentColor : hoverBg,
                       color: location.pathname === '/hr/devices' ? textActive : (isDark ? '#fff' : COLORS.dark),
-                      transform: 'translateX(4px)'
+                      transform: isRTL ? 'translateX(-4px)' : 'translateX(4px)'
                     }
                   }}
                 >
-                  <ListItemIcon sx={{ minWidth: 32, color: location.pathname === '/hr/devices' ? textActive : 'inherit' }}>
+                  <ListItemIcon sx={{ 
+                    minWidth: 'auto', 
+                    marginInlineEnd: 2,
+                    color: location.pathname === '/hr/devices' ? textActive : 'inherit' 
+                  }}>
                     <SettingsInputComponent sx={{ fontSize: 18 }} />
                   </ListItemIcon>
-                  <ListItemText primary={t('Devices')} primaryTypographyProps={{ fontSize: '0.875rem', fontWeight: location.pathname === '/hr/devices' ? 700 : 400 }} sx={{ textAlign: isRTL ? 'right' : 'left' }} />
+                  <ListItemText 
+                    primary={t('Devices')} 
+                    primaryTypographyProps={{ 
+                      fontSize: '0.875rem', 
+                      fontWeight: location.pathname === '/hr/devices' ? 700 : 400,
+                      textAlign: isRTL ? 'right' : 'left',
+                      sx: { display: 'block', width: '100%' }
+                    }} 
+                    sx={{ 
+                      m: 0,
+                      '& .MuiListItemText-primary': {
+                        display: 'flex',
+                        justifyContent: 'flex-start'
+                      }
+                    }}
+                  />
                 </ListItemButton>
               )}
             </>
@@ -413,37 +618,49 @@ const Navigation: React.FC<NavProps> = ({ width, mobileOpen, handleDrawerToggle 
   ), [sidebarBg, textInactive, accentColor, isDark, t, dividerColor, filteredMenuItems, location.pathname, navigate, mobileOpen, handleDrawerToggle, hoverBg, textActive, isRTL, showInventory, invOpen, memoizedInventoryItems, showHR, empOpen, canManageHR]);
 
   return (
-    <>
+    <Box 
+      component="nav" 
+      sx={{ 
+        width: { md: width }, 
+        flexShrink: { md: 0 },
+        // التأكد من أن الحاوية تتبع اتجاه الصفحة
+        position: 'relative',
+        zIndex: theme.zIndex.drawer
+      }}
+    >
+      {/* Mobile drawer */}
       <Drawer
         variant="temporary"
+        anchor="left"
         open={mobileOpen}
         onClose={handleDrawerToggle}
-        anchor={isRTL ? 'right' : 'left'}
         ModalProps={{ keepMounted: true }}
         sx={{
           display: { xs: 'block', md: 'none' },
-          '& .MuiDrawer-paper': drawerPaperStyles
+          '& .MuiDrawer-paper': drawerPaperStyles,
         }}
       >
         {drawerContent}
       </Drawer>
 
+      {/* Desktop drawer */}
       <Drawer
         variant="permanent"
-        anchor={isRTL ? 'right' : 'left'}
+        anchor="left"
         sx={{
           display: { xs: 'none', md: 'block' },
           '& .MuiDrawer-paper': {
             ...drawerPaperStyles,
             position: 'fixed',
             top: 0,
+            borderInlineEnd: `1px solid ${dividerColor}`,
           }
         }}
         open
       >
         {drawerContent}
       </Drawer>
-    </>
+    </Box>
   );
 };
 

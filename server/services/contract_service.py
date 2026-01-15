@@ -78,6 +78,14 @@ class ContractService:
         if not current_contract:
             return None
 
+        # --- Concurrency Check (Optimistic Locking) ---
+        if contract_data.version is not None and current_contract.version != contract_data.version:
+            logger.warning(f"Concurrency conflict for contract {contract_id}. Client version: {contract_data.version}, DB version: {current_contract.version}")
+            raise HTTPException(
+                status_code=409,
+                detail="CONCURRENCY_CONFLICT"
+            )
+
         # Check permission for draft reversion: only contract creator can revert to draft
         if (contract_data.status and
             contract_data.status.value == "draft" and
@@ -93,7 +101,7 @@ class ContractService:
         old_warehouse_id = current_contract.warehouse_id
         old_items = [(item.article_id, item.quantity) for item in current_contract.items]
 
-        updated_contract = crud.update_contract(db=db, contract_id=contract_id, contract=contract_data)
+        updated_contract = crud.update_contract(db=db, contract_id=contract_id, contract=contract_data, user_id=user_id)
         if updated_contract:
             await manager.broadcast("CONTRACT_UPDATED")
             # Create notification for contract update
@@ -181,18 +189,22 @@ class ContractService:
 
             # Add view and financial information to each contract (simplified to avoid errors)
             for contract in contracts:
-                contract.view_count = 0
-                contract.last_viewed_by = None
-                contract.last_viewed_at = None
-                # Calculate financial value from items
-                contract.financial_value = sum(item.total for item in contract.items if item.total) or 0
+                try:
+                    contract.view_count = 0
+                    contract.last_viewed_by = None
+                    contract.last_viewed_at = None
+                    # Calculate financial value from items
+                    contract.financial_value = sum(item.total for item in contract.items if item.total) or 0
+                except Exception as item_err:
+                    logger.error(f"Error processing contract {contract.id}: {item_err}")
+                    contract.financial_value = 0
 
             # Add pagination metadata
             pagination_info = {
                 'total': total_count,
                 'page': (skip // limit) + 1,
                 'per_page': limit,
-                'pages': (total_count + limit - 1) // limit  # Ceiling division
+                'pages': (total_count + limit - 1) // limit if limit > 0 else 0  # Ceiling division
             }
 
             return {
@@ -206,6 +218,23 @@ class ContractService:
     @staticmethod
     def get_contract(db: Session, contract_id: uuid.UUID):
         return crud.get_contract_by_id(db, contract_id)
+
+    @staticmethod
+    def get_next_number(db: Session, seller_code: str = "SELL", reference_date: Optional[datetime] = None) -> str:
+        """Generate the next contract number based on seller code and date"""
+        return crud.generate_contract_number(db, seller_code, reference_date)
+
+    @staticmethod
+    async def notify_finance(db: Session, contract_id: uuid.UUID, user_id: uuid.UUID) -> Optional[core_models.Contract]:
+        """Record finance notification for a contract"""
+        updated_contract = crud.notify_finance(db, contract_id, user_id)
+        if updated_contract:
+            await manager.broadcast("CONTRACT_UPDATED")
+            # Optional: Create a specific notification for finance team here
+            await NotificationService.create_contract_notification(
+                db, user_id, contract_id, "finance_notified", updated_contract.contract_no
+            )
+        return updated_contract
 
     @staticmethod
     def record_contract_view(db: Session, contract_id: uuid.UUID, user_id: uuid.UUID):
@@ -268,6 +297,17 @@ class ContractService:
         contract = db.query(core_models.Contract).filter(core_models.Contract.id == contract_id).first()
         if not contract:
             raise HTTPException(status_code=404, detail="Contract not found")
+
+        # --- Concurrency Check (Optimistic Locking) ---
+        if pricing_data.version is not None and contract.version != pricing_data.version:
+            logger.warning(f"Concurrency conflict for pricing contract {contract_id}. Client version: {pricing_data.version}, DB version: {contract.version}")
+            raise HTTPException(
+                status_code=409,
+                detail="CONCURRENCY_CONFLICT"
+            )
+
+        # Increment version
+        contract.version = (contract.version or 0) + 1
 
         # 1. Update item prices in database
         if pricing_data.prices:
@@ -337,12 +377,22 @@ class ContractService:
         return {"message": "Pricing updated and financial adjustment recorded"}
 
     @staticmethod
-    async def approve_pricing(db: Session, contract_id: uuid.UUID, user_id: uuid.UUID):
+    async def approve_pricing(db: Session, contract_id: uuid.UUID, user_id: uuid.UUID, version: Optional[int] = None):
         contract = db.query(core_models.Contract).filter(core_models.Contract.id == contract_id).first()
         if not contract:
             raise HTTPException(status_code=404, detail="Contract not found")
 
+        # --- Concurrency Check (Optimistic Locking) ---
+        if version is not None and contract.version != version:
+            logger.warning(f"Concurrency conflict for approving pricing {contract_id}. Client version: {version}, DB version: {contract.version}")
+            raise HTTPException(
+                status_code=409,
+                detail="CONCURRENCY_CONFLICT"
+            )
+
         contract.pricing_status = "approved"
+        # Increment version
+        contract.version = (contract.version or 0) + 1
         db.commit()
 
         # Create notification for pricing approval
@@ -351,7 +401,7 @@ class ContractService:
         )
 
         await manager.broadcast("CONTRACT_UPDATED")
-        return {"message": "Pricing approved successfully"}
+        return {"message": "Pricing approved successfully", "version": contract.version}
 
     @staticmethod
     async def partial_price(db: Session, contract_id: uuid.UUID, pricing_data: schemas.ContractPartialPricingRequest, user_id: uuid.UUID):
@@ -366,9 +416,20 @@ class ContractService:
         if not contract:
             raise HTTPException(status_code=404, detail="Contract not found")
 
+        # --- Concurrency Check (Optimistic Locking) ---
+        if pricing_data.version is not None and contract.version != pricing_data.version:
+            logger.warning(f"Concurrency conflict for partial pricing {contract_id}. Client version: {pricing_data.version}, DB version: {contract.version}")
+            raise HTTPException(
+                status_code=409,
+                detail="CONCURRENCY_CONFLICT"
+            )
+
         item = db.query(core_models.ContractItem).filter(core_models.ContractItem.id == item_id).first()
         if not item:
             raise HTTPException(status_code=404, detail="Item not found")
+
+        # Increment version
+        contract.version = (contract.version or 0) + 1
 
         qty_priced = pricing_data.qty_priced
         market_price = pricing_data.market_price
@@ -406,7 +467,7 @@ class ContractService:
         )
 
         await manager.broadcast("CONTRACT_UPDATED")
-        return {"message": "Partial pricing recorded"}
+        return {"message": "Partial pricing recorded", "version": contract.version}
 
     @staticmethod
     def get_contract_ledger(db: Session, contract_id: uuid.UUID, skip: int = 0, limit: int = 50):

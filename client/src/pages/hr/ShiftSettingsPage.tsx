@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useEffect, useState, useCallback, useMemo } from 'react';
 import {
     Box, Typography, Grid2 as Grid, Paper, Button, TextField, Dialog, DialogTitle,
     DialogContent, DialogActions, Chip, IconButton, Card, CardContent, Divider,
@@ -98,6 +98,27 @@ const ShiftSettingsPage: React.FC = () => {
     const [feedback, setFeedback] = useState<{ type: 'success' | 'error', msg: string } | null>(null);
     const [snackbarOpen, setSnackbarOpen] = useState(false);
     const [validationErrors, setValidationErrors] = useState<{[key: string]: string}>({});
+
+    const inputSx = useMemo(() => ({
+        '& .MuiOutlinedInput-root': {
+            bgcolor: theme.palette.mode === 'dark' ? 'background.paper' : 'inherit',
+            borderRadius: '8px',
+            '& fieldset': {
+                borderColor: theme.palette.mode === 'dark' ? alpha(theme.palette.divider, 0.45) : alpha(theme.palette.divider, 0.2),
+            },
+            '&:hover fieldset': {
+                borderColor: COLORS.primary,
+            },
+            '&.Mui-focused fieldset': {
+                borderColor: COLORS.primary,
+            },
+        },
+        '& .MuiInputLabel-root.Mui-focused': { color: COLORS.primary },
+        '& .MuiInputBase-input::placeholder': {
+            color: theme.palette.text.disabled,
+            opacity: 1,
+        }
+    }), [theme]);
 
     // Shift Logic States
     const [openAddShift, setOpenAddShift] = useState(false);
@@ -879,17 +900,10 @@ const ShiftSettingsPage: React.FC = () => {
                                 fullWidth 
                                 value={newShift.name || ''} 
                                 onChange={(e) => setNewShift({ ...newShift, name: e.target.value })} 
-                                placeholder="e.g. Administrative Shift"
+                                placeholder={t('examples.shiftName')}
                                 error={!!validationErrors.name}
                                 helperText={validationErrors.name}
-                                sx={{
-                                    '& .MuiOutlinedInput-root': {
-                                        borderRadius: '8px',
-                                        '&:hover .MuiOutlinedInput-notchedOutline': { borderColor: COLORS.primary },
-                                        '&.Mui-focused .MuiOutlinedInput-notchedOutline': { borderColor: COLORS.primary }
-                                    },
-                                    '& .MuiInputLabel-root.Mui-focused': { color: COLORS.primary }
-                                }}
+                                sx={inputSx}
                             />
                         </Grid>
                         <Grid size={{ xs: 12, md: 6 }}>
@@ -920,14 +934,7 @@ const ShiftSettingsPage: React.FC = () => {
                                 slotProps={{ inputLabel: { shrink: true } }}
                                 error={!!validationErrors.start_time}
                                 helperText={validationErrors.start_time}
-                                sx={{ 
-                                    '& .MuiOutlinedInput-root': { 
-                                        borderRadius: '8px',
-                                        '&:hover .MuiOutlinedInput-notchedOutline': { borderColor: COLORS.primary },
-                                        '&.Mui-focused .MuiOutlinedInput-notchedOutline': { borderColor: COLORS.primary }
-                                    },
-                                    '& .MuiInputLabel-root.Mui-focused': { color: COLORS.primary }
-                                }}
+                                sx={inputSx}
                             />
                         </Grid>
                         <Grid size={{ xs: 12, md: 4 }}>
@@ -940,14 +947,7 @@ const ShiftSettingsPage: React.FC = () => {
                                 slotProps={{ inputLabel: { shrink: true } }}
                                 error={!!validationErrors.end_time}
                                 helperText={validationErrors.end_time}
-                                sx={{ 
-                                    '& .MuiOutlinedInput-root': { 
-                                        borderRadius: '8px',
-                                        '&:hover .MuiOutlinedInput-notchedOutline': { borderColor: COLORS.primary },
-                                        '&.Mui-focused .MuiOutlinedInput-notchedOutline': { borderColor: COLORS.primary }
-                                    },
-                                    '& .MuiInputLabel-root.Mui-focused': { color: COLORS.primary }
-                                }}
+                                sx={inputSx}
                             />
                         </Grid>
                         <Grid size={{ xs: 12, md: 4 }}>
@@ -959,14 +959,7 @@ const ShiftSettingsPage: React.FC = () => {
                                 onChange={(e) => setNewShift({ ...newShift, expected_hours: Number(e.target.value) })}
                                 error={!!validationErrors.expected_hours}
                                 helperText={validationErrors.expected_hours}
-                                sx={{ 
-                                    '& .MuiOutlinedInput-root': { 
-                                        borderRadius: '8px',
-                                        '&:hover .MuiOutlinedInput-notchedOutline': { borderColor: COLORS.primary },
-                                        '&.Mui-focused .MuiOutlinedInput-notchedOutline': { borderColor: COLORS.primary }
-                                    },
-                                    '& .MuiInputLabel-root.Mui-focused': { color: COLORS.primary }
-                                }}
+                                sx={inputSx}
                             />
                         </Grid>
 
@@ -1019,14 +1012,7 @@ const ShiftSettingsPage: React.FC = () => {
                                 fullWidth 
                                 value={newShift.grace_period_in || 0} 
                                 onChange={(e) => setNewShift({ ...newShift, grace_period_in: Number(e.target.value) })} 
-                                sx={{ 
-                                    '& .MuiOutlinedInput-root': { 
-                                        borderRadius: '8px',
-                                        '&:hover .MuiOutlinedInput-notchedOutline': { borderColor: COLORS.primary },
-                                        '&.Mui-focused .MuiOutlinedInput-notchedOutline': { borderColor: COLORS.primary }
-                                    },
-                                    '& .MuiInputLabel-root.Mui-focused': { color: COLORS.primary }
-                                }}
+                                sx={inputSx}
                             />
                         </Grid>
                         <Grid size={{ xs: 6, md: 3 }}>
@@ -1036,14 +1022,7 @@ const ShiftSettingsPage: React.FC = () => {
                                 fullWidth 
                                 value={newShift.grace_period_out || 0} 
                                 onChange={(e) => setNewShift({ ...newShift, grace_period_out: Number(e.target.value) })} 
-                                sx={{ 
-                                    '& .MuiOutlinedInput-root': { 
-                                        borderRadius: '8px',
-                                        '&:hover .MuiOutlinedInput-notchedOutline': { borderColor: COLORS.primary },
-                                        '&.Mui-focused .MuiOutlinedInput-notchedOutline': { borderColor: COLORS.primary }
-                                    },
-                                    '& .MuiInputLabel-root.Mui-focused': { color: COLORS.primary }
-                                }}
+                                sx={inputSx}
                             />
                         </Grid>
                         <Grid size={{ xs: 6, md: 3 }}>
@@ -1053,14 +1032,7 @@ const ShiftSettingsPage: React.FC = () => {
                                 fullWidth 
                                 value={newShift.ot_threshold || 0} 
                                 onChange={(e) => setNewShift({ ...newShift, ot_threshold: Number(e.target.value) })} 
-                                sx={{ 
-                                    '& .MuiOutlinedInput-root': { 
-                                        borderRadius: '8px',
-                                        '&:hover .MuiOutlinedInput-notchedOutline': { borderColor: COLORS.primary },
-                                        '&.Mui-focused .MuiOutlinedInput-notchedOutline': { borderColor: COLORS.primary }
-                                    },
-                                    '& .MuiInputLabel-root.Mui-focused': { color: COLORS.primary }
-                                }}
+                                sx={inputSx}
                             />
                         </Grid>
                         <Grid size={{ xs: 6, md: 3 }}>
@@ -1071,14 +1043,7 @@ const ShiftSettingsPage: React.FC = () => {
                                 value={newShift.multiplier_normal || 1.5} 
                                 onChange={(e) => setNewShift({ ...newShift, multiplier_normal: Number(e.target.value) })} 
                                 slotProps={{ htmlInput: { step: 0.1 } }} 
-                                sx={{ 
-                                    '& .MuiOutlinedInput-root': { 
-                                        borderRadius: '8px',
-                                        '&:hover .MuiOutlinedInput-notchedOutline': { borderColor: COLORS.primary },
-                                        '&.Mui-focused .MuiOutlinedInput-notchedOutline': { borderColor: COLORS.primary }
-                                    },
-                                    '& .MuiInputLabel-root.Mui-focused': { color: COLORS.primary }
-                                }}
+                                sx={inputSx}
                             />
                         </Grid>
 

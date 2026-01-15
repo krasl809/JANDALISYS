@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo, useCallback, memo } from 'react';
 import {
   Box, Button, Card, CardContent, Typography,
   IconButton, Chip, Dialog, DialogTitle, DialogContent, DialogActions,
@@ -49,7 +49,7 @@ interface DocumentType {
   is_required: boolean;
 }
 
-const Documents: React.FC<DocumentsProps> = ({ contractId }) => {
+const Documents: React.FC<DocumentsProps> = memo(({ contractId }) => {
   const theme = useTheme();
   const { confirm } = useConfirm();
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -84,14 +84,7 @@ const Documents: React.FC<DocumentsProps> = ({ contractId }) => {
   });
 
   // Load documents and document types
-  useEffect(() => {
-    if (contractId) {
-      loadDocuments();
-      loadDocumentTypes();
-    }
-  }, [contractId]);
-
-  const loadDocuments = async () => {
+  const loadDocuments = useCallback(async () => {
     if (!contractId) return;
 
     try {
@@ -110,12 +103,15 @@ const Documents: React.FC<DocumentsProps> = ({ contractId }) => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [contractId]);
 
-  const generateThumbnails = async (docs: Document[]) => {
+  const generateThumbnails = useCallback(async (docs: Document[]) => {
     const newThumbnails: { [key: string]: string } = {};
 
     for (const doc of docs) {
+      // Skip if thumbnail already exists
+      if (thumbnails[doc.id]) continue;
+
       try {
         if (doc.mime_type.startsWith('image/')) {
           // For images, use the download URL as thumbnail
@@ -147,19 +143,28 @@ const Documents: React.FC<DocumentsProps> = ({ contractId }) => {
       }
     }
 
-    setThumbnails(newThumbnails);
-  };
+    if (Object.keys(newThumbnails).length > 0) {
+      setThumbnails(prev => ({ ...prev, ...newThumbnails }));
+    }
+  }, [thumbnails]);
 
-  const loadDocumentTypes = async () => {
+  const loadDocumentTypes = useCallback(async () => {
     try {
       const response = await api.get('document-types');
       setDocumentTypes(response.data);
     } catch (error) {
       console.error('Failed to load document types:', error);
     }
-  };
+  }, []);
 
-  const handleFileSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
+  useEffect(() => {
+    if (contractId) {
+      loadDocuments();
+      loadDocumentTypes();
+    }
+  }, [contractId, loadDocuments, loadDocumentTypes]);
+
+  const handleFileSelect = useCallback((event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (file) {
       // Validate file size (10MB)
@@ -186,9 +191,9 @@ const Documents: React.FC<DocumentsProps> = ({ contractId }) => {
       setSelectedFile(file);
       setUploadDialogOpen(true);
     }
-  };
+  }, []);
 
-  const handleUpload = async () => {
+  const handleUpload = useCallback(async () => {
     if (!selectedFile || !contractId) return;
 
     const uploadFormData = new FormData();
@@ -248,9 +253,9 @@ const Documents: React.FC<DocumentsProps> = ({ contractId }) => {
       setUploading(false);
       setUploadProgress(0);
     }
-  };
+  }, [selectedFile, contractId, formData]);
 
-  const handleDownload = async (doc: Document) => {
+  const handleDownload = useCallback(async (doc: Document) => {
     try {
       const response = await api.get(`documents/${doc.id}/download`, {
         responseType: 'blob'
@@ -274,9 +279,9 @@ const Documents: React.FC<DocumentsProps> = ({ contractId }) => {
         severity: 'error'
       });
     }
-  };
+  }, []);
 
-  const handleOpen = async (doc: Document) => {
+  const handleOpen = useCallback(async (doc: Document) => {
     try {
       // For viewable files (images, PDFs), open in new tab
       if (doc.mime_type.startsWith('image/') || doc.mime_type === 'application/pdf') {
@@ -300,9 +305,9 @@ const Documents: React.FC<DocumentsProps> = ({ contractId }) => {
         severity: 'error'
       });
     }
-  };
+  }, [handleDownload]);
 
-  const handleCompress = async (doc: Document) => {
+  const handleCompress = useCallback(async (doc: Document) => {
     // For now, just download the document (compression logic can be added later)
     // If it's an image, we could compress it client-side
     if (doc.mime_type.startsWith('image/')) {
@@ -343,16 +348,16 @@ const Documents: React.FC<DocumentsProps> = ({ contractId }) => {
       // For non-images, just download as is
       handleDownload(doc);
     }
-  };
+  }, [handleDownload]);
 
-  const handleDelete = async (document: Document) => {
+  const handleDelete = useCallback(async (document: Document) => {
     if (!await confirm({ message: `Are you sure you want to delete "${document.original_name}"?` })) {
       return;
     }
 
     try {
       await api.delete(`documents/${document.id}`);
-      setDocuments(documents.filter(d => d.id !== document.id));
+      setDocuments(prev => prev.filter(d => d.id !== document.id));
       setNotification({
         open: true,
         message: 'Document deleted successfully',
@@ -366,9 +371,9 @@ const Documents: React.FC<DocumentsProps> = ({ contractId }) => {
         severity: 'error'
       });
     }
-  };
+  }, [confirm]);
 
-  const handleVerify = async (document: Document) => {
+  const handleVerify = useCallback(async (document: Document) => {
     try {
       await api.put(`documents/${document.id}/verify`);
       setDocuments(prev => prev.map(d =>
@@ -389,9 +394,9 @@ const Documents: React.FC<DocumentsProps> = ({ contractId }) => {
         severity: 'error'
       });
     }
-  };
+  }, []);
 
-  const handleEdit = (document: Document) => {
+  const handleEdit = useCallback((document: Document) => {
     setSelectedDocument(document);
     setFormData({
       document_type_id: document.document_type_id || '',
@@ -401,9 +406,9 @@ const Documents: React.FC<DocumentsProps> = ({ contractId }) => {
       is_required: document.is_required
     });
     setEditDialogOpen(true);
-  };
+  }, []);
 
-  const handleUpdate = async () => {
+  const handleUpdate = useCallback(async () => {
     if (!selectedDocument) return;
 
     try {
@@ -426,27 +431,27 @@ const Documents: React.FC<DocumentsProps> = ({ contractId }) => {
         severity: 'error'
       });
     }
-  };
+  }, [selectedDocument, formData]);
 
-  const formatFileSize = (bytes: number) => {
+  const formatFileSize = useCallback((bytes: number) => {
     if (bytes === 0) return '0 Bytes';
     const k = 1024;
     const sizes = ['Bytes', 'KB', 'MB', 'GB'];
     const i = Math.floor(Math.log(bytes) / Math.log(k));
     return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
-  };
+  }, []);
 
-  const getFileIcon = (mimeType: string) => {
+  const getFileIcon = useCallback((mimeType: string) => {
     if (mimeType === 'application/pdf') return <PictureAsPdf color="error" />;
     if (mimeType.startsWith('image/')) return <Image color="primary" />;
     return <InsertDriveFile color="action" />;
-  };
+  }, []);
 
-  const getDocumentTypeName = (typeId?: string) => {
+  const getDocumentTypeName = useCallback((typeId?: string) => {
     if (!typeId) return 'General';
     const type = documentTypes.find(t => t.id === typeId);
     return type ? type.name : 'Unknown';
-  };
+  }, [documentTypes]);
 
   if (!contractId) {
     return (
@@ -817,6 +822,6 @@ const Documents: React.FC<DocumentsProps> = ({ contractId }) => {
       </Snackbar>
     </Box>
   );
-};
+});
 
 export default Documents;

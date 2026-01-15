@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo, useCallback, memo } from 'react';
 import { useTranslation } from 'react-i18next';
 import { 
     Autocomplete, TextField, Button, Container, Typography, Box, Card, CardContent, 
@@ -34,7 +34,7 @@ interface Shipment {
 // Mock Data for demonstration - empty for new contracts
 const initialShipments: Shipment[] = [];
 
-const DeliveryForm: React.FC<DeliveryFormProps> = ({ contractId, onSaveSuccess }) => {
+const DeliveryForm: React.FC<DeliveryFormProps> = memo(({ contractId, onSaveSuccess }) => {
   const { t } = useTranslation();
   const theme = useTheme();
   const { palette, boxShadows }: any = theme;
@@ -44,10 +44,10 @@ const DeliveryForm: React.FC<DeliveryFormProps> = ({ contractId, onSaveSuccess }
   const [notification, setNotification] = useState({ open: false, message: '', severity: 'success' as 'success' | 'error' });
   const isEmbedded = !!contractId;
 
-  // Contract Totals (Mocked for now, normally fetched from Contract Details)
-  const totalContractQty = 12500; 
-  const totalShipped = shipments.reduce((sum, item) => sum + Number(item.qty), 0);
-  const progress = Math.min((totalShipped / totalContractQty) * 100, 100);
+  // Contract Totals (Normally fetched from Contract Details)
+  const [totalContractQty, setTotalContractQty] = useState(12500); 
+  const totalShipped = useMemo(() => shipments.reduce((sum, item) => sum + Number(item.qty), 0), [shipments]);
+  const progress = useMemo(() => Math.min((totalShipped / (totalContractQty || 1)) * 100, 100), [totalShipped, totalContractQty]);
 
   const [formData, setFormData] = useState({
     contract_id: contractId || '', 
@@ -67,7 +67,7 @@ const DeliveryForm: React.FC<DeliveryFormProps> = ({ contractId, onSaveSuccess }
     }
   }, [isEmbedded]);
 
-  const handleSave = async () => {
+  const handleSave = useCallback(async () => {
     if (!formData.contract_id || !formData.qty_ton) {
         setNotification({ open: true, message: t('Please enter quantity.'), severity: 'error' });
         return;
@@ -88,10 +88,10 @@ const DeliveryForm: React.FC<DeliveryFormProps> = ({ contractId, onSaveSuccess }
     };
     
     if (editingShipment) {
-        setShipments(shipments.map(s => s.id === editingShipment.id ? shipmentData : s));
+        setShipments(prev => prev.map(s => s.id === editingShipment.id ? shipmentData : s));
         setNotification({ open: true, message: t('Shipment Updated Successfully'), severity: 'success' });
     } else {
-        setShipments([shipmentData, ...shipments]);
+        setShipments(prev => [shipmentData, ...prev]);
         setNotification({ open: true, message: t('Shipment Logged Successfully'), severity: 'success' });
     }
     
@@ -100,9 +100,42 @@ const DeliveryForm: React.FC<DeliveryFormProps> = ({ contractId, onSaveSuccess }
     setEditingShipment(null);
     
     if (onSaveSuccess) onSaveSuccess();
-  };
+  }, [formData, editingShipment, t, onSaveSuccess]);
 
-  const getStatusColor = (status: string): 'success' | 'info' | 'warning' | 'secondary' | 'error' | 'primary' => {
+  const inputSx = useMemo(() => ({ 
+    '& .MuiOutlinedInput-root': { 
+      borderRadius: '8px',
+      bgcolor: palette.mode === 'light' 
+        ? alpha(palette.primary.main, 0.04) 
+        : alpha(palette.background.paper, 0.4),
+      border: `1.5px solid ${palette.mode === 'light' ? alpha(palette.divider, 0.6) : alpha(palette.divider, 0.45)}`,
+      '&:hover': { 
+        borderColor: alpha(palette.primary.main, 0.7),
+        bgcolor: palette.mode === 'light' ? alpha(palette.primary.main, 0.08) : alpha(palette.background.paper, 0.6),
+      },
+      '&.Mui-focused': { 
+        borderColor: palette.primary.main,
+        borderWidth: '2px', 
+        bgcolor: palette.mode === 'light' ? '#FFFFFF' : palette.background.paper,
+        boxShadow: `0 0 0 4px ${alpha(palette.primary.main, palette.mode === 'light' ? 0.15 : 0.25)}` 
+      },
+      '& fieldset': { border: 'none' },
+      '& .MuiInputBase-input': {
+        color: palette.text.primary,
+        padding: '8.5px 12px',
+        fontWeight: 600,
+        fontSize: '0.875rem',
+        '&::placeholder': {
+          color: palette.text.secondary,
+          opacity: 0.6
+        }
+      }
+    },
+    '& .MuiInputLabel-root': { color: palette.text.secondary },
+    '& .MuiAutocomplete-inputRoot': { padding: '2px 8px' }
+  }), [palette]);
+
+  const getStatusColor = useCallback((status: string): 'success' | 'info' | 'warning' | 'secondary' | 'error' | 'primary' => {
       switch(status) {
           case 'Delivered': return 'success';
           case 'In Transit': return 'info';
@@ -110,9 +143,9 @@ const DeliveryForm: React.FC<DeliveryFormProps> = ({ contractId, onSaveSuccess }
           case 'Scheduled': return 'secondary';
           default: return 'primary';
       }
-  };
+  }, []);
 
-  const getStatusIcon = (status: string) => {
+  const getStatusIcon = useCallback((status: string) => {
       switch(status) {
           case 'Delivered': return <CheckCircle fontSize='small'/>;
           case 'In Transit': return <LocalShipping fontSize='small'/>;
@@ -120,7 +153,7 @@ const DeliveryForm: React.FC<DeliveryFormProps> = ({ contractId, onSaveSuccess }
           case 'Scheduled': return <AccessTime fontSize='small'/>;
           default: return <AccessTime fontSize='small'/>;
       }
-  };
+  }, []);
 
   return (
     <Container maxWidth={false} disableGutters={isEmbedded} sx={{ mt: isEmbedded ? 0 : 4, mb: 8 }}>
@@ -239,13 +272,14 @@ const DeliveryForm: React.FC<DeliveryFormProps> = ({ contractId, onSaveSuccess }
                         </Typography>
                         <Autocomplete 
                           options={contracts} 
-                          getOptionLabel={(opt) => opt.contract_no} 
+                          getOptionLabel={(opt) => opt?.contract_no || ''} 
                           onChange={(_, val) => setFormData({ ...formData, contract_id: val?.id || '' })} 
                           renderInput={(params) => (
                             <TextField 
                               {...params} 
                               size="small" 
-                              sx={{ '& .MuiOutlinedInput-root': { borderRadius: '8px' } }}
+                              placeholder={t("examples.contractNo")}
+                              sx={inputSx}
                             />
                           )} 
                         />
@@ -262,7 +296,7 @@ const DeliveryForm: React.FC<DeliveryFormProps> = ({ contractId, onSaveSuccess }
                         size="small" 
                         value={formData.date} 
                         onChange={e => setFormData({...formData, date: e.target.value})} 
-                        sx={{ '& .MuiOutlinedInput-root': { borderRadius: '8px' } }}
+                        sx={inputSx}
                       />
                   </Grid>
                   <Grid size={{ xs: 6 }}>
@@ -272,9 +306,10 @@ const DeliveryForm: React.FC<DeliveryFormProps> = ({ contractId, onSaveSuccess }
                       <TextField 
                         fullWidth 
                         size="small" 
+                        placeholder={t("examples.refBlNo")}
                         value={formData.ref_id} 
                         onChange={e => setFormData({...formData, ref_id: e.target.value})} 
-                        sx={{ '& .MuiOutlinedInput-root': { borderRadius: '8px' } }}
+                        sx={inputSx}
                       />
                   </Grid>
                   
@@ -288,7 +323,7 @@ const DeliveryForm: React.FC<DeliveryFormProps> = ({ contractId, onSaveSuccess }
                         size="small" 
                         value={formData.status} 
                         onChange={e => setFormData({...formData, status: e.target.value})}
-                        sx={{ '& .MuiOutlinedInput-root': { borderRadius: '8px' } }}
+                        sx={inputSx}
                       >
                         <MenuItem value="Scheduled">{t("Scheduled (Planned)")}</MenuItem>
                         <MenuItem value="In Transit">{t("In Transit (On The Way)")}</MenuItem>
@@ -335,12 +370,14 @@ const DeliveryForm: React.FC<DeliveryFormProps> = ({ contractId, onSaveSuccess }
                       <TextField 
                         type="number" 
                         fullWidth 
+                        placeholder={t("examples.qtyTon")}
                         value={formData.qty_ton} 
                         onChange={e => setFormData({...formData, qty_ton: e.target.value})} 
                         InputProps={{ 
                           startAdornment: <Inventory color="action" sx={{ marginInlineEnd: 1 }} />, 
                           sx: { fontWeight: '800', fontSize: '1.25rem', borderRadius: '12px' } 
                         }} 
+                        sx={inputSx}
                       />
                   </Grid>
                   
@@ -353,9 +390,10 @@ const DeliveryForm: React.FC<DeliveryFormProps> = ({ contractId, onSaveSuccess }
                     <TextField 
                       fullWidth 
                       size="small" 
+                      placeholder={t("examples.driverName")}
                       value={formData.driver_name} 
                       onChange={e => setFormData({...formData, driver_name: e.target.value})} 
-                      sx={{ '& .MuiOutlinedInput-root': { borderRadius: '8px' } }}
+                      sx={inputSx}
                     />
                   </Grid>
                   <Grid size={{ xs: 6 }}>
@@ -365,9 +403,10 @@ const DeliveryForm: React.FC<DeliveryFormProps> = ({ contractId, onSaveSuccess }
                     <TextField 
                       fullWidth 
                       size="small" 
+                      placeholder={t("examples.plateNumber")}
                       value={formData.plate_number} 
                       onChange={e => setFormData({...formData, plate_number: e.target.value})} 
-                      sx={{ '& .MuiOutlinedInput-root': { borderRadius: '8px' } }}
+                      sx={inputSx}
                     />
                   </Grid>
 
@@ -541,6 +580,6 @@ const DeliveryForm: React.FC<DeliveryFormProps> = ({ contractId, onSaveSuccess }
       </Snackbar>
     </Container>
   );
-};
+});
 
 export default DeliveryForm;

@@ -1,5 +1,5 @@
 import React, { createContext, useState, useMemo, useContext } from 'react';
-import { ThemeProvider, createTheme, CssBaseline } from '@mui/material';
+import { ThemeProvider, createTheme, CssBaseline, alpha } from '@mui/material';
 import { prefixer } from 'stylis';
 import rtlPlugin from 'stylis-plugin-rtl';
 import createCache from '@emotion/cache';
@@ -95,6 +95,14 @@ export const AppThemeProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       disabled: mode === 'light' ? '#E9ECEF' : 'rgba(255, 255, 255, 0.5)',
     },
     divider: mode === 'light' ? '#E9ECEF' : 'rgba(255, 255, 255, 0.12)',
+    action: {
+      active: mode === 'light' ? 'rgba(0, 0, 0, 0.54)' : 'rgba(255, 255, 255, 0.7)',
+      hover: mode === 'light' ? 'rgba(0, 0, 0, 0.04)' : 'rgba(255, 255, 255, 0.08)',
+      selected: mode === 'light' ? 'rgba(0, 0, 0, 0.08)' : 'rgba(255, 255, 255, 0.16)',
+      disabled: mode === 'light' ? 'rgba(0, 0, 0, 0.26)' : 'rgba(255, 255, 255, 0.3)',
+      disabledBackground: mode === 'light' ? 'rgba(0, 0, 0, 0.12)' : 'rgba(255, 255, 255, 0.12)',
+      focus: mode === 'light' ? 'rgba(0, 0, 0, 0.12)' : 'rgba(255, 255, 255, 0.12)',
+    },
     // Material Dashboard Pro Custom Colors
     gradients: {
       primary: { main: '#5E72E4', state: '#825EE4' },
@@ -251,17 +259,31 @@ export const AppThemeProvider: React.FC<{ children: React.ReactNode }> = ({ chil
           root: {
             '& .MuiOutlinedInput-root': {
               borderRadius: 8,
+              backgroundColor: mode === 'light' ? 'transparent' : alpha(palette.background.paper, 0.4),
               '& fieldset': {
-                borderColor: '#d2d6da',
+                borderColor: mode === 'light' ? alpha('#344767', 0.25) : alpha(palette.divider, 0.8),
+                borderWidth: '1.5px',
               },
               '&:hover fieldset': {
-                borderColor: '#d2d6da',
+                borderColor: palette.primary.main,
+                borderWidth: '1.5px',
               },
               '&.Mui-focused fieldset': {
-                borderColor: '#e91e63',
-                borderWidth: 2,
+                borderColor: palette.primary.main,
+                borderWidth: '2px',
+                boxShadow: `0 0 0 3px ${alpha(palette.primary.main, 0.15)}`,
               },
+              '&.Mui-disabled': {
+                backgroundColor: alpha(palette.action.disabledBackground, 0.05),
+                '& fieldset': {
+                  borderColor: alpha(palette.divider, 0.1),
+                }
+              }
             },
+            '& .MuiInputBase-input::placeholder': {
+              color: palette.text.secondary,
+              opacity: 0.6,
+            }
           },
         },
       },

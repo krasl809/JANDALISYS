@@ -51,10 +51,10 @@ class Employee(Base):
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     
     # Core Identification
-    code = Column(String(50), unique=True, nullable=False) # e.g. EMP-001
+    code = Column(String(50), unique=True, nullable=False, index=True) # e.g. EMP-001
     first_name = Column(String(100), nullable=False)
     last_name = Column(String(100), nullable=False)
-    full_name = Column(String(255)) # Computed
+    full_name = Column(String(255), index=True) # Computed
     
     # Official Work Info
     work_email = Column(String(255), unique=True, nullable=True) # Contact email

@@ -1,10 +1,11 @@
 import { useState } from 'react';
 import { 
-  Box, Container, Typography, Grid, Card, CardContent, Button, 
+  Box, Container, Typography, Card, CardContent, Button, 
   Tabs, Tab, MenuItem, Select, FormControl, InputLabel, Stack, 
   Avatar, Chip, LinearProgress, useTheme, Table, 
   TableHead, TableRow, TableCell, TableBody 
 } from '@mui/material';
+import Grid from '@mui/material/Grid2';
 import { 
   Download, FilterList, TrendingUp, TrendingDown, 
   AttachMoney, Inventory, LocalShipping, PieChart as PieIcon, 
@@ -120,7 +121,7 @@ const Reports = () => {
       {/* 2. Global Filters Bar */}
       <Card sx={{ mb: 4, borderRadius: 3, p: 2, boxShadow: 'none', border: `1px solid ${theme.palette.divider}` }}>
         <Grid container spacing={2} alignItems="center">
-            <Grid item xs={12} md={3}>
+            <Grid size={{ xs: 12, md: 3 }}>
                 <FormControl fullWidth size="small">
                     <InputLabel>Time Period</InputLabel>
                     <Select value={period} label="Time Period" onChange={(e) => setPeriod(e.target.value)}>
@@ -130,7 +131,7 @@ const Reports = () => {
                     </Select>
                 </FormControl>
             </Grid>
-            <Grid item xs={12} md={3}>
+            <Grid size={{ xs: 12, md: 3 }}>
                 <FormControl fullWidth size="small">
                     <InputLabel>Currency</InputLabel>
                     <Select value="USD" label="Currency">
@@ -139,7 +140,7 @@ const Reports = () => {
                     </Select>
                 </FormControl>
             </Grid>
-            <Grid item xs={12} md={6}>
+            <Grid size={{ xs: 12, md: 6 }}>
                  <Tabs value={currentTab} onChange={handleTabChange} textColor="primary" indicatorColor="primary">
                     <Tab icon={<ShowChart fontSize="small" />} iconPosition="start" label="Financial" sx={{ fontWeight: 600 }} />
                     <Tab icon={<PieIcon fontSize="small" />} iconPosition="start" label="Commodities" sx={{ fontWeight: 600 }} />
@@ -156,13 +157,13 @@ const Reports = () => {
             <Grid container spacing={3}>
                 {/* KPIs */}
                 {kpiData.map((kpi, index) => (
-                    <Grid item xs={12} sm={6} md={3} key={index}>
+                    <Grid size={{ xs: 12, sm: 6, md: 3 }} key={index}>
                         <StatCard {...kpi} />
                     </Grid>
                 ))}
 
                 {/* Main Revenue Chart */}
-                <Grid item xs={12} md={8}>
+                <Grid size={{ xs: 12, md: 8 }}>
                     <Card sx={{ borderRadius: 3, p: 3, height: '100%', boxShadow: 'none', border: `1px solid ${theme.palette.divider}` }}>
                         <Box display="flex" justifyContent="space-between" mb={2}>
                             <Typography variant="h6" fontWeight="bold">Revenue & Profit Trend</Typography>
@@ -195,7 +196,7 @@ const Reports = () => {
                 </Grid>
 
                 {/* Cost Distribution */}
-                <Grid item xs={12} md={4}>
+                <Grid size={{ xs: 12, md: 4 }}>
                     <Card sx={{ borderRadius: 3, p: 3, height: '100%', boxShadow: 'none', border: `1px solid ${theme.palette.divider}` }}>
                         <Typography variant="h6" fontWeight="bold" mb={2}>Cost Breakdown</Typography>
                         <Box sx={{ display: 'flex', justifyContent: 'center', height: 250, minHeight: 250, width: '100%', position: 'relative', minWidth: 0, overflow: 'hidden' }}>
@@ -233,7 +234,7 @@ const Reports = () => {
         {/* === TAB 1: COMMODITIES === */}
         {currentTab === 1 && (
             <Grid container spacing={3}>
-                <Grid item xs={12} md={6}>
+                <Grid size={{ xs: 12, md: 6 }}>
                     <Card sx={{ borderRadius: 3, p: 3, height: '100%', boxShadow: 'none', border: `1px solid ${theme.palette.divider}` }}>
                         <Typography variant="h6" fontWeight="bold" mb={3}>Volume by Commodity</Typography>
                         <Box sx={{ height: 300, minHeight: 300, width: '100%', position: 'relative', minWidth: 0, overflow: 'hidden' }}>
@@ -253,7 +254,7 @@ const Reports = () => {
                         </Box>
                     </Card>
                 </Grid>
-                <Grid item xs={12} md={6}>
+                <Grid size={{ xs: 12, md: 6 }}>
                     <Card sx={{ borderRadius: 3, p: 3, height: '100%', boxShadow: 'none', border: `1px solid ${theme.palette.divider}` }}>
                         <Typography variant="h6" fontWeight="bold" mb={3}>Performance Matrix</Typography>
                         <Table size="small">
@@ -284,7 +285,7 @@ const Reports = () => {
         {/* === TAB 2: OPERATIONAL === */}
         {currentTab === 2 && (
              <Grid container spacing={3}>
-                <Grid item xs={12}>
+                <Grid size={{ xs: 12 }}>
                      <Card sx={{ borderRadius: 3, p: 5, textAlign: 'center', border: `1px dashed ${theme.palette.divider}`, bgcolor: alpha(theme.palette.background.default, 0.5) }}>
                          <Typography variant="h6" color="text.secondary">Operational metrics are being aggregated...</Typography>
                          <Button variant="outlined" sx={{mt:2}}>Load Data</Button>

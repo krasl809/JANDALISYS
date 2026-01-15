@@ -160,6 +160,29 @@ const ArticlesList: React.FC = () => {
   }, [articles, searchQuery]);
 
   // --- Styles ---
+  const inputSx = useMemo(() => ({
+    '& .MuiOutlinedInput-root': {
+      bgcolor: theme.palette.mode === 'dark' ? alpha(theme.palette.background.default, 0.4) : 'inherit',
+      '& fieldset': {
+        borderColor: theme.palette.mode === 'light' ? alpha('#344767', 0.25) : alpha(theme.palette.divider, 0.8),
+        borderWidth: '1.5px',
+      },
+      '&:hover fieldset': {
+        borderColor: theme.palette.primary.main,
+        borderWidth: '1.5px',
+      },
+      '&.Mui-focused fieldset': {
+        borderColor: theme.palette.primary.main,
+        borderWidth: '2px',
+        boxShadow: `0 0 0 3px ${alpha(theme.palette.primary.main, 0.15)}`,
+      },
+    },
+    '& .MuiInputBase-input::placeholder': {
+      color: theme.palette.text.disabled,
+      opacity: 1,
+    }
+  }), [theme]);
+
   const tableHeadSx = {
     bgcolor: theme.palette.mode === 'dark' ? alpha(theme.palette.common.white, 0.05) : '#F8FAFC',
     color: theme.palette.text.secondary,
@@ -216,10 +239,11 @@ const ArticlesList: React.FC = () => {
                 <Grid size={{ xs: 12, sm: 5 }}>
                     <TextField
                         label={t('Article Name')}
-                        placeholder="e.g. White Sugar"
+                        placeholder={t('examples.articleName')}
                         value={newArticle.article_name}
                         onChange={(e) => setNewArticle({ ...newArticle, article_name: e.target.value })}
                         fullWidth size="small"
+                        sx={inputSx}
                         InputProps={{ startAdornment: <InputAdornment position="start"><Label fontSize="small" /></InputAdornment> }}
                     />
                 </Grid>
@@ -227,20 +251,22 @@ const ArticlesList: React.FC = () => {
                 <Grid size={{ xs: 6, sm: 3 }}>
                     <TextField
                         label={t('Code')}
-                        placeholder="SKU-01"
+                        placeholder={t('examples.itemCode')}
                         value={newArticle.item_code}
                         onChange={(e) => setNewArticle({ ...newArticle, item_code: e.target.value })}
                         fullWidth size="small"
+                        sx={inputSx}
                         InputProps={{ startAdornment: <InputAdornment position="start"><QrCode fontSize="small" /></InputAdornment> }}
                     />
                 </Grid>
                 <Grid size={{ xs: 6, sm: 2 }}>
                     <TextField
                         label={t('UOM')}
-                        placeholder="MT"
+                        placeholder={t('examples.uom')}
                         value={newArticle.uom}
                         onChange={(e) => setNewArticle({ ...newArticle, uom: e.target.value })}
                         fullWidth size="small"
+                        sx={inputSx}
                         InputProps={{ startAdornment: <InputAdornment position="start"><Scale fontSize="small" /></InputAdornment> }}
                     />
                 </Grid>
@@ -279,9 +305,10 @@ const ArticlesList: React.FC = () => {
                     size="small"
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
+                    sx={inputSx}
                     InputProps={{
                         startAdornment: <InputAdornment position="start"><Search color="action" /></InputAdornment>,
-                        sx: { borderRadius: 2, bgcolor: theme.palette.background.default }
+                        sx: { borderRadius: 2 }
                     }}
                 />
             </CardContent>
@@ -450,18 +477,21 @@ const ArticlesList: React.FC = () => {
               value={currentArticle?.article_name || ''}
               onChange={(e) => setCurrentArticle(currentArticle ? { ...currentArticle, article_name: e.target.value } : null)}
               fullWidth
+              sx={inputSx}
             />
             <TextField
               label={t('Item Code')}
               value={currentArticle?.item_code || ''}
               onChange={(e) => setCurrentArticle(currentArticle ? { ...currentArticle, item_code: e.target.value } : null)}
               fullWidth
+              sx={inputSx}
             />
             <TextField
               label={t('UOM')}
               value={currentArticle?.uom || ''}
               onChange={(e) => setCurrentArticle(currentArticle ? { ...currentArticle, uom: e.target.value } : null)}
               fullWidth
+              sx={inputSx}
             />
           </Box>
         </DialogContent>

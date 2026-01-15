@@ -27,6 +27,13 @@ export interface Warehouse {
   location?: string;
 }
 
+export interface ContractItemSpecification {
+  id?: string;
+  spec_key: string;
+  spec_value: string;
+  display_order: number;
+}
+
 export interface ContractItem {
   id: string;
   article_id: string;
@@ -37,6 +44,7 @@ export interface ContractItem {
   price: string;
   premium: string;
   total: number;
+  specifications?: ContractItemSpecification[];
 }
 
 export interface CharterPartyItem {

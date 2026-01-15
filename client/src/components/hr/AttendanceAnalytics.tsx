@@ -1,6 +1,6 @@
 import React, { useMemo } from 'react';
 import {
-    Box, Grid, Paper, Typography, useTheme, alpha, Avatar
+    Box, Grid, Paper, Typography, useTheme, alpha, Avatar, Theme
 } from '@mui/material';
 import {
     XAxis, YAxis, CartesianGrid, Legend, ResponsiveContainer,
@@ -10,40 +10,51 @@ import { useTranslation } from 'react-i18next';
 import { format, eachDayOfInterval } from 'date-fns';
 import { Schedule, Timer, TrendingUp } from '@mui/icons-material';
 
-// Material Dashboard 2 Pro Style Constants
-const COLORS = {
-    primary: '#5E72E4',
-    secondary: '#8392AB',
-    info: '#11CDEF',
-    success: '#2DCE89',
-    warning: '#FB6340',
-    error: '#F5365C',
-    dark: '#344767',
-    light: '#E9ECEF',
-    bg: '#F8F9FA',
-    white: '#FFFFFF',
-    gradientPrimary: 'linear-gradient(135deg, #5E72E4 0%, #825EE4 100%)',
-    gradientSuccess: 'linear-gradient(135deg, #2DCE89 0%, #2DCECC 100%)',
-    gradientInfo: 'linear-gradient(135deg, #11CDEF 0%, #1171EF 100%)',
-    gradientWarning: 'linear-gradient(135deg, #FB6340 0%, #FBB140 100%)',
-    gradientError: 'linear-gradient(135deg, #F5365C 0%, #F56036 100%)',
+// --- Theme-Aware Utilities ---
+const getAttendanceColors = (theme: Theme) => {
+    const isDark = theme.palette.mode === 'dark';
+    return {
+        primary: theme.palette.primary.main,
+        secondary: theme.palette.text.secondary,
+        info: theme.palette.info.main,
+        success: theme.palette.success.main,
+        warning: theme.palette.warning.main,
+        error: theme.palette.error.main,
+        dark: theme.palette.text.primary,
+        light: theme.palette.background.default,
+        bg: theme.palette.background.default,
+        white: theme.palette.background.paper,
+        pureWhite: isDark ? theme.palette.background.paper : '#FFFFFF',
+        gradientPrimary: `linear-gradient(135deg, ${theme.palette.primary.main} 0%, ${theme.palette.primary.dark} 100%)`,
+        gradientSuccess: `linear-gradient(135deg, ${theme.palette.success.main} 0%, ${theme.palette.success.dark} 100%)`,
+        gradientInfo: `linear-gradient(135deg, ${theme.palette.info.main} 0%, ${theme.palette.info.dark} 100%)`,
+        gradientWarning: `linear-gradient(135deg, ${theme.palette.warning.main} 0%, ${theme.palette.warning.dark} 100%)`,
+        gradientError: `linear-gradient(135deg, ${theme.palette.error.main} 0%, ${theme.palette.error.dark} 100%)`,
+        gradientDark: isDark 
+            ? `linear-gradient(135deg, ${theme.palette.grey[800]} 0%, ${theme.palette.common.black} 100%)`
+            : `linear-gradient(135deg, #344767 0%, #192941 100%)`,
+    };
 };
 
-const SHADOWS = {
-    xs: '0 1px 5px rgba(0, 0, 0, 0.05)',
-    sm: '0 3px 8px rgba(0, 0, 0, 0.08)',
-    md: '0 7px 14px rgba(50, 50, 93, 0.1)',
-    lg: '0 15px 35px rgba(50, 50, 93, 0.1)',
+const getAttendanceShadows = (theme: Theme) => {
+    const isDark = theme.palette.mode === 'dark';
+    const shadowColor = isDark ? 'rgba(0, 0, 0, 0.5)' : 'rgba(50, 50, 93, 0.1)';
+    return {
+        xs: isDark ? '0 1px 3px rgba(0, 0, 0, 0.4)' : '0 1px 5px rgba(0, 0, 0, 0.05)',
+        sm: isDark ? '0 4px 6px rgba(0, 0, 0, 0.5)' : '0 3px 8px rgba(0, 0, 0, 0.08)',
+        md: isDark ? '0 8px 16px rgba(0, 0, 0, 0.6)' : `0 7px 14px ${shadowColor}`,
+        lg: isDark ? '0 12px 24px rgba(0, 0, 0, 0.7)' : `0 15px 35px ${shadowColor}`,
+    };
 };
 
-const ATTENDANCE_COLORS = {
-    present: COLORS.success,
-    late: COLORS.error,
-    earlyLeave: COLORS.warning,
-    absent: COLORS.secondary,
-    ongoing: COLORS.primary,
-    overtime: '#7C3AED',
-};
+const getAttendanceStatusColors = (colors: any) => ({
+    present: colors.success,
+    late: colors.warning,
+    earlyLeave: colors.info,
+    absent: colors.secondary,
+    ongoing: colors.primary,
+    overtime: alpha(colors.primary, 0.8),
+});
 
 interface AttendanceAnalyticsProps {
     data: any[];
@@ -53,6 +64,10 @@ interface AttendanceAnalyticsProps {
 }
 
 const AnalyticsMetric = ({ title, value, icon, color, gradient }: { title: string, value: string | number, icon: any, color: string, gradient: string }) => {
+    const theme = useTheme();
+    const COLORS = useMemo(() => getAttendanceColors(theme), [theme]);
+    const SHADOWS = useMemo(() => getAttendanceShadows(theme), [theme]);
+
     return (
         <Paper 
             elevation={0}
@@ -77,7 +92,7 @@ const AnalyticsMetric = ({ title, value, icon, color, gradient }: { title: strin
                     width: 48, 
                     height: 48, 
                     background: gradient,
-                    color: COLORS.white,
+                    color: COLORS.pureWhite,
                     boxShadow: SHADOWS.sm,
                     borderRadius: '12px'
                 }}
@@ -85,10 +100,10 @@ const AnalyticsMetric = ({ title, value, icon, color, gradient }: { title: strin
                 {icon}
             </Avatar>
             <Box>
-                <Typography variant="caption" color={COLORS.secondary} fontWeight="700" sx={{ textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                <Typography variant="caption" sx={{ color: COLORS.secondary, fontWeight: "700", textTransform: 'uppercase', letterSpacing: '0.5px' }}>
                     {title}
                 </Typography>
-                <Typography variant="h5" fontWeight="800" color={COLORS.dark} sx={{ lineHeight: 1.2, mt: 0.5 }}>
+                <Typography variant="h5" fontWeight="800" sx={{ color: COLORS.dark, lineHeight: 1.2, mt: 0.5 }}>
                     {value}
                 </Typography>
             </Box>
@@ -99,6 +114,9 @@ const AnalyticsMetric = ({ title, value, icon, color, gradient }: { title: strin
 const AttendanceAnalytics: React.FC<AttendanceAnalyticsProps> = ({ data, employees, startDate, endDate }) => {
     const { t } = useTranslation();
     const theme = useTheme();
+    const COLORS = useMemo(() => getAttendanceColors(theme), [theme]);
+    const SHADOWS = useMemo(() => getAttendanceShadows(theme), [theme]);
+    const ATTENDANCE_COLORS = useMemo(() => getAttendanceStatusColors(COLORS), [COLORS]);
 
     // 1. Prepare Trend Data (Attendance & Lateness)
     const trendData = useMemo(() => {
@@ -141,11 +159,24 @@ const AttendanceAnalytics: React.FC<AttendanceAnalyticsProps> = ({ data, employe
 
     // 3. Prepare Status Distribution Data
     const statusData = useMemo(() => {
+        // Calculate unique presence per day to get accurate absence
+        const daysCount = trendData.length;
+        const totalExpectedPresences = employees.length * daysCount;
+        
+        // Count unique employee presence per day
+        const uniquePresencesPerDay = new Set();
+        data.forEach(log => {
+            uniquePresencesPerDay.add(`${log.employee_id}-${log.check_in_date}`);
+        });
+        
+        const actualPresencesCount = uniquePresencesPerDay.size;
+        const absentCount = Math.max(0, totalExpectedPresences - actualPresencesCount);
+
         const counts = {
             present: data.filter(l => l.status === 'present').length,
             late: data.filter(l => l.status === 'late').length,
             earlyLeave: data.filter(l => l.status === 'early_leave').length,
-            absent: Math.max(0, (employees.length * trendData.length) - data.length)
+            absent: absentCount
         };
 
         return [
@@ -173,9 +204,9 @@ const AttendanceAnalytics: React.FC<AttendanceAnalyticsProps> = ({ data, employe
 
     // 5. Prepare Department Performance
     const deptData = useMemo(() => {
-        const departments = Array.from(new Set(employees.map(e => e.department_name).filter(Boolean)));
+        const departments = Array.from(new Set(employees.map(e => e.department).filter(Boolean)));
         return departments.map(dept => {
-            const deptEmployees = employees.filter(e => e.department_name === dept);
+            const deptEmployees = employees.filter(e => e.department === dept);
             const deptLogs = data.filter(log => deptEmployees.some(e => e.employee_id === log.employee_id));
             
             const attendanceRate = deptEmployees.length > 0 
@@ -244,8 +275,12 @@ const AttendanceAnalytics: React.FC<AttendanceAnalyticsProps> = ({ data, employe
                                             border: 'none', 
                                             boxShadow: SHADOWS.lg, 
                                             padding: '12px',
-                                            fontWeight: 700
+                                            fontWeight: 700,
+                                            backgroundColor: COLORS.white,
+                                            color: COLORS.dark
                                         }}
+                                        itemStyle={{ color: COLORS.dark }}
+                                        cursor={{ stroke: alpha(COLORS.primary, 0.2), strokeWidth: 2 }}
                                     />
                                     <Legend 
                                         verticalAlign="top" 
@@ -301,7 +336,16 @@ const AttendanceAnalytics: React.FC<AttendanceAnalyticsProps> = ({ data, employe
                                             <Cell key={`cell-${index}`} fill={entry.color} stroke="none" />
                                         ))}
                                     </Pie>
-                                    <RechartsTooltip contentStyle={{ borderRadius: '12px', boxShadow: SHADOWS.md, border: 'none' }} />
+                                    <RechartsTooltip 
+                                        contentStyle={{ 
+                                            borderRadius: '12px', 
+                                            boxShadow: SHADOWS.md, 
+                                            border: 'none',
+                                            backgroundColor: COLORS.white,
+                                            color: COLORS.dark
+                                        }} 
+                                        itemStyle={{ color: COLORS.dark }}
+                                    />
                                     <Legend 
                                         verticalAlign="bottom" 
                                         layout="horizontal" 
@@ -341,7 +385,17 @@ const AttendanceAnalytics: React.FC<AttendanceAnalyticsProps> = ({ data, employe
                                         axisLine={false}
                                         dx={-10}
                                     />
-                                    <RechartsTooltip cursor={{ fill: alpha(COLORS.primary, 0.05) }} contentStyle={{ borderRadius: '12px', boxShadow: SHADOWS.md, border: 'none' }} />
+                                    <RechartsTooltip 
+                                        cursor={{ fill: alpha(COLORS.primary, 0.05) }} 
+                                        contentStyle={{ 
+                                            borderRadius: '12px', 
+                                            boxShadow: SHADOWS.md, 
+                                            border: 'none',
+                                            backgroundColor: COLORS.white,
+                                            color: COLORS.dark
+                                        }} 
+                                        itemStyle={{ color: COLORS.dark }}
+                                    />
                                     <Bar 
                                         dataKey="value" 
                                         fill={ATTENDANCE_COLORS.overtime} 
@@ -375,7 +429,17 @@ const AttendanceAnalytics: React.FC<AttendanceAnalyticsProps> = ({ data, employe
                                         tickLine={false}
                                         axisLine={false}
                                     />
-                                    <RechartsTooltip cursor={{ fill: 'transparent' }} contentStyle={{ borderRadius: '12px', boxShadow: SHADOWS.md, border: 'none' }} />
+                                    <RechartsTooltip 
+                                        cursor={{ fill: alpha(COLORS.primary, 0.05) }} 
+                                        contentStyle={{ 
+                                            borderRadius: '12px', 
+                                            boxShadow: SHADOWS.md, 
+                                            border: 'none',
+                                            backgroundColor: COLORS.white,
+                                            color: COLORS.dark
+                                        }} 
+                                        itemStyle={{ color: COLORS.dark }}
+                                    />
                                     <Bar 
                                         dataKey="rate" 
                                         fill={COLORS.primary} 

@@ -6,7 +6,6 @@ import {
   DialogActions,
   TextField,
   Button,
-  Grid,
   Alert,
   useTheme,
   alpha,
@@ -15,6 +14,7 @@ import {
   IconButton,
   CircularProgress
 } from '@mui/material';
+import Grid from '@mui/material/Grid2';
 import { Add, Close } from '@mui/icons-material';
 import { useTranslation } from 'react-i18next';
 import api from '../../services/api';
@@ -262,7 +262,7 @@ const AddEntityDialog: React.FC<AddEntityDialogProps> = ({
         )}
         <Grid container spacing={2.5}>
           {config.fields.map((field) => (
-            <Grid item xs={12} sm={field.name === 'seller_code' || field.name === 'item_code' || field.name === 'code' ? 6 : 12} key={field.name}>
+            <Grid size={{ xs: 12, sm: field.name === 'seller_code' || field.name === 'item_code' || field.name === 'code' ? 6 : 12 }} key={field.name}>
               <TextField
                 label={field.label}
                 value={formData[field.name] || ''}

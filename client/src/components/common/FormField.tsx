@@ -34,7 +34,11 @@ const FormField: React.FC<FormFieldProps> = ({
   onChange,
   options = [],
   autocompleteOptions = [],
-  getOptionLabel = (opt) => opt?.label || opt,
+  getOptionLabel = (opt) => {
+    if (!opt) return '';
+    if (typeof opt === 'string') return opt;
+    return opt.label || opt.name || opt.contact_name || opt.toString() || '';
+  },
   placeholder,
   disabled = false,
   size = 'small',

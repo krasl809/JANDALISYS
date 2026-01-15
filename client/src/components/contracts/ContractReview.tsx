@@ -7,7 +7,7 @@ import {
   Typography, Box, Button, Chip, TextField, Card, CardContent, InputAdornment, 
   CircularProgress, useTheme, alpha, IconButton, Stack
 } from '@mui/material';
-import Grid from '@mui/material/Grid2';
+import Grid2 from '@mui/material/Grid2';
 import { PriceCheck, MonetizationOn, Search, FilterList, ArrowForward } from '@mui/icons-material';
 import { ContractPricingReview } from '../../types/contracts';
 
@@ -121,8 +121,8 @@ const ContractReview: React.FC = () => {
       </Box>
 
       {/* KPI Cards */}
-      <Grid container spacing={3} sx={{ mb: 4 }}>
-        <Grid size={{ xs: 12, md: 4 }}>
+      <Grid2 container spacing={3} sx={{ mb: 4 }}>
+        <Grid2 size={{ xs: 12, md: 4 }}>
            <Card 
              sx={{ 
                p: 0, 
@@ -166,8 +166,8 @@ const ContractReview: React.FC = () => {
                </Stack>
              </CardContent>
            </Card>
-        </Grid>
-      </Grid>
+        </Grid2>
+      </Grid2>
 
       {/* Table Section */}
       <Card 

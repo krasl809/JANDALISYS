@@ -1,10 +1,10 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback, memo, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
   Box, Button, Card, CardContent, Typography,
   IconButton, Chip, Dialog, DialogTitle, DialogContent, DialogActions,
   TextField, MenuItem, FormControl, InputLabel, Select, Alert, Snackbar,
-  LinearProgress, Tooltip, Grid, Stack,
+  LinearProgress, Tooltip, Stack,
   Table, TableBody, TableCell, TableContainer, TableHead, TableRow
 } from '@mui/material';
 import Grid2 from '@mui/material/Grid2';
@@ -17,7 +17,11 @@ import { useTheme, alpha } from '@mui/material/styles';
 import api from '../../services/api';
 import { useConfirm } from '../../context/ConfirmContext';
 
-interface InvoicesProps { contractId?: string; }
+interface InvoicesProps { 
+  contractId?: string; 
+  ledger?: Invoice[];
+  onRefresh?: () => void;
+}
 
 interface Invoice {
   id: string;
@@ -38,7 +42,7 @@ interface Contract {
   direction: string;
 }
 
-const Invoices: React.FC<InvoicesProps> = ({ contractId }) => {
+const Invoices: React.FC<InvoicesProps> = memo(({ contractId, ledger: propsLedger, onRefresh }) => {
   const { t } = useTranslation();
   const theme = useTheme();
   const { confirm } = useConfirm();
@@ -76,13 +80,19 @@ const Invoices: React.FC<InvoicesProps> = ({ contractId }) => {
 
   // Load data
   useEffect(() => {
-    loadInvoices();
+    if (propsLedger) {
+        setInvoices(propsLedger.filter(t => t.type === 'Invoice'));
+    } else {
+        loadInvoices();
+    }
+    
     if (!contractId) {
       loadContracts();
     }
-  }, [contractId]);
+  }, [contractId, propsLedger]);
 
-  const loadInvoices = async () => {
+  const loadInvoices = useCallback(async () => {
+    if (propsLedger) return; // Use props instead
     try {
       setLoading(true);
 
@@ -108,16 +118,16 @@ const Invoices: React.FC<InvoicesProps> = ({ contractId }) => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [contractId, propsLedger]);
 
-  const loadContracts = async () => {
+  const loadContracts = React.useCallback(async () => {
     try {
       const response = await api.get('contracts/');
       setContracts(response.data);
     } catch (error) {
       console.error('Failed to load contracts:', error);
     }
-  };
+  }, []);
 
   const handleCreateInvoice = async () => {
     if (!formData.contract_id || !formData.amount) {
@@ -141,7 +151,13 @@ const Invoices: React.FC<InvoicesProps> = ({ contractId }) => {
       };
 
       const response = await api.post('financial-transactions/', invoiceData);
-      setInvoices(prev => [response.data, ...prev]);
+      
+      if (onRefresh) {
+          onRefresh();
+      } else {
+          setInvoices(prev => [response.data, ...prev]);
+      }
+      
       setNotification({
         open: true,
         message: 'Invoice created successfully',
@@ -291,6 +307,37 @@ const Invoices: React.FC<InvoicesProps> = ({ contractId }) => {
     const contract = contracts.find(c => c.id === contractId);
     return contract ? `${contract.contract_no} (${contract.contract_currency})` : 'Unknown Contract';
   };
+
+  const inputSx = useMemo(() => ({ 
+    '& .MuiOutlinedInput-root': { 
+      borderRadius: '8px',
+      bgcolor: theme.palette.mode === 'light' 
+        ? alpha(theme.palette.primary.main, 0.04) 
+        : alpha(theme.palette.background.paper, 0.4),
+      border: `1.5px solid ${theme.palette.mode === 'light' ? alpha(theme.palette.divider, 0.6) : alpha(theme.palette.divider, 0.45)}`,
+      '&:hover': { 
+        borderColor: alpha(theme.palette.primary.main, 0.7),
+        bgcolor: theme.palette.mode === 'light' ? alpha(theme.palette.primary.main, 0.08) : alpha(theme.palette.background.paper, 0.6),
+      },
+      '&.Mui-focused': { 
+        borderColor: theme.palette.primary.main,
+        borderWidth: '2px', 
+        bgcolor: theme.palette.mode === 'light' ? '#FFFFFF' : theme.palette.background.paper,
+        boxShadow: `0 0 0 4px ${alpha(theme.palette.primary.main, theme.palette.mode === 'light' ? 0.15 : 0.25)}` 
+      },
+      '& fieldset': { border: 'none' },
+      '& .MuiInputBase-input': {
+        color: theme.palette.text.primary,
+        padding: '8.5px 12px',
+        fontWeight: 600,
+        fontSize: '0.875rem',
+        '&::placeholder': {
+          color: theme.palette.text.secondary,
+          opacity: 0.6
+        }
+      }
+    }
+  }), [theme.palette]);
 
   return (
     <Box>
@@ -455,7 +502,7 @@ const Invoices: React.FC<InvoicesProps> = ({ contractId }) => {
         <DialogContent>
           <Stack spacing={3} mt={1}>
             {!contractId && (
-              <FormControl fullWidth>
+              <FormControl fullWidth sx={inputSx}>
                 <InputLabel>Contract</InputLabel>
                 <Select
                   value={formData.contract_id}
@@ -471,8 +518,8 @@ const Invoices: React.FC<InvoicesProps> = ({ contractId }) => {
               </FormControl>
             )}
 
-            <Grid container spacing={2}>
-              <Grid item xs={12} md={6}>
+            <Grid2 container spacing={2}>
+              <Grid2 size={{ xs: 12, md: 6 }}>
                 <TextField
                   fullWidth
                   type="date"
@@ -480,28 +527,32 @@ const Invoices: React.FC<InvoicesProps> = ({ contractId }) => {
                   value={formData.transaction_date}
                   onChange={(e) => setFormData(prev => ({ ...prev, transaction_date: e.target.value }))}
                   InputLabelProps={{ shrink: true }}
+                  sx={inputSx}
                 />
-              </Grid>
-              <Grid item xs={12} md={6}>
+              </Grid2>
+              <Grid2 size={{ xs: 12, md: 6 }}>
                 <TextField
                   fullWidth
                   type="number"
                   label="Amount"
                   value={formData.amount}
                   onChange={(e) => setFormData(prev => ({ ...prev, amount: e.target.value }))}
+                  placeholder={t("examples.amount")}
+                  sx={inputSx}
                   InputProps={{
                     startAdornment: contracts.find(c => c.id === formData.contract_id)?.contract_currency || 'USD'
                   }}
                 />
-              </Grid>
-            </Grid>
+              </Grid2>
+            </Grid2>
 
             <TextField
               fullWidth
               label="Reference Number"
               value={formData.reference}
               onChange={(e) => setFormData(prev => ({ ...prev, reference: e.target.value }))}
-              placeholder="e.g. INV-2025-001"
+              placeholder={t("examples.invoiceNo")}
+              sx={inputSx}
             />
 
             <TextField
@@ -511,7 +562,8 @@ const Invoices: React.FC<InvoicesProps> = ({ contractId }) => {
               onChange={(e) => setFormData(prev => ({ ...prev, description: e.target.value }))}
               multiline
               rows={2}
-              placeholder="Invoice description or notes"
+              placeholder={t("examples.remarks")}
+              sx={inputSx}
             />
           </Stack>
         </DialogContent>
@@ -625,6 +677,6 @@ const Invoices: React.FC<InvoicesProps> = ({ contractId }) => {
       </Snackbar>
     </Box>
   );
-};
+});
 
 export default Invoices;

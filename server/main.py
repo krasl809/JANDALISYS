@@ -2,6 +2,9 @@ import os
 import logging
 import uuid
 import time
+import json
+from starlette.types import ASGIApp, Scope, Receive, Send
+from starlette.datastructures import MutableHeaders
 from datetime import datetime, timezone
 from collections import defaultdict
 import sentry_sdk
@@ -89,85 +92,79 @@ app.add_middleware(
     max_age=3600,
 )
 
-@app.middleware("http")
-async def log_requests(request: Request, call_next):
-    auth_header = request.headers.get("Authorization")
-    has_auth = "Yes" if auth_header else "No"
-    logger.info(f"🔍 Incoming request: {request.method} {request.url} (Auth: {has_auth})")
-    if auth_header:
-        # Log first 15 chars of token for debugging
-        token_preview = auth_header[:25] + "..." if len(auth_header) > 25 else auth_header
-        logger.info(f"🔑 Auth Header: {token_preview}")
-        
-    response = await call_next(request)
-    logger.info(f"✅ Response status: {response.status_code}")
-    return response
+# --- Custom Middleware ---
+class JandalysysMiddleware:
+    def __init__(self, app: ASGIApp):
+        self.app = app
 
-# --- Security Headers & Rate Limiting Middleware ---
-@app.middleware("http")
-async def security_and_rate_limit_middleware(request: Request, call_next):
-    """Combined middleware for security headers and rate limiting to reduce overhead and nesting issues"""
-    
-    # Check if the Host header is an allowed IP
-    allowed_hosts = ["91.144.22.3", "10.0.0.10", "localhost", "127.0.0.1"]
-    host = request.headers.get("host", "").split(":")[0]
-    
-    # 1. Rate Limiting Logic
-    if os.getenv("ENABLE_RATE_LIMIT", "true").lower() == "true":
-        client_ip = request.client.host if request.client else "unknown"
-        now = time.time()
-        
-        # Accessing the app state or a global for rate limit storage
-        if not hasattr(app.state, 'rate_limit_requests'):
-            app.state.rate_limit_requests = defaultdict(list)
-        
-        requests = app.state.rate_limit_requests[client_ip]
-        
-        # Clean old requests
-        max_requests = int(os.getenv("RATE_LIMIT_MAX_REQUESTS", "100"))
-        window_seconds = int(os.getenv("RATE_LIMIT_WINDOW_SECONDS", "60"))
-        
-        app.state.rate_limit_requests[client_ip] = [req_time for req_time in requests if now - req_time < window_seconds]
-        
-        if len(app.state.rate_limit_requests[client_ip]) >= max_requests:
-            return Response("Rate limit exceeded", status_code=429)
-            
-        app.state.rate_limit_requests[client_ip].append(now)
+    async def __call__(self, scope: Scope, receive: Receive, send: Send):
+        if scope["type"] != "http":
+            # Skip for WebSockets and other non-HTTP scopes
+            await self.app(scope, receive, send)
+            return
 
-    # 2. Call Next (with error handling for stream issues)
-    try:
-        response = await call_next(request)
-    except Exception as e:
-        # Catch anyio stream errors that often happen with BaseHTTPMiddleware
-        error_msg = str(e)
-        if "EndOfStream" in error_msg or "WouldBlock" in error_msg:
-            logger.warning(f"Stream error in middleware: {error_msg}")
-            return Response("Internal Server Error (Stream Error)", status_code=500)
-        logger.error(f"Error in middleware: {e}", exc_info=True)
-        raise e
+        request = Request(scope, receive)
+        
+        # 1. Logging Logic
+        auth_header = request.headers.get("Authorization")
+        has_auth = "Yes" if auth_header else "No"
+        logger.info(f"🔍 Incoming request: {request.method} {request.url.path} (Auth: {has_auth})")
+        
+        # 2. Rate Limiting Logic
+        if os.getenv("ENABLE_RATE_LIMIT", "true").lower() == "true":
+            if request.url.path == "/health":
+                pass
+            else:
+                client_ip = request.client.host if request.client else "unknown"
+                now = time.time()
+                
+                # Use a global-like state if possible, but app.state is not directly available here
+                # We'll use a class-level variable for simplicity in this case
+                if not hasattr(self, 'rate_limit_requests'):
+                    self.rate_limit_requests = defaultdict(list)
+                
+                requests = self.rate_limit_requests[client_ip]
+                max_requests = int(os.getenv("RATE_LIMIT_MAX_REQUESTS", "200"))
+                window_seconds = int(os.getenv("RATE_LIMIT_WINDOW_SECONDS", "60"))
+                
+                self.rate_limit_requests[client_ip] = [req_time for req_time in requests if now - req_time < window_seconds]
+                
+                if len(self.rate_limit_requests[client_ip]) >= max_requests:
+                    logger.warning(f"Rate limit exceeded for {client_ip} on {request.url.path}")
+                    response = Response("Rate limit exceeded", status_code=429)
+                    await response(scope, receive, send)
+                    return
+                    
+                self.rate_limit_requests[client_ip].append(now)
 
-    # 3. Security Headers Logic
-    # Change DENY to SAMEORIGIN to allow iframes for file previews
-    response.headers["X-Frame-Options"] = "SAMEORIGIN"
-    response.headers["X-Content-Type-Options"] = "nosniff"
-    response.headers["X-XSS-Protection"] = "1; mode=block"
-    
-    if os.getenv("ENVIRONMENT") == "production":
-        response.headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains"
-    
-    # Update CSP to allow frames and objects for PDF previews
-    response.headers["Content-Security-Policy"] = "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; frame-src 'self'; object-src 'self'"
-    response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
-    response.headers["Permissions-Policy"] = "geolocation=(), microphone=(), camera=()"
-    
-    return response
+        # 3. Security Headers Wrapper
+        async def send_wrapper(message: Send):
+            if message["type"] == "http.response.start":
+                headers = MutableHeaders(scope=message)
+                headers["X-Frame-Options"] = "SAMEORIGIN"
+                headers["X-Content-Type-Options"] = "nosniff"
+                headers["X-XSS-Protection"] = "1; mode=block"
+                headers["Content-Security-Policy"] = "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; frame-src 'self'; object-src 'self'"
+                headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
+                headers["Permissions-Policy"] = "geolocation=(), microphone=(), camera=()"
+                if os.getenv("ENVIRONMENT") == "production":
+                    headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains"
+            await send(message)
+
+        try:
+            await self.app(scope, receive, send_wrapper)
+        except Exception as e:
+            logger.error(f"Error in middleware: {e}", exc_info=True)
+            raise e
+
+app.add_middleware(JandalysysMiddleware)
 
 # --- Register Routers ---
 from routers import setup
 app.include_router(setup.router, prefix="/api/setup", tags=["setup"])
 app.include_router(rbac_router, prefix="/api/rbac", tags=["RBAC"])
 app.include_router(contracts.router, prefix="/api/contracts", tags=["contracts"])
-# app.include_router(conveyors.router, prefix="/api/conveyors", tags=["conveyors"])  # Using direct endpoint instead
+app.include_router(conveyors.router, prefix="/api", tags=["conveyors"])
 app.include_router(agents.router, prefix="/api", tags=["agents"])
 app.include_router(financial_transactions.router, prefix="/api/financial-transactions", tags=["financial_transactions"])
 app.include_router(departments.router, prefix="/api", tags=["departments"])
@@ -185,19 +182,41 @@ app.include_router(exchange_units.router, prefix="/api/exchange-units", tags=["e
 @app.websocket("/ws")
 async def websocket_endpoint(websocket: WebSocket):
     client_host = websocket.client.host if websocket.client else "unknown"
-    logger.info(f"Incoming WebSocket connection from {client_host}")
+    logger.info(f"Incoming WebSocket connection attempt from {client_host}")
     try:
         await manager.connect(websocket)
-        logger.info(f"WebSocket connection accepted for {client_host}")
+        logger.info(f"WebSocket connection accepted and managed for {client_host}")
         while True:
-            # Keep connection alive and wait for messages
-            data = await websocket.receive_text()
-            logger.debug(f"Received WS message from {client_host}: {data}")
-    except WebSocketDisconnect:
-        logger.info(f"WebSocket disconnected for {client_host}")
-        await manager.disconnect(websocket)
+            try:
+                # Keep connection alive and wait for messages
+                data = await websocket.receive_text()
+                logger.debug(f"Received WS message from {client_host}: {data}")
+                
+                # Handle presence messages
+                try:
+                    msg = json.loads(data)
+                    if msg.get("type") == "presence":
+                        contract_id = msg.get("contract_id")
+                        user_name = msg.get("user_name")
+                        action = msg.get("action") # "enter" or "leave"
+                        if contract_id and user_name and action:
+                            await manager.update_presence(websocket, contract_id, user_name, action)
+                    elif msg.get("type") == "ping":
+                        await websocket.send_text(json.dumps({"type": "pong"}))
+                except json.JSONDecodeError:
+                    logger.warning(f"Invalid JSON received from {client_host}: {data}")
+                except Exception as e:
+                    logger.error(f"Error handling WS message from {client_host}: {e}")
+            except WebSocketDisconnect:
+                logger.info(f"WebSocket disconnect signal received for {client_host}")
+                break
+            except Exception as e:
+                logger.error(f"Error receiving WS message from {client_host}: {e}")
+                break
     except Exception as e:
-        logger.error(f"WebSocket error for {client_host}: {str(e)}", exc_info=True)
+        logger.error(f"WebSocket connection failed for {client_host}: {str(e)}", exc_info=True)
+    finally:
+        logger.info(f"Cleaning up WebSocket connection for {client_host}")
         await manager.disconnect(websocket)
 
 # --- Models for Main ---
@@ -285,13 +304,13 @@ def startup_event():
             "contracts_admin": [
                 "view_dashboard", "read_contracts", "write_contracts", "post_contracts", 
                 "delete_contracts", "approve_pricing", "manage_draft_status", 
-                "price_contracts", "read_pricing", "read_payments",
+                "price_contracts", "read_pricing", "read_payments", "write_payments", "delete_payments",
                 "read_sellers", "write_sellers", "read_buyers", "write_buyers", 
                 "read_shippers", "write_shippers", "read_brokers", "write_brokers", 
                 "read_conveyors", "write_conveyors", "read_articles", "write_articles", 
                 "read_payment_terms", "write_payment_terms", "read_incoterms", "write_incoterms",
                 "read_document_types", "write_document_types", "view_settings",
-                "view_agents", "manage_agents", "view_inventory", "manage_inventory"
+                "view_agents", "manage_agents"
             ],
             "hr_admin": [
                 "view_dashboard", "view_hr", "manage_hr", "view_reports", "view_settings",
@@ -424,8 +443,8 @@ def startup_event():
                 if u_role:
                     rbac_crud.assign_role_to_user(db, new_u.id, u_role.id)
             else:
-                # Update password and role to ensure they match requirements
-                u_exists.password = default_password
+                # Ensure user is active and has correct role, but leave name/password to user
+                u_exists.is_active = True
                 u_exists.role = u_data["role"]
                 db.commit()
                 
@@ -440,17 +459,18 @@ def startup_event():
 
         # Create 4 default contracts users
         contracts_users = [
-            {"name": "ماهر عيسى", "email": "maher.issa@jandali.com", "role": "contracts_admin"},
-            {"name": "قتيبة المصري", "email": "qutaiba.masri@jandali.com", "role": "contracts_admin"},
-            {"name": "سامر عيسى", "email": "samer.issa@jandali.com", "role": "contracts_admin"},
-            {"name": "نازك الجندلي", "email": "nazik.jandali@jandali.com", "role": "contracts_admin"}
+            {"name": "ماهر عيسى", "email": "maher@jandali.com", "role": "contracts_admin"},
+            {"name": "قتيبة المصري", "email": "qutaiba@jandali.com", "role": "contracts_admin"},
+            {"name": "سامر عيسى", "email": "samer@jandali.com", "role": "contracts_admin"},
+            {"name": "نازك الجندلي", "email": "nazek@jandali.com", "role": "contracts_admin"}
         ]
         
-        contracts_password = os.getenv("DEFAULT_CONTRACTS_PASSWORD", "Contracts@123")
+        contracts_password = os.getenv("DEFAULT_CONTRACTS_PASSWORD", "Jandali@2025")
         default_contracts_password_hash = get_password_hash(contracts_password)
         
         for u_data in contracts_users:
             u_exists = db.query(core_models.User).filter(core_models.User.email == u_data["email"]).first()
+            
             if not u_exists:
                 logger.info(f"Creating contracts user: {u_data['email']}")
                 new_u = core_models.User(
@@ -469,12 +489,16 @@ def startup_event():
                 if u_role:
                     rbac_crud.assign_role_to_user(db, new_u.id, u_role.id)
             else:
-                # Ensure role assignment
+                # Update role and active status, but leave name and password to be managed by user
+                u_exists.is_active = True
+                u_exists.role = u_data["role"]
+                db.commit()
+                
+                # Clear existing roles and ensure only the correct role is assigned
+                rbac_crud.remove_all_user_roles(db, u_exists.id)
                 u_role = rbac_crud.get_role_by_name(db, u_data["role"])
                 if u_role:
-                    user_roles_list = rbac_crud.get_user_roles(db, u_exists.id)
-                    if u_data["role"] not in user_roles_list:
-                        rbac_crud.assign_role_to_user(db, u_exists.id, u_role.id)
+                    rbac_crud.assign_role_to_user(db, u_exists.id, u_role.id)
         
         logger.info("Contracts users initialized successfully")
 
@@ -508,12 +532,16 @@ def startup_event():
                 if u_role:
                     rbac_crud.assign_role_to_user(db, new_u.id, u_role.id)
             else:
-                # Ensure role assignment
+                # Update role and active status, but leave name and password to be managed by user
+                u_exists.is_active = True
+                u_exists.role = u_data["role"]
+                db.commit()
+                
+                # Clear existing roles and ensure only the correct role is assigned
+                rbac_crud.remove_all_user_roles(db, u_exists.id)
                 u_role = rbac_crud.get_role_by_name(db, u_data["role"])
                 if u_role:
-                    user_roles_list = rbac_crud.get_user_roles(db, u_exists.id)
-                    if u_data["role"] not in user_roles_list:
-                        rbac_crud.assign_role_to_user(db, u_exists.id, u_role.id)
+                    rbac_crud.assign_role_to_user(db, u_exists.id, u_role.id)
 
         # Initialize default exchange quote units
         logger.info("Initializing default exchange quote units...")
@@ -987,14 +1015,6 @@ def read_brokers(db: Session = Depends(get_db), current_user = Depends(require_p
         return db.query(core_models.Broker).all()
     except Exception as e:
         raise HTTPException(status_code=500, detail="Failed to retrieve brokers")
-
-# Conveyors
-@app.get("/api/conveyors/", response_model=list[schemas.Conveyor])
-def read_conveyors(db: Session = Depends(get_db), current_user = Depends(require_permission("read_conveyors"))):
-    try:
-        return db.query(core_models.Conveyor).all()
-    except Exception as e:
-        raise HTTPException(status_code=500, detail="Failed to retrieve conveyors")
 
 @app.post("/api/brokers/", response_model=schemas.Broker)
 def create_broker(broker: schemas.BrokerCreate, db: Session = Depends(get_db), current_user = Depends(require_permission("write_brokers"))):

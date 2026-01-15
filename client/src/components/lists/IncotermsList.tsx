@@ -118,6 +118,29 @@ const IncotermsList: React.FC = () => {
     }, [incoterms, searchQuery]);
 
     // --- Styles ---
+    const inputSx = useMemo(() => ({
+        '& .MuiOutlinedInput-root': {
+            bgcolor: theme.palette.mode === 'dark' ? alpha(theme.palette.background.default, 0.4) : 'inherit',
+            '& fieldset': {
+                borderColor: theme.palette.mode === 'light' ? alpha('#344767', 0.25) : alpha(theme.palette.divider, 0.8),
+                borderWidth: '1.5px',
+            },
+            '&:hover fieldset': {
+                borderColor: theme.palette.primary.main,
+                borderWidth: '1.5px',
+            },
+            '&.Mui-focused fieldset': {
+                borderColor: theme.palette.primary.main,
+                borderWidth: '2px',
+                boxShadow: `0 0 0 3px ${alpha(theme.palette.primary.main, 0.15)}`,
+            },
+        },
+        '& .MuiInputBase-input::placeholder': {
+            color: theme.palette.text.disabled,
+            opacity: 1,
+        }
+    }), [theme]);
+
     const tableHeadSx = {
         bgcolor: theme.palette.mode === 'dark' ? alpha(theme.palette.common.white, 0.05) : '#F8FAFC',
         color: theme.palette.text.secondary,
@@ -145,7 +168,7 @@ const IncotermsList: React.FC = () => {
                     </Box>
                     <Box>
                         <Typography variant="h4" fontWeight="800" color="text.primary">
-                            {t('Incoterms')}
+                            {t('incoterms')}
                         </Typography>
                         <Typography variant="body1" color="text.secondary">
                             Manage International Commercial Terms definitions.
@@ -170,20 +193,22 @@ const IncotermsList: React.FC = () => {
                                 <Grid size={{ xs: 12, sm: 3 }}>
                                     <TextField
                                         label={t('Code')}
-                                        placeholder="e.g. FOB"
+                                        placeholder={t('examples.incotermCode')}
                                         value={newIncoterm.code}
                                         onChange={(e) => setNewIncoterm({ ...newIncoterm, code: e.target.value.toUpperCase() })}
                                         fullWidth size="small"
+                                        sx={inputSx}
                                         InputProps={{ startAdornment: <InputAdornment position="start"><Code fontSize="small" /></InputAdornment> }}
                                     />
                                 </Grid>
                                 <Grid size={{ xs: 12, sm: 5 }}>
                                     <TextField
                                         label={t('Name')}
-                                        placeholder="e.g. Free On Board"
+                                        placeholder={t('examples.incotermName')}
                                         value={newIncoterm.name}
                                         onChange={(e) => setNewIncoterm({ ...newIncoterm, name: e.target.value })}
                                         fullWidth size="small"
+                                        sx={inputSx}
                                         InputProps={{ startAdornment: <InputAdornment position="start"><Title fontSize="small" /></InputAdornment> }}
                                     />
                                 </Grid>
@@ -210,6 +235,7 @@ const IncotermsList: React.FC = () => {
                                         value={newIncoterm.description}
                                         onChange={(e) => setNewIncoterm({ ...newIncoterm, description: e.target.value })}
                                         fullWidth size="small" multiline rows={1}
+                                        sx={inputSx}
                                     />
                                 </Grid>
                             </Grid>
@@ -231,9 +257,10 @@ const IncotermsList: React.FC = () => {
                                 size="small"
                                 value={searchQuery}
                                 onChange={(e) => setSearchQuery(e.target.value)}
+                                sx={inputSx}
                                 InputProps={{
                                     startAdornment: <InputAdornment position="start"><Search color="action" /></InputAdornment>,
-                                    sx: { borderRadius: 2, bgcolor: theme.palette.background.default }
+                                    sx: { borderRadius: 2 }
                                 }}
                             />
                         </CardContent>
@@ -327,18 +354,21 @@ const IncotermsList: React.FC = () => {
                             value={currentIncoterm?.code || ''}
                             onChange={(e) => setCurrentIncoterm(currentIncoterm ? { ...currentIncoterm, code: e.target.value.toUpperCase() } : null)}
                             fullWidth size="small"
+                            sx={inputSx}
                         />
                         <TextField
                             label={t('Name')}
                             value={currentIncoterm?.name || ''}
                             onChange={(e) => setCurrentIncoterm(currentIncoterm ? { ...currentIncoterm, name: e.target.value } : null)}
                             fullWidth size="small"
+                            sx={inputSx}
                         />
                         <TextField
                             label={t('Description')}
                             value={currentIncoterm?.description || ''}
                             onChange={(e) => setCurrentIncoterm(currentIncoterm ? { ...currentIncoterm, description: e.target.value } : null)}
                             fullWidth size="small" multiline rows={3}
+                            sx={inputSx}
                         />
                     </Box>
                 </DialogContent>

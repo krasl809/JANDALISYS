@@ -24,6 +24,12 @@ const ArchiveSettings: React.FC = () => {
     });
     const [feedback, setFeedback] = useState<{ type: 'success' | 'error', msg: string } | null>(null);
 
+    const inputSx = {
+        '& .MuiOutlinedInput-root': {
+            borderRadius: 2,
+        }
+    };
+
     const fetchScanners = async () => {
         try {
             const res = await api.get('archive/scanners');
@@ -186,8 +192,9 @@ const ArchiveSettings: React.FC = () => {
                                 fullWidth
                                 value={editingScanner.name}
                                 onChange={(e) => setEditingScanner({ ...editingScanner, name: e.target.value })}
+                                sx={inputSx}
                             />
-                            <FormControl fullWidth>
+                            <FormControl fullWidth sx={inputSx}>
                                 <InputLabel>{t('Device Type')}</InputLabel>
                                 <Select
                                     value={editingScanner.device_type}
@@ -202,8 +209,10 @@ const ArchiveSettings: React.FC = () => {
                             <TextField
                                 label={t('Connection String / IP')}
                                 fullWidth
+                                placeholder={t('examples.connectionString')}
                                 value={editingScanner.connection_string}
                                 onChange={(e) => setEditingScanner({ ...editingScanner, connection_string: e.target.value })}
+                                sx={inputSx}
                             />
                         </Box>
                     )}

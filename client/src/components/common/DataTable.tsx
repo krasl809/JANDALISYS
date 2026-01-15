@@ -15,6 +15,7 @@ export interface Column {
   options?: any[];
   getOptionLabel?: (option: any) => string;
   endAdornment?: React.ReactNode;
+  placeholder?: string;
   renderCell?: (value: any, row: any, onChange: (value: any) => void) => React.ReactNode;
 }
 
@@ -61,9 +62,39 @@ const DataTable = <T extends { id: string }>({
   };
 
   const defaultInputTableSx = {
-    '& .MuiInput-underline:before': { borderBottomColor: 'transparent' },
-    '& .MuiInput-underline:hover:not(.Mui-disabled):before': { borderBottomColor: theme.palette.divider },
-    fontSize: '0.9rem'
+    '& .MuiInput-root': {
+      backgroundColor: theme.palette.mode === 'light' 
+        ? alpha(theme.palette.primary.main, 0.04) 
+        : alpha(theme.palette.background.paper, 0.4),
+      borderRadius: '8px',
+      padding: '6px 12px',
+      transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)',
+      border: `1.5px solid ${theme.palette.mode === 'light' ? alpha(theme.palette.divider, 0.6) : alpha(theme.palette.divider, 0.45)}`,
+      '&:before, &:after': { display: 'none' },
+      '&:hover:not(.Mui-disabled)': {
+        backgroundColor: theme.palette.mode === 'light' 
+          ? alpha(theme.palette.primary.main, 0.08) 
+          : alpha(theme.palette.background.paper, 0.6),
+        borderColor: alpha(theme.palette.primary.main, 0.7),
+      },
+      '&.Mui-focused': {
+        backgroundColor: theme.palette.mode === 'light' ? '#FFFFFF' : theme.palette.background.paper,
+        borderColor: theme.palette.primary.main,
+        borderWidth: '2px',
+        boxShadow: `0 0 0 4px ${alpha(theme.palette.primary.main, theme.palette.mode === 'light' ? 0.15 : 0.25)}`,
+      }
+    },
+    '& .MuiInput-input': {
+      padding: '4px 0',
+      fontSize: '0.85rem',
+      fontWeight: 500,
+      color: theme.palette.text.primary,
+      '&::placeholder': {
+        color: theme.palette.text.secondary,
+        opacity: 0.7
+      }
+    },
+    fontSize: '0.85rem'
   };
 
   const renderCellContent = (column: Column, value: any, row: T) => {
@@ -82,11 +113,16 @@ const DataTable = <T extends { id: string }>({
           onChange={(_, newValue) => {
             onChange?.(row[keyField as keyof T] as string, column.key, newValue?.id || '');
           }}
-          getOptionLabel={(opt) => column.getOptionLabel ? column.getOptionLabel(opt) : (opt.label || opt.id || '')}
+          getOptionLabel={(opt) => {
+            if (!opt) return '';
+            if (column.getOptionLabel) return column.getOptionLabel(opt);
+            return opt.label || opt.id || opt.toString() || '';
+          }} 
           renderInput={(params) => (
             <TextField 
               {...params} 
               variant="standard" 
+              placeholder={column.placeholder}
               sx={inputTableSx || defaultInputTableSx}
             />
           )}
@@ -101,6 +137,7 @@ const DataTable = <T extends { id: string }>({
         type={column.type || 'text'}
         value={value || ''}
         onChange={(e) => onChange?.(row[keyField as keyof T] as string, column.key, e.target.value)}
+        placeholder={column.placeholder}
         sx={inputTableSx || defaultInputTableSx}
         InputProps={{
           endAdornment: column.endAdornment ? (

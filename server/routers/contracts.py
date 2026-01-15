@@ -1,7 +1,7 @@
 
 from fastapi import APIRouter, Depends, HTTPException, status, BackgroundTasks
 from sqlalchemy.orm import Session
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Optional
 import uuid
 
 from core.database import get_db
@@ -52,6 +52,34 @@ def read_contracts(
     result = ContractService.get_contracts(db, skip, limit)
     return result
 
+@router.get("/next-number")
+def get_next_number(
+    seller_code: str = "SELL",
+    issue_date: Optional[str] = None,
+    db: Session = Depends(get_db),
+    current_user: schemas.User = Depends(get_current_user)
+):
+    """Generate the next contract number based on seller code and optional issue date"""
+    from datetime import datetime
+    
+    ref_date = None
+    if issue_date:
+        try:
+            # Try to parse date from string (YYYY-MM-DD)
+            ref_date = datetime.strptime(issue_date, "%Y-%m-%d")
+        except ValueError:
+            pass
+            
+    next_no = ContractService.get_next_number(db, seller_code, ref_date)
+    # Extract only the sequence part (last 4 digits) for the frontend if needed,
+    # or return the full number. The frontend currently expects next_no as a number or string.
+    # Let's return both for flexibility.
+    try:
+        sequence = int(next_no[-4:])
+    except:
+        sequence = 1
+    return {"next_no": sequence, "full_no": next_no}
+
 @router.get("/{contract_id}", response_model=schemas.Contract)
 def read_contract(
     contract_id: uuid.UUID,
@@ -75,6 +103,18 @@ async def update_contract(
     current_user: schemas.User = Depends(require_permission("write_contracts"))
 ):
     updated_contract = await ContractService.update_contract(db, contract_id, contract, current_user.id)
+    if updated_contract is None:
+        raise HTTPException(status_code=404, detail="Contract not found")
+    return updated_contract
+
+@router.post("/{contract_id}/notify-finance", response_model=schemas.Contract)
+async def notify_finance(
+    contract_id: uuid.UUID,
+    db: Session = Depends(get_db),
+    current_user: schemas.User = Depends(require_permission("write_contracts"))
+):
+    """Record finance notification for a contract"""
+    updated_contract = await ContractService.notify_finance(db, contract_id, current_user.id)
     if updated_contract is None:
         raise HTTPException(status_code=404, detail="Contract not found")
     return updated_contract
@@ -140,11 +180,12 @@ def get_pricing_tree(
 @router.post("/{contract_id}/approve-pricing")
 async def approve_pricing(
     contract_id: str,
+    version: Optional[int] = None,
     db: Session = Depends(get_db),
     current_user: schemas.User = Depends(require_permission("approve_pricing"))
 ):
     uuid_obj = validate_uuid(contract_id)
-    return await ContractService.approve_pricing(db, uuid_obj, current_user.id)
+    return await ContractService.approve_pricing(db, uuid_obj, current_user.id, version)
 
 @router.post("/{contract_id}/partial-price", response_model=schemas.PricingResponse)
 async def partial_price(

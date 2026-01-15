@@ -6,64 +6,76 @@ import {
     ToggleButton, ToggleButtonGroup, useTheme, TablePagination,
     Stack, LinearProgress, Menu, ListItemIcon, ListItemText,
     Dialog, DialogTitle, DialogContent, List, ListItem, ListItemAvatar,
-    CircularProgress
+    CircularProgress, TextField, Autocomplete, InputAdornment
 } from '@mui/material';
 import { DataGrid, GridColDef, GridToolbar, GridRenderCellParams } from '@mui/x-data-grid';
 import {
     Refresh, Warning, Error as ErrorIcon, AccessTime,
-    Schedule, Group, ViewList, TableChart,
-    CalendarToday, Today, Event, GetApp,
+    Group, ViewList, TableChart,
+    CalendarToday, GetApp,
     TrendingUp, MoreVert, ExpandMore,
     FiberManualRecord, Delete, CheckCircle, Alarm, Cancel, Print,
-    Close, PersonPinCircle, Computer, People
+    Close, PersonPinCircle, Computer, People, Search, FilterList, FilterListOff
 } from '@mui/icons-material';
 import api from '../../services/api';
 import { useTranslation } from 'react-i18next';
 import { useConfirm } from '../../context/ConfirmContext';
-import AttendanceTimeline from '../../components/hr/AttendanceTimeline';
 import AttendanceAnalytics from '../../components/hr/AttendanceAnalytics';
 import MonthView from './MonthView';
-import CalendarView from './CalendarView';
-import { format, parseISO, startOfMonth, endOfMonth, startOfWeek, endOfWeek, isSameDay, isToday, isAfter, differenceInDays, addDays } from 'date-fns';
+import { format, parseISO, startOfMonth, endOfMonth, isSameDay, isToday, differenceInDays, addDays } from 'date-fns';
 import { AdapterDateFns } from '@mui/x-date-pickers/AdapterDateFns';
 import { LocalizationProvider, DatePicker } from '@mui/x-date-pickers';
-import { alpha } from '@mui/material/styles';
+import { alpha, Theme } from '@mui/material/styles';
 
 // Material Dashboard 2 Pro Style Constants
-const COLORS = {
-    primary: '#5E72E4',
-    secondary: '#8392AB',
-    info: '#11CDEF',
-    success: '#2DCE89',
-    warning: '#FB6340',
-    error: '#F5365C',
-    dark: '#344767',
-    light: '#E9ECEF',
-    bg: '#F8F9FA',
-    white: '#FFFFFF',
-    gradientPrimary: 'linear-gradient(135deg, #5E72E4 0%, #825EE4 100%)',
-    gradientSuccess: 'linear-gradient(135deg, #2DCE89 0%, #2DCECC 100%)',
-    gradientInfo: 'linear-gradient(135deg, #11CDEF 0%, #1171EF 100%)',
-    gradientWarning: 'linear-gradient(135deg, #FB6340 0%, #FBB140 100%)',
-    gradientError: 'linear-gradient(135deg, #F5365C 0%, #F56036 100%)',
+const getAttendanceColors = (theme: Theme) => {
+    const isDark = theme.palette.mode === 'dark';
+    return {
+        primary: theme.palette.primary.main,
+        secondary: theme.palette.text.secondary,
+        info: theme.palette.info.main,
+        success: theme.palette.success.main,
+        warning: theme.palette.warning.main,
+        error: theme.palette.error.main,
+        dark: theme.palette.text.primary,
+        light: theme.palette.background.default,
+        bg: theme.palette.background.default,
+        white: theme.palette.background.paper,
+        pureWhite: isDark ? theme.palette.background.paper : '#FFFFFF',
+        gradientPrimary: `linear-gradient(135deg, ${theme.palette.primary.main} 0%, ${theme.palette.primary.dark} 100%)`,
+        gradientSuccess: `linear-gradient(135deg, ${theme.palette.success.main} 0%, ${theme.palette.success.dark} 100%)`,
+        gradientInfo: `linear-gradient(135deg, ${theme.palette.info.main} 0%, ${theme.palette.info.dark} 100%)`,
+        gradientWarning: `linear-gradient(135deg, ${theme.palette.warning.main} 0%, ${theme.palette.warning.dark} 100%)`,
+        gradientError: `linear-gradient(135deg, ${theme.palette.error.main} 0%, ${theme.palette.error.dark} 100%)`,
+        gradientDark: isDark 
+            ? `linear-gradient(135deg, ${theme.palette.grey[800]} 0%, ${theme.palette.common.black} 100%)`
+            : `linear-gradient(135deg, #344767 0%, #192941 100%)`,
+    };
 };
 
-const SHADOWS = {
-    xs: '0 1px 5px rgba(0, 0, 0, 0.05)',
-    sm: '0 3px 8px rgba(0, 0, 0, 0.08)',
-    md: '0 7px 14px rgba(50, 50, 93, 0.1)',
-    lg: '0 15px 35px rgba(50, 50, 93, 0.1)',
+const getAttendanceShadows = (theme: Theme) => {
+    const isDark = theme.palette.mode === 'dark';
+    const shadowColor = isDark ? 'rgba(0, 0, 0, 0.5)' : 'rgba(50, 50, 93, 0.1)';
+    return {
+        xs: isDark ? '0 1px 3px rgba(0, 0, 0, 0.4)' : '0 1px 5px rgba(0, 0, 0, 0.05)',
+        sm: isDark ? '0 4px 6px rgba(0, 0, 0, 0.5)' : '0 3px 8px rgba(0, 0, 0, 0.08)',
+        md: isDark ? '0 8px 16px rgba(0, 0, 0, 0.6)' : `0 7px 14px ${shadowColor}`,
+        lg: isDark ? '0 12px 24px rgba(0, 0, 0, 0.7)' : `0 15px 35px ${shadowColor}`,
+    };
 };
 
-export const ATTENDANCE_COLORS = {
-    present: COLORS.success,
-    late: COLORS.error,
-    earlyLeave: COLORS.warning,
-    absent: COLORS.secondary,
-    holiday: '#7C3AED',
-    ongoing: COLORS.primary,
-    overtime: '#7C3AED',
-    partial: '#EA580C'
+const getAttendanceStatusColors = (theme: Theme) => {
+    const colors = getAttendanceColors(theme);
+    return {
+        present: colors.success,
+        late: colors.warning,
+        earlyLeave: colors.info,
+        absent: colors.secondary,
+        holiday: alpha(colors.primary, 0.8),
+        ongoing: colors.primary,
+        overtime: alpha(colors.primary, 0.8),
+        partial: alpha(colors.warning, 0.8)
+    };
 };
 
 const round = (val: number, precision: number) => Math.round(val * Math.pow(10, precision)) / Math.pow(10, precision);
@@ -124,12 +136,7 @@ const useAttendanceData = (filters: any) => {
         setError(null);
         try {
             const params = new URLSearchParams();
-            if (filters.viewMode === 'calendar') {
-                const monthStart = startOfMonth(filters.currentMonth);
-                const monthEnd = endOfMonth(filters.currentMonth);
-                params.append('start_date', format(monthStart, 'yyyy-MM-dd'));
-                params.append('end_date', format(monthEnd, 'yyyy-MM-dd'));
-            } else if (filters.viewMode === 'month') {
+            if (filters.viewMode === 'month') {
                 const monthStart = startOfMonth(filters.currentMonth || new Date());
                 const monthEnd = endOfMonth(filters.currentMonth || new Date());
                 params.append('start_date', format(monthStart, 'yyyy-MM-dd'));
@@ -141,6 +148,9 @@ const useAttendanceData = (filters: any) => {
 
             if (filters.selectedEmployee) params.append('employee_id', filters.selectedEmployee);
             if (filters.selectedDepartment) params.append('department', filters.selectedDepartment);
+            if (filters.selectedStatus) params.append('status', filters.selectedStatus);
+            if (filters.selectedShift) params.append('shift', filters.selectedShift);
+            if (filters.search) params.append('search', filters.search);
             if (filters.rawView) params.append('raw', 'true');
 
             const res = await api.get(`hr/attendance?${params}`);
@@ -153,7 +163,7 @@ const useAttendanceData = (filters: any) => {
         } finally {
             if (!silent) setLoading(false);
         }
-    }, [filters.viewMode, filters.currentMonth, filters.startDate, filters.endDate, filters.selectedEmployee, filters.selectedDepartment, filters.rawView, showAlert, t]);
+    }, [filters.viewMode, filters.currentMonth, filters.startDate, filters.endDate, filters.selectedEmployee, filters.selectedDepartment, filters.search, filters.rawView, filters.selectedStatus, filters.selectedShift, showAlert, t]);
 
     useEffect(() => {
         fetchLogs();
@@ -167,39 +177,16 @@ const useAttendanceFilters = () => {
     const [endDate, setEndDate] = useState<Date | null>(new Date());
     const [selectedEmployee, setSelectedEmployee] = useState('');
     const [selectedDepartment, setSelectedDepartment] = useState('');
+    const [selectedStatus, setSelectedStatus] = useState('');
+    const [selectedShift, setSelectedShift] = useState('');
+    const [search, setSearch] = useState('');
     const [rawView, setRawView] = useState(false);
-    const [viewMode, setViewMode] = useState<'calendar' | 'table' | 'matrix' | 'month' | 'analytics'>('matrix');
-    const [quickView, setQuickView] = useState<'today' | 'week' | 'month' | null>(null);
+    const [viewMode, setViewMode] = useState<'table' | 'month' | 'analytics'>('month');
     const [currentMonth, setCurrentMonth] = useState(new Date());
-    const [zoomLevel, setZoomLevel] = useState<'day' | 'week' | 'month' | 'range'>('day');
-
-    const handleQuickView = useCallback((view: 'today' | 'week' | 'month') => {
-        const today = new Date();
-        setQuickView(view);
-
-        switch (view) {
-            case 'today':
-                setStartDate(today);
-                setEndDate(today);
-                setZoomLevel('day');
-                break;
-            case 'week':
-                setStartDate(startOfWeek(today, { weekStartsOn: 1 }));
-                setEndDate(endOfWeek(today, { weekStartsOn: 1 }));
-                setZoomLevel('week');
-                break;
-            case 'month':
-                setStartDate(startOfMonth(today));
-                setEndDate(endOfMonth(today));
-                setZoomLevel('month');
-                break;
-        }
-    }, []);
 
     const handleDateChange = useCallback((newDate: Date) => {
         if (!startDate) {
             setStartDate(newDate);
-            setQuickView(null);
             return;
         }
 
@@ -208,46 +195,56 @@ const useAttendanceFilters = () => {
         if (endDate) {
             setEndDate(addDays(endDate, delta));
         }
-        setQuickView(null);
     }, [startDate, endDate]);
 
     const handleViewModeChange = useCallback((mode: typeof viewMode) => {
         if (mode) {
             setViewMode(mode);
-            setQuickView(null);
-            if (mode === 'month') {
-                handleQuickView('month');
-            }
         }
-    }, [handleQuickView]);
+    }, []);
+
+    const clearFilters = useCallback(() => {
+        setStartDate(new Date());
+        setEndDate(new Date());
+        setSelectedEmployee('');
+        setSelectedDepartment('');
+        setSelectedStatus('');
+        setSelectedShift('');
+        setSearch('');
+    }, []);
 
     return {
         startDate,
         endDate,
         selectedEmployee,
         selectedDepartment,
+        selectedStatus,
+        selectedShift,
+        search,
         rawView,
         viewMode,
-        quickView,
         currentMonth,
-        zoomLevel,
         setStartDate,
         setEndDate,
         setSelectedEmployee,
         setSelectedDepartment,
+        setSelectedStatus,
+        setSelectedShift,
+        setSearch,
         setRawView,
-        setQuickView,
         setCurrentMonth,
-        setZoomLevel,
-        handleQuickView,
         handleDateChange,
-        handleViewModeChange
+        handleViewModeChange,
+        clearFilters
     };
 };
 
 // Add RecentActivitySidebar component
 const RecentActivitySidebar = () => {
     const { t } = useTranslation();
+    const theme = useTheme();
+    const colors = getAttendanceColors(theme);
+    const shadows = getAttendanceShadows(theme);
     const [recentLogs, setRecentLogs] = useState<any[]>([]);
     const [loading, setLoading] = useState(true);
 
@@ -270,7 +267,7 @@ const RecentActivitySidebar = () => {
 
     if (loading && recentLogs.length === 0) return (
         <Box sx={{ p: 3, textAlign: 'center' }}>
-            <CircularProgress size={30} sx={{ color: COLORS.primary }} />
+            <CircularProgress size={30} sx={{ color: colors.primary }} />
         </Box>
     );
     
@@ -280,12 +277,12 @@ const RecentActivitySidebar = () => {
             sx={{ 
                 p: 4, 
                 borderRadius: '16px', 
-                bgcolor: COLORS.white,
-                boxShadow: SHADOWS.md,
+                bgcolor: colors.white,
+                boxShadow: shadows.md,
                 textAlign: 'center'
             }}
         >
-            <Typography variant="body2" color={COLORS.secondary} fontWeight="600">
+            <Typography variant="body2" color={colors.secondary} fontWeight="600">
                 {t('No recent activity')}
             </Typography>
         </Paper>
@@ -297,29 +294,29 @@ const RecentActivitySidebar = () => {
             sx={{ 
                 p: 3, 
                 borderRadius: '16px', 
-                bgcolor: COLORS.white,
-                boxShadow: SHADOWS.md,
+                bgcolor: colors.white,
+                boxShadow: shadows.md,
                 height: '100%', 
                 maxHeight: '800px', 
                 overflowY: 'auto',
-                border: `1px solid ${alpha(COLORS.secondary, 0.05)}`,
+                border: `1px solid ${alpha(colors.secondary, 0.05)}`,
                 '&::-webkit-scrollbar': { width: '4px' },
-                '&::-webkit-scrollbar-thumb': { bgcolor: alpha(COLORS.secondary, 0.2), borderRadius: '4px' }
+                '&::-webkit-scrollbar-thumb': { bgcolor: alpha(colors.secondary, 0.2), borderRadius: '4px' }
             }}
         >
             <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
-                <Typography variant="subtitle1" fontWeight="800" sx={{ display: 'flex', alignItems: 'center', gap: 1.5, color: COLORS.dark }}>
+                <Typography variant="subtitle1" fontWeight="800" sx={{ display: 'flex', alignItems: 'center', gap: 1.5, color: colors.dark }}>
                     <Box sx={{ 
                         width: 36, 
                         height: 36, 
                         borderRadius: '10px', 
-                        bgcolor: alpha(COLORS.primary, 0.1), 
+                        bgcolor: alpha(colors.primary, 0.1), 
                         display: 'flex', 
                         alignItems: 'center', 
                         justifyContent: 'center',
-                        boxShadow: `0 4px 10px ${alpha(COLORS.primary, 0.1)}`
+                        boxShadow: `0 4px 10px ${alpha(colors.primary, 0.1)}`
                     }}>
-                        <AccessTime sx={{ color: COLORS.primary, fontSize: 20 }} />
+                        <AccessTime sx={{ color: colors.primary, fontSize: 20 }} />
                     </Box>
                     {t('Live Activity')}
                 </Typography>
@@ -327,8 +324,8 @@ const RecentActivitySidebar = () => {
                     label={t('LIVE')} 
                     size="small" 
                     sx={{ 
-                        bgcolor: alpha(COLORS.error, 0.1), 
-                        color: COLORS.error, 
+                        bgcolor: alpha(colors.error, 0.1), 
+                        color: colors.error, 
                         fontWeight: 900, 
                         fontSize: '0.65rem',
                         height: 20,
@@ -353,8 +350,8 @@ const RecentActivitySidebar = () => {
                         transition: 'all 0.2s ease',
                         border: `1px solid transparent`,
                         '&:hover': { 
-                            bgcolor: alpha(COLORS.primary, 0.02),
-                            borderColor: alpha(COLORS.primary, 0.05),
+                            bgcolor: alpha(colors.primary, 0.02),
+                            borderColor: alpha(colors.primary, 0.05),
                             transform: 'translateX(-4px)'
                         }
                     }}>
@@ -362,12 +359,12 @@ const RecentActivitySidebar = () => {
                             sx={{ 
                                 width: 42, 
                                 height: 42, 
-                                background: log.type === 'check_in' ? COLORS.gradientSuccess : COLORS.gradientWarning,
-                                color: COLORS.white,
+                                background: log.type === 'check_in' ? colors.gradientSuccess : colors.gradientWarning,
+                                color: colors.white,
                                 fontSize: '1rem',
                                 fontWeight: 800,
                                 borderRadius: '12px',
-                                boxShadow: SHADOWS.sm
+                                boxShadow: shadows.sm
                             }}
                         >
                             {log.employee_name?.[0]}
@@ -375,10 +372,10 @@ const RecentActivitySidebar = () => {
                         
                         <Box sx={{ flex: 1, minWidth: 0 }}>
                             <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-                                <Typography variant="body2" fontWeight="800" color={COLORS.dark} noWrap sx={{ maxWidth: '70%' }}>
+                                <Typography variant="body2" fontWeight="800" color={colors.dark} noWrap sx={{ maxWidth: '70%' }}>
                                     {log.employee_name}
                                 </Typography>
-                                <Typography variant="caption" fontWeight="800" sx={{ color: COLORS.primary, bgcolor: alpha(COLORS.primary, 0.05), px: 1, py: 0.25, borderRadius: '4px' }}>
+                                <Typography variant="caption" fontWeight="800" sx={{ color: colors.primary, bgcolor: alpha(colors.primary, 0.05), px: 1, py: 0.25, borderRadius: '4px' }}>
                                     {format(parseISO(log.timestamp), 'HH:mm')}
                                 </Typography>
                             </Box>
@@ -388,14 +385,14 @@ const RecentActivitySidebar = () => {
                                     width: 8, 
                                     height: 8, 
                                     borderRadius: '50%', 
-                                    bgcolor: log.type === 'check_in' ? COLORS.success : COLORS.warning,
-                                    boxShadow: `0 0 0 2px ${alpha(log.type === 'check_in' ? COLORS.success : COLORS.warning, 0.15)}`
+                                    bgcolor: log.type === 'check_in' ? colors.success : colors.warning,
+                                    boxShadow: `0 0 0 2px ${alpha(log.type === 'check_in' ? colors.success : colors.warning, 0.15)}`
                                 }} />
-                                <Typography variant="caption" fontWeight="700" sx={{ color: log.type === 'check_in' ? COLORS.success : COLORS.warning }}>
+                                <Typography variant="caption" fontWeight="700" sx={{ color: log.type === 'check_in' ? colors.success : colors.warning }}>
                                     {log.type === 'check_in' ? t('Check In') : t('Check Out')}
                                 </Typography>
-                                <Typography variant="caption" sx={{ color: COLORS.secondary, mx: 0.5 }}>•</Typography>
-                                <Typography variant="caption" sx={{ color: alpha(COLORS.secondary, 0.8), fontSize: '0.7rem', display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                                <Typography variant="caption" sx={{ color: colors.secondary, mx: 0.5 }}>•</Typography>
+                                <Typography variant="caption" sx={{ color: alpha(colors.secondary, 0.8), fontSize: '0.7rem', display: 'flex', alignItems: 'center', gap: 0.5 }}>
                                     <Computer sx={{ fontSize: 12 }} />
                                     {log.device}
                                 </Typography>
@@ -410,6 +407,9 @@ const RecentActivitySidebar = () => {
 
 // Add DeviceStatusWidget component
 const DeviceStatusWidget = () => {
+    const theme = useTheme();
+    const colors = getAttendanceColors(theme);
+    const shadows = getAttendanceShadows(theme);
     const [devices, setDevices] = useState<any[]>([]);
     const [loading, setLoading] = useState(true);
 
@@ -430,7 +430,7 @@ const DeviceStatusWidget = () => {
         return () => clearInterval(interval);
     }, []);
 
-    if (loading) return <LinearProgress sx={{ width: 100, borderRadius: '4px', height: 4, bgcolor: alpha(COLORS.primary, 0.1), '& .MuiLinearProgress-bar': { background: COLORS.gradientPrimary } }} />;
+    if (loading) return <LinearProgress sx={{ width: 100, borderRadius: '4px', height: 4, bgcolor: alpha(colors.primary, 0.1), '& .MuiLinearProgress-bar': { background: colors.gradientPrimary } }} />;
 
     return (
         <Box sx={{ display: 'flex', gap: 1.5, alignItems: 'center' }}>
@@ -440,29 +440,29 @@ const DeviceStatusWidget = () => {
                         display: 'flex', 
                         alignItems: 'center', 
                         gap: 1,
-                        bgcolor: COLORS.white,
+                        bgcolor: colors.white,
                         px: 1.5,
                         py: 0.75,
                         borderRadius: '10px',
-                        boxShadow: SHADOWS.xs,
-                        border: `1px solid ${alpha(COLORS.secondary, 0.05)}`,
+                        boxShadow: shadows.xs,
+                        border: `1px solid ${alpha(colors.secondary, 0.05)}`,
                         transition: 'all 0.2s',
-                        '&:hover': { transform: 'translateY(-2px)', boxShadow: SHADOWS.sm }
+                        '&:hover': { transform: 'translateY(-2px)', boxShadow: shadows.sm }
                     }}>
                         <Box sx={{ 
                             width: 8, 
                             height: 8, 
                             borderRadius: '50%', 
-                            bgcolor: device.status === 'online' ? COLORS.success : COLORS.error,
-                            boxShadow: `0 0 0 3px ${alpha(device.status === 'online' ? COLORS.success : COLORS.error, 0.15)}`,
+                            bgcolor: device.status === 'online' ? colors.success : colors.error,
+                            boxShadow: `0 0 0 3px ${alpha(device.status === 'online' ? colors.success : colors.error, 0.15)}`,
                             animation: device.status === 'online' ? 'pulse 2s infinite' : 'none',
                             '@keyframes pulse': {
-                                '0%': { boxShadow: `0 0 0 0px ${alpha(COLORS.success, 0.4)}` },
-                                '70%': { boxShadow: `0 0 0 6px ${alpha(COLORS.success, 0)}` },
-                                '100%': { boxShadow: `0 0 0 0px ${alpha(COLORS.success, 0)}` }
+                                '0%': { boxShadow: `0 0 0 0px ${alpha(colors.success, 0.4)}` },
+                                '70%': { boxShadow: `0 0 0 6px ${alpha(colors.success, 0)}` },
+                                '100%': { boxShadow: `0 0 0 0px ${alpha(colors.success, 0)}` }
                             }
                         }} />
-                        <Typography variant="caption" fontWeight="800" sx={{ color: COLORS.dark, fontSize: '0.75rem' }}>
+                        <Typography variant="caption" fontWeight="800" sx={{ color: colors.dark, fontSize: '0.75rem' }}>
                             {device.name}
                         </Typography>
                     </Box>
@@ -474,6 +474,9 @@ const DeviceStatusWidget = () => {
 
 // Add DigitalClock component
 const DigitalClock = () => {
+    const theme = useTheme();
+    const colors = getAttendanceColors(theme);
+    const shadows = getAttendanceShadows(theme);
     const [time, setTime] = useState(new Date());
 
     useEffect(() => {
@@ -489,9 +492,9 @@ const DigitalClock = () => {
             px: 2.5,
             py: 1,
             borderRadius: '12px',
-            bgcolor: COLORS.white,
-            border: `1px solid ${alpha(COLORS.primary, 0.1)}`,
-            boxShadow: SHADOWS.xs,
+            bgcolor: colors.white,
+            border: `1px solid ${alpha(colors.primary, 0.1)}`,
+            boxShadow: shadows.xs,
             position: 'relative',
             overflow: 'hidden',
             '&::after': {
@@ -501,13 +504,13 @@ const DigitalClock = () => {
                 right: 0,
                 width: '4px',
                 height: '100%',
-                bgcolor: COLORS.primary
+                bgcolor: colors.primary
             }
         }}>
-            <Typography variant="h6" fontWeight="900" sx={{ color: COLORS.primary, lineHeight: 1.2, mb: 0.25, letterSpacing: '1px', fontFamily: '"Roboto Mono", monospace' }}>
+            <Typography variant="h6" fontWeight="900" sx={{ color: colors.primary, lineHeight: 1.2, mb: 0.25, letterSpacing: '1px', fontFamily: '"Roboto Mono", monospace' }}>
                 {format(time, 'HH:mm:ss')}
             </Typography>
-            <Typography variant="caption" fontWeight="700" sx={{ color: COLORS.secondary, fontSize: '0.65rem', textTransform: 'uppercase' }}>
+            <Typography variant="caption" fontWeight="700" sx={{ color: colors.secondary, fontSize: '0.65rem', textTransform: 'uppercase' }}>
                 {format(time, 'EEEE, dd MMMM yyyy')}
             </Typography>
         </Box>
@@ -517,6 +520,9 @@ const DigitalClock = () => {
 // Add SyncDevicesButton component
 const SyncDevicesButton = ({ onSyncSuccess }: { onSyncSuccess: () => void }) => {
     const { t } = useTranslation();
+    const theme = useTheme();
+    const colors = getAttendanceColors(theme);
+    const shadows = getAttendanceShadows(theme);
     const [syncing, setSyncing] = useState(false);
     const { alert: showAlert } = useConfirm();
 
@@ -538,24 +544,24 @@ const SyncDevicesButton = ({ onSyncSuccess }: { onSyncSuccess: () => void }) => 
     return (
         <Button
             variant="contained"
-            startIcon={syncing ? <CircularProgress size={18} sx={{ color: COLORS.white }} /> : <Refresh />}
+            startIcon={syncing ? <CircularProgress size={18} sx={{ color: colors.white }} /> : <Refresh />}
             onClick={handleSync}
             disabled={syncing}
             sx={{ 
                 borderRadius: '8px', 
                 textTransform: 'none',
                 fontWeight: 700,
-                background: COLORS.gradientPrimary,
-                boxShadow: SHADOWS.sm,
+                background: colors.gradientPrimary,
+                boxShadow: shadows.sm,
                 px: 3,
                 py: 1,
                 '&:hover': {
-                    boxShadow: SHADOWS.md,
+                    boxShadow: shadows.md,
                     opacity: 0.9,
                 },
                 '&.Mui-disabled': {
-                    background: alpha(COLORS.primary, 0.5),
-                    color: COLORS.white
+                    background: alpha(colors.primary, 0.5),
+                    color: colors.white
                 }
             }}
         >
@@ -573,6 +579,9 @@ const AttendanceSummaryCards = React.memo(({
     onCardClick?: (type: string) => void;
 }) => {
     const { t } = useTranslation();
+    const theme = useTheme();
+    const colors = getAttendanceColors(theme);
+    const shadows = getAttendanceShadows(theme);
 
     const cards = useMemo(() => [
         {
@@ -580,42 +589,42 @@ const AttendanceSummaryCards = React.memo(({
             title: t('Total Employees'),
             value: summary.total_employees,
             icon: <Group />,
-            gradient: COLORS.gradientPrimary,
-            shadowColor: alpha(COLORS.primary, 0.3)
+            gradient: colors.gradientPrimary,
+            shadowColor: alpha(colors.primary, 0.3)
         },
         {
             id: 'present',
             title: t('Present Today'),
             value: summary.present_today,
             icon: <CheckCircle />,
-            gradient: COLORS.gradientSuccess,
-            shadowColor: alpha(COLORS.success, 0.3)
+            gradient: colors.gradientSuccess,
+            shadowColor: alpha(colors.success, 0.3)
         },
         {
             id: 'late',
             title: t('Late Today'),
             value: summary.late_today,
             icon: <Alarm />,
-            gradient: COLORS.gradientWarning,
-            shadowColor: alpha(COLORS.warning, 0.3)
+            gradient: colors.gradientWarning,
+            shadowColor: alpha(colors.warning, 0.3)
         },
         {
             id: 'currently_in',
             title: t('Currently In'),
             value: summary.currently_in,
             icon: <PersonPinCircle />,
-            gradient: COLORS.gradientInfo,
-            shadowColor: alpha(COLORS.info, 0.3)
+            gradient: colors.gradientInfo,
+            shadowColor: alpha(colors.info, 0.3)
         },
         {
             id: 'absent',
             title: t('Absent Today'),
             value: summary.absent_today,
             icon: <Cancel />,
-            gradient: COLORS.gradientError,
-            shadowColor: alpha(COLORS.error, 0.3)
+            gradient: colors.gradientError,
+            shadowColor: alpha(colors.error, 0.3)
         }
-    ], [summary, t]);
+    ], [summary, t, colors]);
 
     return (
         <Grid container spacing={3} sx={{ mb: 4 }}>
@@ -632,7 +641,7 @@ const AttendanceSummaryCards = React.memo(({
                             overflow: 'visible', // Changed to visible for shadow to show better
                             borderRadius: '16px',
                             background: card.gradient,
-                            color: COLORS.white,
+                            color: colors.pureWhite,
                             cursor: onCardClick ? 'pointer' : 'default',
                             boxShadow: `0 8px 16px -4px ${card.shadowColor}`,
                             transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
@@ -650,7 +659,7 @@ const AttendanceSummaryCards = React.memo(({
                                 right: '-10%',
                                 width: '120px',
                                 height: '120px',
-                                background: 'rgba(255, 255, 255, 0.1)',
+                                background: alpha(colors.pureWhite, 0.1),
                                 borderRadius: '50%',
                                 zIndex: 0
                             }
@@ -670,8 +679,8 @@ const AttendanceSummaryCards = React.memo(({
                                 sx={{ 
                                     p: 1.5, 
                                     borderRadius: '12px', 
-                                    bgcolor: 'rgba(255, 255, 255, 0.2)',
-                                    color: COLORS.white,
+                                    bgcolor: alpha(colors.pureWhite, 0.2),
+                                    color: colors.pureWhite,
                                     display: 'flex',
                                     boxShadow: '0 4px 10px rgba(0, 0, 0, 0.1)',
                                     transition: 'transform 0.3s ease'
@@ -679,7 +688,7 @@ const AttendanceSummaryCards = React.memo(({
                             >
                                 {React.cloneElement(card.icon as React.ReactElement, { sx: { fontSize: 24 } })}
                             </Box>
-                            <Typography variant="h3" fontWeight="800" sx={{ color: COLORS.white, letterSpacing: '-1px' }}>
+                            <Typography variant="h3" fontWeight="800" sx={{ color: colors.pureWhite, letterSpacing: '-1px' }}>
                                 {card.value}
                             </Typography>
                         </Box>
@@ -694,131 +703,6 @@ const AttendanceSummaryCards = React.memo(({
 });
 
 // Quick View Menu Component
-const QuickViewMenu = React.memo(({ 
-    filters,
-    theme
-}: {
-    filters: any;
-    theme: any;
-}) => {
-    const { t, i18n } = useTranslation();
-    const isRtl = i18n.language === 'ar';
-    const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null);
-    const open = Boolean(anchorEl);
-
-    const handleClick = (event: React.MouseEvent<HTMLElement>) => {
-        setAnchorEl(event.currentTarget);
-    };
-
-    const handleClose = () => {
-        setAnchorEl(null);
-    };
-
-    const getCurrentLabel = () => {
-        switch (filters.quickView) {
-            case 'today': return t('Today');
-            case 'week': return t('Week');
-            case 'month': return t('Month');
-            default: return t('Quick View');
-        }
-    };
-
-    const getCurrentIcon = () => {
-        switch (filters.quickView) {
-            case 'today': return <Today />;
-            case 'week': return <Event />;
-            case 'month': return <CalendarToday />;
-            default: return <Schedule />;
-        }
-    };
-
-    return (
-        <>
-            <Button
-                onClick={handleClick}
-                startIcon={getCurrentIcon()}
-                endIcon={<ExpandMore />}
-                variant="outlined"
-                size="small"
-                sx={{
-                    minWidth: 120,
-                    fontWeight: 700,
-                    textTransform: 'none',
-                    borderRadius: '8px',
-                    borderColor: '#E9ECEF',
-                    color: COLORS.dark,
-                    bgcolor: COLORS.white,
-                    boxShadow: SHADOWS.xs,
-                    px: 2,
-                    py: 0.75,
-                    '&:hover': {
-                        borderColor: COLORS.primary,
-                        backgroundColor: alpha(COLORS.primary, 0.05),
-                        boxShadow: SHADOWS.sm
-                    }
-                }}
-            >
-                {getCurrentLabel()}
-            </Button>
-            <Menu
-                anchorEl={anchorEl}
-                open={open}
-                onClose={handleClose}
-                elevation={0}
-                anchorOrigin={{
-                    vertical: 'bottom',
-                    horizontal: isRtl ? 'right' : 'left',
-                }}
-                transformOrigin={{
-                    vertical: 'top',
-                    horizontal: isRtl ? 'right' : 'left',
-                }}
-                PaperProps={{
-                    sx: {
-                        mt: 1,
-                        borderRadius: '12px',
-                        boxShadow: SHADOWS.lg,
-                        border: `1px solid ${alpha(COLORS.dark, 0.05)}`,
-                        minWidth: 160,
-                        '& .MuiMenuItem-root': {
-                            fontSize: '0.875rem',
-                            fontWeight: 600,
-                            borderRadius: '8px',
-                            mx: 1,
-                            my: 0.5,
-                            gap: 1.5,
-                            color: COLORS.dark,
-                            '&:hover': {
-                                bgcolor: alpha(COLORS.primary, 0.05),
-                                color: COLORS.primary
-                            }
-                        }
-                    }
-                }}
-            >
-                <MenuItem onClick={() => { filters.handleQuickView('today'); handleClose(); }}>
-                    <ListItemIcon sx={{ minWidth: 'auto !important' }}>
-                        <Today fontSize="small" />
-                    </ListItemIcon>
-                    <ListItemText>{t('Today')}</ListItemText>
-                </MenuItem>
-                <MenuItem onClick={() => { filters.handleQuickView('week'); handleClose(); }}>
-                    <ListItemIcon sx={{ minWidth: 'auto !important' }}>
-                        <Event fontSize="small" />
-                    </ListItemIcon>
-                    <ListItemText>{t('This Week')}</ListItemText>
-                </MenuItem>
-                <MenuItem onClick={() => { filters.handleQuickView('month'); handleClose(); }}>
-                    <ListItemIcon sx={{ minWidth: 'auto !important' }}>
-                        <CalendarToday fontSize="small" />
-                    </ListItemIcon>
-                    <ListItemText>{t('This Month')}</ListItemText>
-                </MenuItem>
-            </Menu>
-        </>
-    );
-});
-
 // Action Menu Component
 // Add AttendanceMoreActions component
 const AttendanceMoreActions = React.memo(({
@@ -831,12 +715,14 @@ const AttendanceMoreActions = React.memo(({
     filters: any;
     onRefresh: () => void;
     loading?: boolean;
-    theme: any;
+    theme: Theme;
     rows: any[];
 }) => {
     const { t, i18n } = useTranslation();
     const { confirm, alert: showAlert } = useConfirm();
     const isRtl = i18n.language === 'ar';
+    const colors = getAttendanceColors(theme);
+    const shadows = getAttendanceShadows(theme);
     const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null);
     const open = Boolean(anchorEl);
 
@@ -850,7 +736,6 @@ const AttendanceMoreActions = React.memo(({
 
     const handleRawViewToggle = () => {
         filters.setRawView(!filters.rawView);
-        filters.setQuickView(null);
         handleClose();
     };
 
@@ -925,16 +810,16 @@ const AttendanceMoreActions = React.memo(({
                     fontWeight: 700,
                     textTransform: 'none',
                     borderRadius: '8px',
-                    borderColor: '#E9ECEF',
-                    color: COLORS.dark,
-                    bgcolor: COLORS.white,
-                    boxShadow: SHADOWS.xs,
+                    borderColor: colors.light,
+                    color: colors.dark,
+                    bgcolor: colors.white,
+                    boxShadow: shadows.xs,
                     px: 2,
                     py: 0.75,
                     '&:hover': {
-                        borderColor: COLORS.primary,
-                        backgroundColor: alpha(COLORS.primary, 0.05),
-                        boxShadow: SHADOWS.sm
+                        borderColor: colors.primary,
+                        backgroundColor: alpha(colors.primary, 0.05),
+                        boxShadow: shadows.sm
                     }
                 }}
             >
@@ -957,8 +842,8 @@ const AttendanceMoreActions = React.memo(({
                     sx: {
                         mt: 1,
                         borderRadius: '12px',
-                        boxShadow: SHADOWS.lg,
-                        border: `1px solid ${alpha(COLORS.dark, 0.05)}`,
+                        boxShadow: shadows.lg,
+                        border: `1px solid ${alpha(colors.dark, 0.05)}`,
                         minWidth: 180,
                         '& .MuiMenuItem-root': {
                             fontSize: '0.875rem',
@@ -967,10 +852,10 @@ const AttendanceMoreActions = React.memo(({
                             mx: 1,
                             my: 0.5,
                             gap: 1.5,
-                            color: COLORS.dark,
+                            color: colors.dark,
                             '&:hover': {
-                                bgcolor: alpha(COLORS.primary, 0.05),
-                                color: COLORS.primary
+                                bgcolor: alpha(colors.primary, 0.05),
+                                color: colors.primary
                             }
                         }
                     }
@@ -978,7 +863,7 @@ const AttendanceMoreActions = React.memo(({
             >
                 <MenuItem 
                     onClick={handleRawViewToggle}
-                    disabled={filters.viewMode === 'calendar' || filters.viewMode === 'matrix' || filters.viewMode === 'month' || filters.viewMode === 'analytics'}
+                    disabled={filters.viewMode === 'month' || filters.viewMode === 'analytics'}
                 >
                     <ListItemIcon sx={{ minWidth: 'auto !important' }}>
                         {filters.rawView ? <TableChart fontSize="small" /> : <ViewList fontSize="small" />}
@@ -1025,10 +910,10 @@ const AttendanceMoreActions = React.memo(({
                             }
                         }
                     }}
-                    sx={{ color: COLORS.error, '&:hover': { bgcolor: alpha(COLORS.error, 0.05) + ' !important' } }}
+                    sx={{ color: colors.error, '&:hover': { bgcolor: alpha(colors.error, 0.05) + ' !important' } }}
                 >
                     <ListItemIcon sx={{ minWidth: 'auto !important' }}>
-                        <Delete fontSize="small" sx={{ color: COLORS.error }} />
+                        <Delete fontSize="small" sx={{ color: colors.error }} />
                     </ListItemIcon>
                     <ListItemText>{t('Clear All Logs')}</ListItemText>
                 </MenuItem>
@@ -1042,6 +927,7 @@ const AttendanceControls = React.memo(({
     filters,
     employees,
     departments,
+    shifts,
     onFilterChange,
     onApplyFilters,
     onRefresh,
@@ -1051,6 +937,7 @@ const AttendanceControls = React.memo(({
     filters: any;
     employees: any[];
     departments: Department[];
+    shifts: any[];
     onFilterChange: (key: string, value: any) => void;
     onApplyFilters: () => void;
     onRefresh: () => void;
@@ -1059,6 +946,27 @@ const AttendanceControls = React.memo(({
 }) => {
     const { t } = useTranslation();
     const theme = useTheme();
+    const colors = getAttendanceColors(theme);
+    const shadows = getAttendanceShadows(theme);
+
+    const [searchValue, setSearchValue] = useState(filters.search);
+    const debounceTimerRef = React.useRef<NodeJS.Timeout | null>(null);
+
+    // Sync local search with filter state (e.g. when cleared externally)
+    useEffect(() => {
+        setSearchValue(filters.search);
+    }, [filters.search]);
+
+    const handleSearchChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const value = e.target.value;
+        setSearchValue(value);
+        
+        if (debounceTimerRef.current) clearTimeout(debounceTimerRef.current);
+        
+        debounceTimerRef.current = setTimeout(() => {
+            onFilterChange('search', value);
+        }, 500);
+    };
 
     return (
         <Paper 
@@ -1067,16 +975,16 @@ const AttendanceControls = React.memo(({
                 p: 2.5,
                 mb: 3,
                 borderRadius: '16px',
-                backgroundColor: COLORS.white,
-                boxShadow: SHADOWS.md,
-                border: `1px solid ${alpha(COLORS.secondary, 0.05)}`,
+                backgroundColor: colors.white,
+                boxShadow: shadows.md,
+                border: `1px solid ${alpha(colors.secondary, 0.05)}`,
             }}
         >
             {/* Main Controls Row */}
             <Stack direction="row" spacing={2} alignItems="center" sx={{ mb: 3, flexWrap: 'wrap', gap: 2 }}>
                 {/* View Mode Selection */}
                 <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-                    <Typography variant="subtitle2" fontWeight="800" sx={{ color: COLORS.dark, textTransform: 'uppercase', fontSize: '0.75rem', letterSpacing: '0.5px' }}>
+                    <Typography variant="subtitle2" fontWeight="800" sx={{ color: colors.dark, textTransform: 'uppercase', fontSize: '0.75rem', letterSpacing: '0.5px' }}>
                         {t('View Mode')}
                     </Typography>
                     <ToggleButtonGroup
@@ -1085,7 +993,7 @@ const AttendanceControls = React.memo(({
                         onChange={(_, v) => v && filters.handleViewModeChange(v)}
                         size="small"
                         sx={{
-                            backgroundColor: alpha(COLORS.bg, 0.8),
+                            backgroundColor: alpha(colors.light, 0.8),
                             borderRadius: '10px',
                             p: 0.5,
                             border: 'none',
@@ -1097,34 +1005,26 @@ const AttendanceControls = React.memo(({
                                 textTransform: 'none',
                                 border: 'none',
                                 borderRadius: '8px !important',
-                                color: COLORS.secondary,
+                                color: colors.secondary,
                                 transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)',
                                 '&.Mui-selected': {
-                                    backgroundColor: COLORS.white,
-                                    color: COLORS.primary,
-                                    boxShadow: SHADOWS.sm,
+                                    backgroundColor: colors.white,
+                                    color: colors.primary,
+                                    boxShadow: shadows.sm,
                                     '&:hover': {
-                                        backgroundColor: COLORS.white,
+                                        backgroundColor: colors.white,
                                     }
                                 },
                                 '&:hover': {
-                                    backgroundColor: alpha(COLORS.white, 0.5),
-                                    color: COLORS.primary
+                                    backgroundColor: alpha(colors.white, 0.5),
+                                    color: colors.primary
                                 }
                             }
                         }}
                     >
-                        <ToggleButton value="matrix">
-                            <Schedule sx={{ marginInlineEnd: 1, fontSize: 18 }} />
-                            {t('Matrix')}
-                        </ToggleButton>
                         <ToggleButton value="month">
                             <CalendarToday sx={{ marginInlineEnd: 1, fontSize: 18 }} />
                             {t('Month')}
-                        </ToggleButton>
-                        <ToggleButton value="calendar">
-                            <Event sx={{ marginInlineEnd: 1, fontSize: 18 }} />
-                            {t('Calendar')}
                         </ToggleButton>
                         <ToggleButton value="table">
                             <TableChart sx={{ marginInlineEnd: 1, fontSize: 18 }} />
@@ -1135,23 +1035,12 @@ const AttendanceControls = React.memo(({
                             {t('Analytics')}
                         </ToggleButton>
                     </ToggleButtonGroup>
-                </Box>
+            </Box>
 
-                <Divider orientation="vertical" flexItem sx={{ mx: 1, height: 24, alignSelf: 'center', opacity: 0.1 }} />
+            <Divider orientation="vertical" flexItem sx={{ mx: 1, height: 24, alignSelf: 'center', opacity: 0.1 }} />
 
-                {/* Quick View Menu */}
-                <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-                    <Typography variant="subtitle2" fontWeight="800" sx={{ color: COLORS.dark, textTransform: 'uppercase', fontSize: '0.75rem', letterSpacing: '0.5px' }}>
-                        {t('Quick View')}
-                    </Typography>
-                    <QuickViewMenu 
-                        filters={filters} 
-                        theme={theme} 
-                    />
-                </Box>
-
-                {/* Action Menu */}
-                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, marginInlineStart: 'auto' }}>
+            {/* Action Menu */}
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, marginInlineStart: 'auto' }}>
                     <AttendanceMoreActions 
                         filters={filters} 
                         onRefresh={onRefresh} 
@@ -1163,12 +1052,112 @@ const AttendanceControls = React.memo(({
             </Stack>
 
             {/* Filters Row */}
-            <Grid container spacing={2.5} alignItems="flex-end">
+            <Grid container spacing={2} alignItems="flex-end">
+                {/* Search Bar */}
+                <Grid item xs={12} sm={6} md={3}>
+                    <Typography variant="caption" fontWeight="800" sx={{ color: colors.secondary, mb: 0.5, display: 'block', textTransform: 'uppercase', ml: 0.5 }}>
+                        {t('Smart Search')}
+                    </Typography>
+                    <TextField
+                        fullWidth
+                        size="small"
+                        placeholder={t('Search by name or ID...')}
+                        value={searchValue}
+                        onChange={handleSearchChange}
+                        onKeyPress={(e) => e.key === 'Enter' && onApplyFilters()}
+                        InputProps={{
+                            startAdornment: (
+                                <InputAdornment position="start">
+                                    <Search sx={{ color: colors.primary, fontSize: 20 }} />
+                                </InputAdornment>
+                            ),
+                            endAdornment: searchValue && (
+                                <InputAdornment position="end">
+                                    <IconButton 
+                                        size="small" 
+                                        onClick={() => {
+                                            setSearchValue('');
+                                            onFilterChange('search', '');
+                                        }}
+                                        sx={{ color: colors.secondary }}
+                                    >
+                                        <Close fontSize="small" />
+                                    </IconButton>
+                                </InputAdornment>
+                            ),
+                            sx: {
+                                borderRadius: '10px',
+                                bgcolor: colors.white,
+                                '& fieldset': { borderColor: alpha(colors.secondary, 0.2) },
+                                '&:hover fieldset': { borderColor: colors.primary },
+                                '&.Mui-focused fieldset': { borderColor: colors.primary, borderWidth: '2px' },
+                            }
+                        }}
+                    />
+                </Grid>
+
+                {/* Status Filter */}
+                <Grid item xs={12} sm={6} md={2}>
+                    <Typography variant="caption" fontWeight="800" sx={{ color: colors.secondary, mb: 0.5, display: 'block', textTransform: 'uppercase', ml: 0.5 }}>
+                        {t('Status')}
+                    </Typography>
+                    <FormControl fullWidth size="small">
+                        <Select
+                            value={filters.selectedStatus}
+                            onChange={(e) => onFilterChange('selectedStatus', e.target.value)}
+                            displayEmpty
+                            sx={{
+                                borderRadius: '10px',
+                                bgcolor: colors.white,
+                                '& .MuiOutlinedInput-notchedOutline': { borderColor: alpha(colors.secondary, 0.2) },
+                                '&:hover .MuiOutlinedInput-notchedOutline': { borderColor: colors.primary },
+                                '&.Mui-focused .MuiOutlinedInput-notchedOutline': { borderColor: colors.primary, borderWidth: '2px' }
+                            }}
+                        >
+                            <MenuItem value="">{t('All Status')}</MenuItem>
+                            <MenuItem value="present">{t('Present')}</MenuItem>
+                            <MenuItem value="late">{t('Late')}</MenuItem>
+                            <MenuItem value="early_leave">{t('Early Leave')}</MenuItem>
+                            <MenuItem value="absent">{t('Absent')}</MenuItem>
+                            <MenuItem value="overtime">{t('Overtime')}</MenuItem>
+                            <MenuItem value="ongoing">{t('Ongoing')}</MenuItem>
+                        </Select>
+                    </FormControl>
+                </Grid>
+
+                {/* Shift Filter */}
+                <Grid item xs={12} sm={6} md={2}>
+                    <Typography variant="caption" fontWeight="800" sx={{ color: colors.secondary, mb: 0.5, display: 'block', textTransform: 'uppercase', ml: 0.5 }}>
+                        {t('Shift')}
+                    </Typography>
+                    <FormControl fullWidth size="small">
+                        <Select
+                            value={filters.selectedShift}
+                            onChange={(e) => onFilterChange('selectedShift', e.target.value)}
+                            displayEmpty
+                            sx={{
+                                borderRadius: '10px',
+                                bgcolor: colors.white,
+                                '& .MuiOutlinedInput-notchedOutline': { borderColor: alpha(colors.secondary, 0.2) },
+                                '&:hover .MuiOutlinedInput-notchedOutline': { borderColor: colors.primary },
+                                '&.Mui-focused .MuiOutlinedInput-notchedOutline': { borderColor: colors.primary, borderWidth: '2px' }
+                            }}
+                        >
+                            <MenuItem value="">{t('All Shifts')}</MenuItem>
+                            {shifts.map((shift) => (
+                                <MenuItem key={shift.id} value={shift.name}>
+                                    {shift.name}
+                                </MenuItem>
+                            ))}
+                        </Select>
+                    </FormControl>
+                </Grid>
+
                 {/* Date Range */}
-                {(filters.viewMode === 'table' || filters.viewMode === 'matrix' || filters.viewMode === 'analytics') && (
+                {(filters.viewMode === 'table' || filters.viewMode === 'analytics') ? (
                     <>
-                        <Grid item xs={12} sm={6} md={2}>
-                            <Typography variant="caption" fontWeight="800" sx={{ color: COLORS.secondary, mb: 0.5, display: 'block', textTransform: 'uppercase', ml: 0.5 }}>
+                        <Grid item xs={12} sm={6} md={2.5}>
+                            <Typography variant="caption" fontWeight="800" sx={{ color: colors.secondary, mb: 0.5, display: 'block', textTransform: 'uppercase', ml: 0.5 }}>
                                 {t('Start Date')}
                             </Typography>
                             <DatePicker
@@ -1182,18 +1171,18 @@ const AttendanceControls = React.memo(({
                                         sx: {
                                             '& .MuiOutlinedInput-root': {
                                                 borderRadius: '10px',
-                                                bgcolor: COLORS.white,
-                                                '& fieldset': { borderColor: alpha(COLORS.secondary, 0.2) },
-                                                '&:hover fieldset': { borderColor: COLORS.primary },
-                                                '&.Mui-focused fieldset': { borderColor: COLORS.primary, borderWidth: '2px' },
+                                                bgcolor: colors.white,
+                                                '& fieldset': { borderColor: alpha(colors.secondary, 0.2) },
+                                                '&:hover fieldset': { borderColor: colors.primary },
+                                                '&.Mui-focused fieldset': { borderColor: colors.primary, borderWidth: '2px' },
                                             }
                                         }
                                     }
                                 }}
                             />
                         </Grid>
-                        <Grid item xs={12} sm={6} md={2}>
-                            <Typography variant="caption" fontWeight="800" sx={{ color: COLORS.secondary, mb: 0.5, display: 'block', textTransform: 'uppercase', ml: 0.5 }}>
+                        <Grid item xs={12} sm={6} md={2.5}>
+                            <Typography variant="caption" fontWeight="800" sx={{ color: colors.secondary, mb: 0.5, display: 'block', textTransform: 'uppercase', ml: 0.5 }}>
                                 {t('End Date')}
                             </Typography>
                             <DatePicker
@@ -1207,10 +1196,10 @@ const AttendanceControls = React.memo(({
                                         sx: {
                                             '& .MuiOutlinedInput-root': {
                                                 borderRadius: '10px',
-                                                bgcolor: COLORS.white,
-                                                '& fieldset': { borderColor: alpha(COLORS.secondary, 0.2) },
-                                                '&:hover fieldset': { borderColor: COLORS.primary },
-                                                '&.Mui-focused fieldset': { borderColor: COLORS.primary, borderWidth: '2px' },
+                                                bgcolor: colors.white,
+                                                '& fieldset': { borderColor: alpha(colors.secondary, 0.2) },
+                                                '&:hover fieldset': { borderColor: colors.primary },
+                                                '&.Mui-focused fieldset': { borderColor: colors.primary, borderWidth: '2px' },
                                             }
                                         }
                                     }
@@ -1218,11 +1207,13 @@ const AttendanceControls = React.memo(({
                             />
                         </Grid>
                     </>
+                ) : (
+                    <Grid item xs={12} md={5}></Grid>
                 )}
 
-                {/* Department Filter */}
-                <Grid item xs={12} sm={6} md={filters.viewMode === 'table' || filters.viewMode === 'matrix' || filters.viewMode === 'analytics' ? 2 : 3}>
-                    <Typography variant="caption" fontWeight="800" sx={{ color: COLORS.secondary, mb: 0.5, display: 'block', textTransform: 'uppercase', ml: 0.5 }}>
+                {/* Second Row of Filters */}
+                <Grid item xs={12} sm={6} md={3}>
+                    <Typography variant="caption" fontWeight="800" sx={{ color: colors.secondary, mb: 0.5, display: 'block', textTransform: 'uppercase', ml: 0.5 }}>
                         {t('Department')}
                     </Typography>
                     <FormControl fullWidth size="small">
@@ -1232,10 +1223,10 @@ const AttendanceControls = React.memo(({
                             displayEmpty
                             sx={{
                                 borderRadius: '10px',
-                                bgcolor: COLORS.white,
-                                '& .MuiOutlinedInput-notchedOutline': { borderColor: alpha(COLORS.secondary, 0.2) },
-                                '&:hover .MuiOutlinedInput-notchedOutline': { borderColor: COLORS.primary },
-                                '&.Mui-focused .MuiOutlinedInput-notchedOutline': { borderColor: COLORS.primary, borderWidth: '2px' }
+                                bgcolor: colors.white,
+                                '& .MuiOutlinedInput-notchedOutline': { borderColor: alpha(colors.secondary, 0.2) },
+                                '&:hover .MuiOutlinedInput-notchedOutline': { borderColor: colors.primary },
+                                '&.Mui-focused .MuiOutlinedInput-notchedOutline': { borderColor: colors.primary, borderWidth: '2px' }
                             }}
                         >
                             <MenuItem value="">{t('All Departments')}</MenuItem>
@@ -1248,9 +1239,8 @@ const AttendanceControls = React.memo(({
                     </FormControl>
                 </Grid>
 
-                {/* Employee Filter */}
-                <Grid item xs={12} sm={6} md={filters.viewMode === 'table' || filters.viewMode === 'matrix' || filters.viewMode === 'analytics' ? 2 : 3}>
-                    <Typography variant="caption" fontWeight="800" sx={{ color: COLORS.secondary, mb: 0.5, display: 'block', textTransform: 'uppercase', ml: 0.5 }}>
+                <Grid item xs={12} sm={6} md={4}>
+                    <Typography variant="caption" fontWeight="800" sx={{ color: colors.secondary, mb: 0.5, display: 'block', textTransform: 'uppercase', ml: 0.5 }}>
                         {t('Employee')}
                     </Typography>
                     <FormControl fullWidth size="small">
@@ -1260,10 +1250,10 @@ const AttendanceControls = React.memo(({
                             displayEmpty
                             sx={{
                                 borderRadius: '10px',
-                                bgcolor: COLORS.white,
-                                '& .MuiOutlinedInput-notchedOutline': { borderColor: alpha(COLORS.secondary, 0.2) },
-                                '&:hover .MuiOutlinedInput-notchedOutline': { borderColor: COLORS.primary },
-                                '&.Mui-focused .MuiOutlinedInput-notchedOutline': { borderColor: COLORS.primary, borderWidth: '2px' }
+                                bgcolor: colors.white,
+                                '& .MuiOutlinedInput-notchedOutline': { borderColor: alpha(colors.secondary, 0.2) },
+                                '&:hover .MuiOutlinedInput-notchedOutline': { borderColor: colors.primary },
+                                '&.Mui-focused .MuiOutlinedInput-notchedOutline': { borderColor: colors.primary, borderWidth: '2px' }
                             }}
                         >
                             <MenuItem value="">{t('All Employees')}</MenuItem>
@@ -1278,38 +1268,60 @@ const AttendanceControls = React.memo(({
                     </FormControl>
                 </Grid>
 
-                {/* Apply Filters Button */}
-                {(filters.viewMode === 'table' || filters.viewMode === 'matrix' || filters.viewMode === 'analytics') && (
-                    <Grid item xs={12} md={2}>
-                        <Button
-                            fullWidth
-                            variant="contained"
-                            onClick={onApplyFilters}
-                            disabled={loading}
-                            startIcon={loading ? <CircularProgress size={18} color="inherit" /> : <Refresh />}
-                            sx={{
-                                height: '40px',
-                                background: COLORS.gradientPrimary,
-                                color: COLORS.white,
-                                borderRadius: '10px',
-                                fontWeight: 800,
-                                textTransform: 'none',
-                                boxShadow: SHADOWS.sm,
-                                transition: 'all 0.3s ease',
-                                '&:hover': {
-                                    boxShadow: SHADOWS.md,
-                                    transform: 'translateY(-1px)',
-                                    opacity: 0.95
-                                },
-                                '&:active': {
-                                    transform: 'translateY(0)'
-                                }
-                            }}
-                        >
-                            {t('Apply')}
-                        </Button>
-                    </Grid>
-                )}
+                <Grid item xs={12} md={1.5}>
+                    <Button
+                        fullWidth
+                        variant="contained"
+                        onClick={onApplyFilters}
+                        disabled={loading}
+                        startIcon={loading ? <CircularProgress size={18} color="inherit" /> : <Refresh />}
+                        sx={{
+                            height: '40px',
+                            background: colors.gradientPrimary,
+                            color: colors.pureWhite,
+                            borderRadius: '10px',
+                            fontWeight: 800,
+                            textTransform: 'none',
+                            boxShadow: shadows.sm,
+                            transition: 'all 0.3s ease',
+                            '&:hover': {
+                                boxShadow: shadows.md,
+                                transform: 'translateY(-1px)',
+                                opacity: 0.95
+                            }
+                        }}
+                    >
+                        {t('Refresh')}
+                    </Button>
+                </Grid>
+
+                <Grid item xs={12} md={1.5}>
+                    <Button
+                        fullWidth
+                        variant="outlined"
+                        onClick={filters.clearFilters}
+                        startIcon={<FilterListOff />}
+                        sx={{
+                            height: '40px',
+                            borderRadius: '10px',
+                            textTransform: 'none',
+                            fontWeight: 700,
+                            color: colors.secondary,
+                            borderColor: alpha(colors.secondary, 0.2),
+                            '&:hover': {
+                                borderColor: colors.error,
+                                color: colors.error,
+                                bgcolor: alpha(colors.error, 0.05)
+                            }
+                        }}
+                    >
+                        {t('Clear')}
+                    </Button>
+                </Grid>
+
+                <Grid item xs={12} md={3}>
+                    {/* Placeholder for alignment */}
+                </Grid>
             </Grid>
         </Paper>
     );
@@ -1335,6 +1347,10 @@ const TableView = React.memo(({
     handlePageChange: (event: React.MouseEvent<HTMLButtonElement> | null, newPage: number) => void;
     handleRowsPerPageChange: (event: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => void;
 }) => {
+    const theme = useTheme();
+    const colors = getAttendanceColors(theme);
+    const shadows = getAttendanceShadows(theme);
+
     return (
         <Box sx={{ mt: 3 }}>
             <Paper 
@@ -1344,8 +1360,8 @@ const TableView = React.memo(({
                     width: '100%',
                     borderRadius: '16px',
                     overflow: 'hidden',
-                    boxShadow: SHADOWS.md,
-                    backgroundColor: COLORS.white,
+                    boxShadow: shadows.md,
+                    backgroundColor: colors.white,
                     border: 'none'
                 }}
             >
@@ -1361,24 +1377,24 @@ const TableView = React.memo(({
                             quickFilterProps: { debounceMs: 500 },
                             sx: {
                                 p: 2.5,
-                                borderBottom: `1px solid ${alpha(COLORS.secondary, 0.05)}`,
+                                borderBottom: `1px solid ${alpha(colors.secondary, 0.05)}`,
                                 '& .MuiButton-root': { 
-                                    color: COLORS.primary, 
+                                    color: colors.primary, 
                                     fontWeight: 700,
                                     textTransform: 'none',
                                     fontSize: '0.8rem',
                                     borderRadius: '8px',
-                                    '&:hover': { bgcolor: alpha(COLORS.primary, 0.05) }
+                                    '&:hover': { bgcolor: alpha(colors.primary, 0.05) }
                                 },
                                 '& .MuiInputBase-root': { 
                                     borderRadius: '10px',
-                                    bgcolor: COLORS.bg,
+                                    bgcolor: colors.bg,
                                     px: 2,
                                     py: 0.5,
                                     border: '1px solid transparent',
                                     transition: 'all 0.2s',
-                                    '&:hover': { borderColor: alpha(COLORS.primary, 0.2) },
-                                    '&.Mui-focused': { borderColor: COLORS.primary, bgcolor: COLORS.white, boxShadow: SHADOWS.xs },
+                                    '&:hover': { borderColor: alpha(colors.primary, 0.2) },
+                                    '&.Mui-focused': { borderColor: colors.primary, bgcolor: colors.white, boxShadow: shadows.xs },
                                     '&:before, &:after': { display: 'none' }
                                 }
                             }
@@ -1388,19 +1404,19 @@ const TableView = React.memo(({
                         border: 'none',
                         '& .MuiDataGrid-main': { borderRadius: '16px' },
                         '& .MuiDataGrid-columnHeaders': {
-                            backgroundColor: alpha(COLORS.bg, 0.5),
-                            borderBottom: `1px solid ${alpha(COLORS.secondary, 0.1)}`,
+                            backgroundColor: alpha(colors.bg, 0.5),
+                            borderBottom: `1px solid ${alpha(colors.secondary, 0.1)}`,
                             '& .MuiDataGrid-columnHeaderTitle': {
                                 fontWeight: 700,
-                                color: COLORS.dark,
+                                color: colors.dark,
                                 fontSize: '0.8rem',
                                 textTransform: 'uppercase',
                                 letterSpacing: '0.5px'
                             }
                         },
                         '& .MuiDataGrid-cell': {
-                            borderBottom: `1px solid ${alpha(COLORS.secondary, 0.05)}`,
-                            color: COLORS.secondary,
+                            borderBottom: `1px solid ${alpha(colors.secondary, 0.05)}`,
+                            color: colors.secondary,
                             fontSize: '0.85rem',
                             fontWeight: 500,
                             '&:focus': { outline: 'none' }
@@ -1408,14 +1424,14 @@ const TableView = React.memo(({
                         '& .MuiDataGrid-row': {
                             transition: 'all 0.2s',
                             '&:hover': {
-                                backgroundColor: alpha(COLORS.primary, 0.04),
+                                backgroundColor: alpha(colors.primary, 0.04),
                                 cursor: 'pointer'
                             }
                         },
                         '& .MuiLinearProgress-root': {
                             height: 4,
-                            bgcolor: alpha(COLORS.primary, 0.1),
-                            '& .MuiLinearProgress-bar': { background: COLORS.gradientPrimary }
+                            bgcolor: alpha(colors.primary, 0.1),
+                            '& .MuiLinearProgress-bar': { background: colors.gradientPrimary }
                         }
                     }}
                 />
@@ -1424,9 +1440,9 @@ const TableView = React.memo(({
                 display: 'flex', 
                 justifyContent: 'flex-end', 
                 mt: 2,
-                bgcolor: COLORS.white,
+                bgcolor: colors.white,
                 borderRadius: '12px',
-                boxShadow: SHADOWS.sm,
+                boxShadow: shadows.sm,
                 p: 0.5
             }}>
                 <TablePagination
@@ -1440,94 +1456,13 @@ const TableView = React.memo(({
                     sx={{ 
                         border: 'none',
                         '& .MuiTablePagination-selectLabel, & .MuiTablePagination-displayedRows': {
-                            color: COLORS.secondary,
+                            color: colors.secondary,
                             fontWeight: 700,
                             fontSize: '0.8rem'
                         },
                         '& .MuiTablePagination-select': {
                             fontWeight: 700,
-                            color: COLORS.primary
-                        }
-                    }}
-                />
-            </Box>
-        </Box>
-    );
-});
-
-// Optimized Matrix View Component
-const MatrixView = React.memo(({
-    rows,
-    employees,
-    loading,
-    filters,
-    totalEmployees,
-    page,
-    rowsPerPage,
-    handlePageChange,
-    handleRowsPerPageChange,
-    handleDateChange,
-    handleZoomChange
-}: {
-    rows: AttendanceRecord[];
-    employees: any[];
-    loading: boolean;
-    filters: any;
-    totalEmployees: number;
-    page: number;
-    rowsPerPage: number;
-    handlePageChange: (event: React.MouseEvent<HTMLButtonElement> | null, newPage: number) => void;
-    handleRowsPerPageChange: (event: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => void;
-    handleDateChange: (date: Date) => void;
-    handleZoomChange: (zoom: string) => void;
-}) => {
-    return (
-        <Box sx={{ mt: 3 }}>
-            <Paper 
-                elevation={0}
-                sx={{
-                    p: 0,
-                    borderRadius: '16px',
-                    overflow: 'hidden',
-                    boxShadow: SHADOWS.md,
-                    backgroundColor: COLORS.white,
-                    border: 'none'
-                }}
-            >
-                <AttendanceTimeline
-                    data={rows}
-                    employees={filters.selectedEmployee ? employees.filter(e => e.employee_id === filters.selectedEmployee) : employees}
-                    loading={loading}
-                    viewDate={filters.startDate || new Date()}
-                    endDate={filters.endDate || undefined}
-                    onDateChange={handleDateChange}
-                    zoomLevel={filters.zoomLevel}
-                    onZoomChange={handleZoomChange}
-                />
-            </Paper>
-            <Box sx={{ 
-                display: 'flex', 
-                justifyContent: 'flex-end', 
-                mt: 2,
-                bgcolor: COLORS.white,
-                borderRadius: '12px',
-                boxShadow: SHADOWS.sm,
-                p: 0.5
-            }}>
-                <TablePagination
-                    component="div"
-                    count={totalEmployees}
-                    page={page}
-                    onPageChange={handlePageChange}
-                    rowsPerPage={rowsPerPage}
-                    onRowsPerPageChange={handleRowsPerPageChange}
-                    rowsPerPageOptions={[10, 25, 50, 100]}
-                    sx={{ 
-                        border: 'none',
-                        '& .MuiTablePagination-selectLabel, & .MuiTablePagination-displayedRows': {
-                            color: COLORS.secondary,
-                            fontWeight: 700,
-                            fontSize: '0.8rem'
+                            color: colors.primary
                         }
                     }}
                 />
@@ -1539,6 +1474,8 @@ const MatrixView = React.memo(({
 // Main AttendancePage Component - Optimized
 const AttendancePage: React.FC = () => {
     const theme = useTheme();
+    const colors = getAttendanceColors(theme);
+    const shadows = getAttendanceShadows(theme);
     const { t } = useTranslation();
     const { alert: showAlert } = useConfirm();
 
@@ -1549,6 +1486,9 @@ const AttendancePage: React.FC = () => {
         endDate: filters.endDate,
         selectedEmployee: filters.selectedEmployee,
         selectedDepartment: filters.selectedDepartment,
+        selectedStatus: filters.selectedStatus,
+        selectedShift: filters.selectedShift,
+        search: filters.search,
         rawView: filters.rawView,
         viewMode: filters.viewMode,
         currentMonth: filters.currentMonth
@@ -1563,9 +1503,10 @@ const AttendancePage: React.FC = () => {
         currently_in: 0
     });
 
-    // State for employees and departments
+    // State for employees, departments and shifts
     const [employees, setEmployees] = useState<any[]>([]);
     const [departments, setDepartments] = useState<Department[]>([]);
+    const [shifts, setShifts] = useState<any[]>([]);
     const [page, setPage] = useState(0);
     const [rowsPerPage, setRowsPerPage] = useState(10);
     const [totalEmployees, setTotalEmployees] = useState(0);
@@ -1576,6 +1517,7 @@ const AttendancePage: React.FC = () => {
         try {
             const params = new URLSearchParams();
             if (filters.selectedDepartment) params.append('department', filters.selectedDepartment);
+            if (filters.selectedShift) params.append('shift', filters.selectedShift);
             const res = await api.get(`hr/dashboard?${params}`);
             setSummary(res.data);
         } catch (error) {
@@ -1583,11 +1525,15 @@ const AttendancePage: React.FC = () => {
         } finally {
             setSummaryLoading(false);
         }
-    }, [filters.selectedDepartment]);
+    }, [filters.selectedDepartment, filters.selectedShift]);
 
     const handleRefresh = useCallback(async (silent = false) => {
         await Promise.all([refetch(silent), fetchSummary()]);
     }, [refetch, fetchSummary]);
+
+    useEffect(() => {
+        fetchSummary();
+    }, [fetchSummary]);
 
     // Auto-refresh data periodically (silent)
     useEffect(() => {
@@ -1636,6 +1582,7 @@ const AttendancePage: React.FC = () => {
                 try {
                     const params = new URLSearchParams();
                     if (filters.selectedDepartment) params.append('department', filters.selectedDepartment);
+                    if (filters.selectedShift) params.append('shift', filters.selectedShift);
                     const res = await api.get(`hr/absent-employees?${params}`);
                     filteredData = res.data;
                 } catch (error) {
@@ -1659,9 +1606,17 @@ const AttendancePage: React.FC = () => {
     const fetchEmployees = useCallback(async () => {
         try {
             const params = new URLSearchParams();
-            params.append('page', (page + 1).toString());
-            params.append('limit', rowsPerPage.toString());
+            
+            // If in analytics mode, fetch all employees to get accurate statistics
+            if (filters.viewMode === 'analytics') {
+                params.append('limit', '0');
+            } else {
+                params.append('page', (page + 1).toString());
+                params.append('limit', rowsPerPage.toString());
+            }
+
             if (filters.selectedDepartment) params.append('department', filters.selectedDepartment);
+            if (filters.selectedShift) params.append('shift', filters.selectedShift);
 
             const res = await api.get(`hr/employees?${params}`);
             setEmployees(res.data.employees || []);
@@ -1669,7 +1624,7 @@ const AttendancePage: React.FC = () => {
         } catch (error) {
             console.error('Error fetching employees:', error);
         }
-    }, [page, rowsPerPage, filters.selectedDepartment]);
+    }, [page, rowsPerPage, filters.selectedDepartment, filters.selectedShift, filters.viewMode]);
 
     const fetchDepartments = useCallback(async () => {
         try {
@@ -1677,6 +1632,15 @@ const AttendancePage: React.FC = () => {
             setDepartments(res.data);
         } catch (error) {
             console.error('Error fetching departments:', error);
+        }
+    }, []);
+
+    const fetchShifts = useCallback(async () => {
+        try {
+            const res = await api.get('hr/shifts');
+            setShifts(res.data);
+        } catch (error) {
+            console.error('Error fetching shifts:', error);
         }
     }, []);
 
@@ -1726,25 +1690,13 @@ const AttendancePage: React.FC = () => {
     // Effects
     useEffect(() => {
         fetchDepartments();
+        fetchShifts();
         fetchSummary();
-    }, [fetchDepartments, fetchSummary]);
+    }, [fetchDepartments, fetchShifts, fetchSummary]);
 
     useEffect(() => {
         fetchEmployees();
     }, [fetchEmployees]);
-
-    // Update view mode effects
-    useEffect(() => {
-        if (filters.quickView) return;
-
-        if (filters.viewMode === 'month') {
-            filters.setZoomLevel('month');
-        } else if (filters.startDate && filters.endDate && isAfter(filters.endDate, filters.startDate) && filters.viewMode === 'matrix') {
-            filters.setZoomLevel('range');
-        } else if (filters.startDate && filters.endDate && isSameDay(filters.startDate, filters.endDate)) {
-            filters.setZoomLevel('day');
-        }
-    }, [filters.startDate, filters.endDate, filters.viewMode, filters.quickView, filters.setZoomLevel]);
 
     // Optimized columns with useMemo
     const columns: GridColDef[] = useMemo(() => {
@@ -1765,7 +1717,7 @@ const AttendancePage: React.FC = () => {
                     width: 120,
                     renderCell: (params: GridRenderCellParams) => {
                         const isCheckIn = params.value === 'check_in';
-                        const color = isCheckIn ? COLORS.success : COLORS.warning;
+                        const color = isCheckIn ? colors.success : colors.warning;
                         return (
                             <Chip
                                 label={isCheckIn ? t('Check In').toUpperCase() : t('Check Out').toUpperCase()}
@@ -1800,16 +1752,16 @@ const AttendancePage: React.FC = () => {
                         <Avatar sx={{ 
                             width: 32, 
                             height: 32, 
-                            bgcolor: COLORS.primary, 
+                            bgcolor: colors.primary, 
                             fontSize: '0.85rem',
                             fontWeight: 700,
-                            boxShadow: SHADOWS.xs
+                            boxShadow: shadows.xs
                         }}>
                             {params.value?.[0]}
                         </Avatar>
                         <Box>
-                            <Typography variant="body2" fontWeight="700" color={COLORS.dark}>{params.value}</Typography>
-                            <Typography variant="caption" color={COLORS.secondary}>{params.row.employee_id}</Typography>
+                            <Typography variant="body2" fontWeight="700" color={colors.dark}>{params.value}</Typography>
+                            <Typography variant="caption" color={colors.secondary}>{params.row.employee_id}</Typography>
                         </Box>
                     </Box>
                 )
@@ -1819,7 +1771,7 @@ const AttendancePage: React.FC = () => {
                 headerName: t('Date'),
                 width: 120,
                 renderCell: (params: GridRenderCellParams) => (
-                    <Typography variant="body2" color={COLORS.secondary} fontWeight="600">
+                    <Typography variant="body2" color={colors.secondary} fontWeight="600">
                         {params.value ? format(parseISO(params.value), 'dd/MM/yyyy') : '-'}
                     </Typography>
                 )
@@ -1829,7 +1781,7 @@ const AttendancePage: React.FC = () => {
                 headerName: t('Start'),
                 width: 100,
                 renderCell: (params: GridRenderCellParams) => (
-                    <Typography variant="body2" color={COLORS.dark} fontWeight="700">
+                    <Typography variant="body2" color={colors.dark} fontWeight="700">
                         {params.value ? format(parseISO(params.value), 'HH:mm') : '-'}
                     </Typography>
                 )
@@ -1839,7 +1791,7 @@ const AttendancePage: React.FC = () => {
                 headerName: t('End'),
                 width: 100,
                 renderCell: (params: GridRenderCellParams) => (
-                    <Typography variant="body2" color={COLORS.dark} fontWeight="700">
+                    <Typography variant="body2" color={colors.dark} fontWeight="700">
                         {params.value ? format(parseISO(params.value), 'HH:mm') : '-'}
                     </Typography>
                 )
@@ -1849,7 +1801,7 @@ const AttendancePage: React.FC = () => {
                 headerName: t('Break'),
                 width: 100,
                 renderCell: (params: GridRenderCellParams) => (
-                    <Typography variant="body2" color={COLORS.secondary} fontWeight="600">
+                    <Typography variant="body2" color={colors.secondary} fontWeight="600">
                         {params.value ? `${params.value}h` : '-'}
                     </Typography>
                 )
@@ -1861,9 +1813,9 @@ const AttendancePage: React.FC = () => {
                 renderCell: (params: GridRenderCellParams) => (
                     <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                         {params.row.actual_work < params.row.capacity && params.row.status !== 'ongoing' && (
-                            <Warning sx={{ fontSize: 16, color: COLORS.warning }} />
+                            <Warning sx={{ fontSize: 16, color: colors.warning }} />
                         )}
-                        <Typography variant="body2" fontWeight="700" color={COLORS.dark}>{params.value}h</Typography>
+                        <Typography variant="body2" fontWeight="700" color={colors.dark}>{params.value}h</Typography>
                     </Box>
                 )
             },
@@ -1872,7 +1824,7 @@ const AttendancePage: React.FC = () => {
                 headerName: t('Capacity'),
                 width: 100,
                 renderCell: (params: GridRenderCellParams) => (
-                    <Typography variant="body2" color={COLORS.secondary} fontWeight="600">
+                    <Typography variant="body2" color={colors.secondary} fontWeight="600">
                         {params.value ? `${params.value}h` : '8.0h'}
                     </Typography>
                 )
@@ -1884,7 +1836,7 @@ const AttendancePage: React.FC = () => {
                 renderCell: (params: GridRenderCellParams) => (
                     <Typography 
                         variant="body2" 
-                        color={params.value > 0 ? COLORS.success : COLORS.secondary} 
+                        color={params.value > 0 ? colors.success : colors.secondary} 
                         sx={{ fontWeight: params.value > 0 ? '700' : '600' }}
                     >
                         {params.value > 0 ? `+${params.value}h` : '-'}
@@ -1901,14 +1853,14 @@ const AttendancePage: React.FC = () => {
                     const isMissingExit = !params.row.check_out && !isTodayRecord;
 
                     const getStatusColor = () => {
-                        if (isMissingExit) return COLORS.error;
+                        if (isMissingExit) return colors.error;
                         switch (status) {
-                            case 'present': return COLORS.success;
-                            case 'late': return COLORS.warning;
-                            case 'early_leave': return COLORS.info;
-                            case 'holiday': return COLORS.primary;
-                            case 'ongoing': return COLORS.info;
-                            default: return COLORS.error;
+                            case 'present': return colors.success;
+                            case 'late': return colors.warning;
+                            case 'early_leave': return colors.info;
+                            case 'holiday': return colors.primary;
+                            case 'ongoing': return colors.info;
+                            default: return colors.error;
                         }
                     };
 
@@ -1923,9 +1875,9 @@ const AttendancePage: React.FC = () => {
                                     height: 24,
                                     fontSize: '0.65rem',
                                     fontWeight: 700,
-                                    backgroundColor: alpha(COLORS.error, 0.1),
-                                    color: COLORS.error,
-                                    border: `1px solid ${alpha(COLORS.error, 0.2)}`,
+                                    backgroundColor: alpha(colors.error, 0.1),
+                                    color: colors.error,
+                                    border: `1px solid ${alpha(colors.error, 0.2)}`,
                                     '& .MuiChip-label': { px: 1 }
                                 }}
                             />
@@ -1957,20 +1909,28 @@ const AttendancePage: React.FC = () => {
         switch (key) {
             case 'startDate':
                 filters.setStartDate(value);
-                filters.setQuickView(null);
                 break;
             case 'endDate':
                 filters.setEndDate(value);
-                filters.setQuickView(null);
                 break;
             case 'selectedDepartment':
                 filters.setSelectedDepartment(value);
-                filters.setQuickView(null);
                 setPage(0);
                 break;
             case 'selectedEmployee':
                 filters.setSelectedEmployee(value);
-                filters.setQuickView(null);
+                setPage(0);
+                break;
+            case 'selectedStatus':
+                filters.setSelectedStatus(value);
+                setPage(0);
+                break;
+            case 'selectedShift':
+                filters.setSelectedShift(value);
+                setPage(0);
+                break;
+            case 'search':
+                filters.setSearch(value);
                 setPage(0);
                 break;
         }
@@ -2008,7 +1968,7 @@ const AttendancePage: React.FC = () => {
         <LocalizationProvider dateAdapter={AdapterDateFns}>
             <Box sx={{ 
                 p: 3, 
-                backgroundColor: COLORS.bg,
+                backgroundColor: colors.bg,
                 minHeight: '100vh',
                 overflowX: 'hidden', 
                 boxSizing: 'border-box', 
@@ -2022,11 +1982,11 @@ const AttendancePage: React.FC = () => {
                 {/* Header */}
                 <Box className="no-print" sx={{ mb: 4, display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 2 }}>
                     <Box sx={{ display: 'flex', alignItems: 'center', gap: 2.5 }}>
-                        <Typography variant="h4" fontWeight="800" color={COLORS.dark} sx={{ letterSpacing: '-0.5px' }}>
+                        <Typography variant="h4" fontWeight="800" color={colors.dark} sx={{ letterSpacing: '-0.5px' }}>
                             {t('Attendance Management')}
                         </Typography>
                         <SyncDevicesButton onSyncSuccess={handleRefresh} />
-                        <Divider orientation="vertical" flexItem sx={{ mx: 1, borderColor: alpha(COLORS.secondary, 0.2) }} />
+                        <Divider orientation="vertical" flexItem sx={{ mx: 1, borderColor: alpha(colors.secondary, 0.2) }} />
                         <DeviceStatusWidget />
                     </Box>
                     <Box sx={{ display: 'flex', alignItems: 'center', gap: 3 }}>
@@ -2041,8 +2001,8 @@ const AttendancePage: React.FC = () => {
                         <LinearProgress sx={{ 
                             height: 4, 
                             borderRadius: 2, 
-                            backgroundColor: alpha(COLORS.primary, 0.1),
-                            '& .MuiLinearProgress-bar': { backgroundColor: COLORS.primary }
+                            backgroundColor: alpha(colors.primary, 0.1),
+                            '& .MuiLinearProgress-bar': { backgroundColor: colors.primary }
                         }} />
                     </Box>
                 )}
@@ -2062,7 +2022,7 @@ const AttendancePage: React.FC = () => {
                     PaperProps={{
                         sx: {
                             borderRadius: '16px',
-                            boxShadow: SHADOWS.lg,
+                            boxShadow: shadows.lg,
                             backgroundImage: 'none',
                             overflow: 'hidden'
                         }
@@ -2073,11 +2033,11 @@ const AttendancePage: React.FC = () => {
                         justifyContent: 'space-between', 
                         alignItems: 'center',
                         p: 3,
-                        background: `linear-gradient(135deg, ${COLORS.dark} 0%, ${alpha(COLORS.dark, 0.9)} 100%)`,
-                        color: COLORS.white
+                        background: colors.gradientDark,
+                        color: colors.pureWhite
                     }}>
                         <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-                            <Avatar sx={{ bgcolor: alpha(COLORS.white, 0.2), color: COLORS.white }}>
+                            <Avatar sx={{ bgcolor: alpha(colors.pureWhite, 0.2), color: colors.pureWhite }}>
                                 {detailDialog.type === 'late' ? <AccessTime /> : <People />}
                             </Avatar>
                             <Box>
@@ -2089,12 +2049,12 @@ const AttendancePage: React.FC = () => {
                         </Box>
                         <IconButton 
                             onClick={() => setDetailDialog(prev => ({ ...prev, open: false }))}
-                            sx={{ color: COLORS.white, '&:hover': { bgcolor: alpha(COLORS.white, 0.1) } }}
+                            sx={{ color: colors.pureWhite, '&:hover': { bgcolor: alpha(colors.pureWhite, 0.1) } }}
                         >
                             <Close />
                         </IconButton>
                     </DialogTitle>
-                    <DialogContent sx={{ p: 0, bgcolor: COLORS.bg }}>
+                    <DialogContent sx={{ p: 0, bgcolor: colors.bg }}>
                         {detailDialog.data.length > 0 ? (
                             <List sx={{ py: 1 }}>
                                 {detailDialog.data.map((item, idx) => (
@@ -2107,13 +2067,13 @@ const AttendancePage: React.FC = () => {
                                             my: 0.75,
                                             width: 'auto',
                                             borderRadius: '12px',
-                                            bgcolor: COLORS.white,
-                                            boxShadow: SHADOWS.xs,
+                                            bgcolor: colors.white,
+                                            boxShadow: shadows.xs,
                                             transition: 'all 0.2s',
                                             '&:hover': { 
                                                 transform: 'translateY(-2px)',
-                                                boxShadow: SHADOWS.sm,
-                                                bgcolor: alpha(COLORS.primary, 0.02)
+                                                boxShadow: shadows.sm,
+                                                bgcolor: alpha(colors.primary, 0.02)
                                             }
                                         }}
                                     >
@@ -2121,24 +2081,24 @@ const AttendancePage: React.FC = () => {
                                             <Avatar sx={{ 
                                                 width: 42, 
                                                 height: 42, 
-                                                bgcolor: alpha(COLORS.primary, 0.1), 
-                                                color: COLORS.primary,
+                                                bgcolor: alpha(colors.primary, 0.1), 
+                                                color: colors.primary,
                                                 fontWeight: 800,
                                                 fontSize: '1rem',
-                                                boxShadow: SHADOWS.xs
+                                                boxShadow: shadows.xs
                                             }}>
                                                 {item.employee_name?.[0]}
                                             </Avatar>
                                         </ListItemAvatar>
                                         <ListItemText 
                                             primary={
-                                                <Typography variant="subtitle1" fontWeight="700" color={COLORS.dark}>
+                                                <Typography variant="subtitle1" fontWeight="700" color={colors.dark}>
                                                     {item.employee_name}
                                                 </Typography>
                                             }
                                             secondary={
-                                                <Typography variant="caption" color={COLORS.secondary} fontWeight="600" sx={{ display: 'flex', alignItems: 'center', gap: 1, mt: 0.25 }}>
-                                                    <Box component="span" sx={{ bgcolor: alpha(COLORS.secondary, 0.1), px: 1, borderRadius: '4px' }}>
+                                                <Typography variant="caption" color={colors.secondary} fontWeight="600" sx={{ display: 'flex', alignItems: 'center', gap: 1, mt: 0.25 }}>
+                                                    <Box component="span" sx={{ bgcolor: alpha(colors.secondary, 0.1), px: 1, borderRadius: '4px' }}>
                                                         {t('ID')}: {item.employee_id}
                                                     </Box>
                                                     {detailDialog.type !== 'absent' && (
@@ -2157,9 +2117,9 @@ const AttendancePage: React.FC = () => {
                                                 height: 24,
                                                 fontSize: '0.65rem',
                                                 fontWeight: 800,
-                                                background: item.status === 'absent' ? COLORS.gradientError : (item.status === 'late' ? COLORS.gradientWarning : COLORS.gradientSuccess),
-                                                color: COLORS.white,
-                                                boxShadow: SHADOWS.xs,
+                                                background: item.status === 'absent' ? colors.gradientError : (item.status === 'late' ? colors.gradientWarning : colors.gradientSuccess),
+                                                color: colors.pureWhite,
+                                                boxShadow: shadows.xs,
                                                 '& .MuiChip-label': { px: 1.5 }
                                             }}
                                         />
@@ -2168,21 +2128,21 @@ const AttendancePage: React.FC = () => {
                             </List>
                         ) : (
                             <Box sx={{ p: 6, textAlign: 'center' }}>
-                                <Avatar sx={{ width: 64, height: 64, bgcolor: alpha(COLORS.secondary, 0.1), color: COLORS.secondary, mx: 'auto', mb: 2 }}>
+                                <Avatar sx={{ width: 64, height: 64, bgcolor: alpha(colors.secondary, 0.1), color: colors.secondary, mx: 'auto', mb: 2 }}>
                                     <People sx={{ fontSize: 32 }} />
                                 </Avatar>
-                                <Typography fontWeight="700" color={COLORS.dark}>{t('No data found for today.')}</Typography>
-                                <Typography variant="caption" color={COLORS.secondary}>{t('Check again later or verify filters.')}</Typography>
+                                <Typography fontWeight="700" color={colors.dark}>{t('No data found for today.')}</Typography>
+                                <Typography variant="caption" color={colors.secondary}>{t('Check again later or verify filters.')}</Typography>
                             </Box>
                         )}
                     </DialogContent>
-                    <Box sx={{ p: 2, bgcolor: COLORS.white, borderTop: `1px solid ${alpha(COLORS.secondary, 0.1)}`, display: 'flex', justifyContent: 'flex-end' }}>
+                    <Box sx={{ p: 2, bgcolor: colors.white, borderTop: `1px solid ${alpha(colors.secondary, 0.1)}`, display: 'flex', justifyContent: 'flex-end' }}>
                         <Button 
                             variant="contained" 
                             onClick={() => setDetailDialog(prev => ({ ...prev, open: false }))}
                             sx={{ 
-                                background: COLORS.gradientPrimary,
-                                color: COLORS.white,
+                                background: colors.gradientPrimary,
+                                color: colors.pureWhite,
                                 borderRadius: '8px',
                                 px: 3,
                                 fontWeight: 700,
@@ -2200,6 +2160,7 @@ const AttendancePage: React.FC = () => {
                         filters={filters}
                         employees={employees}
                         departments={departments}
+                        shifts={shifts}
                         onFilterChange={handleFilterChange}
                         onApplyFilters={handleRefresh}
                         onRefresh={handleRefresh}
@@ -2217,25 +2178,6 @@ const AttendancePage: React.FC = () => {
                                 employees={employees} 
                                 startDate={filters.startDate || new Date()} 
                                 endDate={filters.endDate || new Date()} 
-                            />
-                        )}
-
-                        {filters.viewMode === 'matrix' && (
-                            <MatrixView
-                                rows={rows}
-                                employees={employees}
-                                loading={loading}
-                                filters={filters}
-                                totalEmployees={totalEmployees}
-                                page={page}
-                                rowsPerPage={rowsPerPage}
-                                handlePageChange={handlePageChange}
-                                handleRowsPerPageChange={handleRowsPerPageChange}
-                                handleDateChange={filters.handleDateChange}
-                                handleZoomChange={(zoom) => {
-                                    filters.setZoomLevel(zoom as 'day' | 'week' | 'month' | 'range');
-                                    filters.setQuickView(null);
-                                }}
                             />
                         )}
 
@@ -2266,13 +2208,6 @@ const AttendancePage: React.FC = () => {
                                 rowsPerPage={rowsPerPage}
                                 handlePageChange={handlePageChange}
                                 handleRowsPerPageChange={handleRowsPerPageChange}
-                            />
-                        )}
-
-                        {filters.viewMode === 'calendar' && (
-                            <CalendarView
-                                rows={rows}
-                                filters={filters}
                             />
                         )}
                     </Grid>

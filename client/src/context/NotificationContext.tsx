@@ -100,6 +100,7 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
   useEffect(() => {
     let socket: WebSocket | null = null;
     let reconnectTimeout: NodeJS.Timeout;
+    let heartbeatInterval: NodeJS.Timeout | undefined;
     let reconnectAttempts = 0;
     const maxReconnectDelay = 30000; // Max 30 seconds
 
@@ -120,6 +121,10 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
         } catch (e) {}
       }
 
+      if (heartbeatInterval) {
+        clearInterval(heartbeatInterval);
+      }
+
       const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
       const host = window.location.host;
       
@@ -137,7 +142,7 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
       }
       
       if (import.meta.env.DEV) {
-        console.log(`🔌 Attempting WebSocket connection (Attempt ${reconnectAttempts + 1}) to: ${wsUrl}`);
+        console.log(`🔌 Notification WebSocket connecting to: ${wsUrl} (Attempt ${reconnectAttempts + 1})`);
       }
       
       try {
@@ -166,25 +171,37 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
         };
 
         socket.onopen = () => {
-          if (import.meta.env.DEV) console.log('✅ WebSocket connected successfully');
+          if (import.meta.env.DEV) console.log('✅ Notification WebSocket connected');
           reconnectAttempts = 0; // Reset attempts on successful connection
+
+          // Start heartbeat
+          heartbeatInterval = setInterval(() => {
+            if (socket && socket.readyState === WebSocket.OPEN) {
+              socket.send(JSON.stringify({ type: 'ping' }));
+            }
+          }, 30000);
         };
 
         socket.onerror = () => {
           // Only log error if not closing normally
           if (socket && socket.readyState !== WebSocket.CLOSED && socket.readyState !== WebSocket.CLOSING) {
-            if (import.meta.env.DEV) console.error('❌ WebSocket connection error. Backend might be down.');
+            if (import.meta.env.DEV) console.error('❌ Notification WebSocket error');
           }
         };
 
         socket.onclose = (event) => {
+          if (heartbeatInterval) {
+            clearInterval(heartbeatInterval);
+            heartbeatInterval = undefined;
+          }
+
           if (event.code !== 1000 && user?.id && localStorage.getItem('access_token')) {
             // Exponential backoff for reconnection
             const delay = Math.min(1000 * Math.pow(2, reconnectAttempts), maxReconnectDelay);
             reconnectAttempts++;
             
             if (import.meta.env.DEV) {
-              console.log(`🔄 WebSocket closed (code: ${event.code}). Reconnecting in ${delay/1000}s...`);
+              console.log(`🔄 Notification WebSocket closed (code: ${event.code}). Reconnecting in ${delay/1000}s...`);
             }
             
             clearTimeout(reconnectTimeout);

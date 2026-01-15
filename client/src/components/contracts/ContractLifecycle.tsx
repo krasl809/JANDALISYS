@@ -1,10 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { 
-  Box, Container, Typography, Grid, Card, Divider, Chip, 
+  Box, Container, Typography, Card, Divider, Chip, 
   Stepper, Step, StepLabel, StepConnector, Button, IconButton, Stack,
   CircularProgress, Alert, Table, TableHead, TableBody, TableRow, TableCell
 } from '@mui/material';
+import Grid from '@mui/material/Grid2';
 import { styled, useTheme, alpha } from '@mui/material/styles';
 import { 
   Description, LocalShipping, AccountBalance, ArrowBack, 
@@ -211,7 +212,7 @@ const ContractLifecycle = () => {
       </Card>
 
       <Grid container spacing={3}>
-        <Grid item xs={12} md={8}>
+        <Grid size={{ xs: 12, md: 8 }}>
             <Card elevation={0} sx={{ height: '100%', borderRadius: 4, p: 3, border: `1px solid ${theme.palette.divider}` }}>
                 <SectionHeader title={t('contracts.financial_summary')} icon={<AccountBalance fontSize="small" />} />
                 <Box display="flex" justifyContent="space-around" textAlign="center" py={2}>
@@ -238,7 +239,7 @@ const ContractLifecycle = () => {
                 </Box>
             </Card>
         </Grid>
-        <Grid item xs={12} md={4}>
+        <Grid size={{ xs: 12, md: 4 }}>
             <Card elevation={0} sx={{ borderRadius: 4, p: 3, border: `1px solid ${theme.palette.divider}` }}>
                 <SectionHeader title={t('contracts.key_milestones')} icon={<Description fontSize="small" />} />
                 <Stack spacing={2.5} sx={{ mt: 2 }}>

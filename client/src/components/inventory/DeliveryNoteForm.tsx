@@ -10,6 +10,8 @@ import { useTranslation } from 'react-i18next';
 import api from '../../services/api';
 import { inventoryApi } from '../../services/inventoryApi';
 import { useConfirm } from '../../context/ConfirmContext';
+import { useMemo } from 'react';
+import { useTheme, alpha } from '@mui/material/styles';
 
 // تعريف واجهة لنوع القوائم لحل مشكلة TypeScript
 interface ListsState {
@@ -23,6 +25,31 @@ const DeliveryNoteForm = () => {
   const navigate = useNavigate();
   const { t } = useTranslation();
   const { alert } = useConfirm();
+  const theme = useTheme();
+
+  const inputSx = useMemo(() => ({
+    '& .MuiOutlinedInput-root': {
+      bgcolor: theme.palette.mode === 'dark' ? alpha(theme.palette.background.default, 0.4) : 'inherit',
+      '& fieldset': {
+        borderColor: theme.palette.mode === 'light' ? alpha('#344767', 0.25) : alpha(theme.palette.divider, 0.8),
+        borderWidth: '1.5px',
+      },
+      '&:hover fieldset': {
+        borderColor: theme.palette.primary.main,
+        borderWidth: '1.5px',
+      },
+      '&.Mui-focused fieldset': {
+        borderColor: theme.palette.primary.main,
+        borderWidth: '2px',
+        boxShadow: `0 0 0 3px ${alpha(theme.palette.primary.main, 0.15)}`,
+      },
+    },
+    '& .MuiInputBase-input::placeholder': {
+      color: theme.palette.text.disabled,
+      opacity: 1,
+    }
+  }), [theme]);
+
   const [loading, setLoading] = useState(false);
   const [pageLoading, setPageLoading] = useState(true);
   
@@ -339,7 +366,7 @@ const DeliveryNoteForm = () => {
              variant="outlined"
              value={formData.notes}
              onChange={(e) => setFormData({...formData, notes: e.target.value})}
-             sx={{ bgcolor: 'white' }}
+             sx={inputSx}
            />
         </Grid>
       </Grid>

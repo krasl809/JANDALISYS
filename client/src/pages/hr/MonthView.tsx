@@ -1,38 +1,59 @@
 import React, { useMemo } from 'react';
 import {
     Box, Typography, Paper, Avatar, TablePagination,
-    useTheme, IconButton, Tooltip, Divider
+    useTheme, IconButton, Tooltip, Divider, Theme
 } from '@mui/material';
 import { alpha } from '@mui/material/styles';
 import { ChevronLeft, ChevronRight, Today } from '@mui/icons-material';
 import { format, parseISO, startOfMonth, endOfMonth, eachDayOfInterval, isToday, isWeekend, addMonths, subMonths } from 'date-fns';
 import { ar, enUS } from 'date-fns/locale';
 import { useTranslation } from 'react-i18next';
-import { ATTENDANCE_COLORS } from './AttendancePage';
 import { LocalizationProvider, DatePicker } from '@mui/x-date-pickers';
 import { AdapterDateFns } from '@mui/x-date-pickers/AdapterDateFns';
 
-// Material Dashboard 2 Pro Style Constants
-const COLORS = {
-    primary: '#5E72E4',
-    secondary: '#8392AB',
-    info: '#11CDEF',
-    success: '#2DCE89',
-    warning: '#FB6340',
-    error: '#F5365C',
-    dark: '#344767',
-    light: '#E9ECEF',
-    bg: '#F8F9FA',
-    white: '#FFFFFF',
-    gradientPrimary: 'linear-gradient(135deg, #5E72E4 0%, #825EE4 100%)',
+// --- Theme-Aware Utilities ---
+const getAttendanceColors = (theme: Theme) => {
+    const isDark = theme.palette.mode === 'dark';
+    return {
+        primary: theme.palette.primary.main,
+        secondary: theme.palette.text.secondary,
+        info: theme.palette.info.main,
+        success: theme.palette.success.main,
+        warning: theme.palette.warning.main,
+        error: theme.palette.error.main,
+        dark: isDark ? theme.palette.text.primary : '#344767',
+        light: isDark ? theme.palette.grey[800] : '#E9ECEF',
+        bg: theme.palette.background.default,
+        white: theme.palette.background.paper,
+        pureWhite: '#FFFFFF',
+        gradientPrimary: `linear-gradient(135deg, ${theme.palette.primary.main} 0%, ${theme.palette.primary.dark} 100%)`,
+        gradientSuccess: `linear-gradient(135deg, ${theme.palette.success.main} 0%, ${theme.palette.success.dark} 100%)`,
+        gradientInfo: `linear-gradient(135deg, ${theme.palette.info.main} 0%, ${theme.palette.info.dark} 100%)`,
+        gradientWarning: `linear-gradient(135deg, ${theme.palette.warning.main} 0%, ${theme.palette.warning.dark} 100%)`,
+        gradientError: `linear-gradient(135deg, ${theme.palette.error.main} 0%, ${theme.palette.error.dark} 100%)`,
+        gradientDark: `linear-gradient(135deg, ${isDark ? theme.palette.grey[900] : '#344767'} 0%, ${isDark ? theme.palette.common.black : '#192941'} 100%)`,
+    };
 };
 
-const SHADOWS = {
-    xs: '0 1px 5px rgba(0, 0, 0, 0.05)',
-    sm: '0 3px 8px rgba(0, 0, 0, 0.08)',
-    md: '0 7px 14px rgba(50, 50, 93, 0.1)',
-    lg: '0 15px 35px rgba(50, 50, 93, 0.1)',
+const getAttendanceShadows = (theme: Theme) => {
+    const isDark = theme.palette.mode === 'dark';
+    const shadowColor = isDark ? 'rgba(0, 0, 0, 0.4)' : 'rgba(50, 50, 93, 0.1)';
+    return {
+        xs: isDark ? '0 1px 5px rgba(0, 0, 0, 0.3)' : '0 1px 5px rgba(0, 0, 0, 0.05)',
+        sm: isDark ? '0 3px 8px rgba(0, 0, 0, 0.4)' : '0 3px 8px rgba(0, 0, 0, 0.08)',
+        md: `0 7px 14px ${shadowColor}`,
+        lg: `0 15px 35px ${shadowColor}`,
+    };
 };
+
+const getAttendanceStatusColors = (colors: any) => ({
+    present: colors.success,
+    late: colors.error,
+    earlyLeave: colors.warning,
+    absent: colors.secondary,
+    ongoing: colors.primary,
+    overtime: alpha(colors.primary, 0.8),
+});
 
 interface AttendanceRecord {
     id: string;
@@ -80,7 +101,10 @@ const MonthView: React.FC<MonthViewProps> = React.memo(({
     handleRowsPerPageChange
 }) => {
     const theme = useTheme();
-    const mode = theme.palette.mode;
+    const COLORS = useMemo(() => getAttendanceColors(theme), [theme]);
+    const SHADOWS = useMemo(() => getAttendanceShadows(theme), [theme]);
+    const ATTENDANCE_COLORS = useMemo(() => getAttendanceStatusColors(COLORS), [COLORS]);
+
     const { t, i18n } = useTranslation();
     const isRtl = i18n.language === 'ar';
     const dateLocale = isRtl ? ar : enUS;
@@ -185,7 +209,7 @@ const MonthView: React.FC<MonthViewProps> = React.memo(({
                                                     width: 180,
                                                     '& .MuiOutlinedInput-root': {
                                                         borderRadius: '8px',
-                                                        '& fieldset': { borderColor: '#E9ECEF' },
+                                                        '& fieldset': { borderColor: alpha(COLORS.secondary, 0.1) },
                                                         '&:hover fieldset': { borderColor: COLORS.primary },
                                                     }
                                                 }
@@ -273,10 +297,10 @@ const MonthView: React.FC<MonthViewProps> = React.memo(({
                         '&::-webkit-scrollbar': { width: '6px', height: '6px' },
                         '&::-webkit-scrollbar-track': { background: 'transparent' },
                         '&::-webkit-scrollbar-thumb': {
-                            background: alpha(COLORS.secondary, 0.2),
+                            backgroundColor: alpha(COLORS.secondary, 0.2),
                             borderRadius: '10px',
-                            '&:hover': { background: alpha(COLORS.secondary, 0.3) },
-                        },
+                            '&:hover': { backgroundColor: alpha(COLORS.secondary, 0.3) }
+                        }
                     }}>
                         {/* Employee Names Column */}
                         <Box sx={{
@@ -426,12 +450,12 @@ const MonthView: React.FC<MonthViewProps> = React.memo(({
                                                                                     <strong>{t('Work')}:</strong> {session.actual_work}h
                                                                                 </Typography>
                                                                                 {isLate && (
-                                                                                    <Typography variant="caption" display="block" sx={{ color: '#FFD700', fontWeight: 'bold' }}>
+                                                                                    <Typography variant="caption" display="block" sx={{ color: COLORS.warning, fontWeight: 'bold' }}>
                                                                                         ⚠ {t('Late Arrival')}: {session.late_minutes} {t('min')}
                                                                                     </Typography>
                                                                                 )}
                                                                                 {isEarlyLeave && (
-                                                                                    <Typography variant="caption" display="block" sx={{ color: '#FFD700', fontWeight: 'bold' }}>
+                                                                                    <Typography variant="caption" display="block" sx={{ color: COLORS.warning, fontWeight: 'bold' }}>
                                                                                         ⚠ {t('Early Leave')}: {session.early_leave_minutes} {t('min')}
                                                                                     </Typography>
                                                                                 )}

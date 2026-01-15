@@ -29,7 +29,9 @@ export default defineConfig({
     VitePWA({
       registerType: 'autoUpdate',
       devOptions: {
-        enabled: false
+        enabled: true,
+        type: 'module',
+        navigateFallback: 'index.html',
       },
       workbox: {
         navigateFallback: '/index.html',
@@ -40,6 +42,20 @@ export default defineConfig({
             handler: 'NetworkFirst',
             options: {
               cacheName: 'api-cache',
+              expiration: {
+                maxEntries: 100,
+                maxAgeSeconds: 60 * 60 * 24 * 7 // 1 week
+              },
+              cacheableResponse: {
+                statuses: [0, 200]
+              }
+            },
+          },
+          {
+            urlPattern: /\.(?:js|css|html|svg|png|jpg|jpeg|woff2)$/,
+            handler: 'StaleWhileRevalidate',
+            options: {
+              cacheName: 'static-resources',
             },
           },
         ],

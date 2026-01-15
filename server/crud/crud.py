@@ -6,6 +6,7 @@ from datetime import datetime
 import uuid
 import logging
 from typing import Optional, List
+from fastapi import HTTPException
 
 # Import models and schemas
 from models.core_models import Contract, ContractItem, Conveyor, Notification
@@ -20,16 +21,18 @@ logger = logging.getLogger(__name__)
 
 def get_contract_by_id(db: Session, contract_id: uuid.UUID) -> Optional[Contract]:
     """Get contract by ID with all relationships - optimized to avoid N+1 queries"""
-    from sqlalchemy.orm import joinedload, selectinload
+    from sqlalchemy.orm import selectinload
     contract = db.query(Contract)\
         .options(
-            selectinload(Contract.items).selectinload(ContractItem.article)
+            selectinload(Contract.items).selectinload(ContractItem.article),
+            selectinload(Contract.items).selectinload(ContractItem.specifications),
+            selectinload(Contract.creator),
+            selectinload(Contract.poster),
+            selectinload(Contract.finance_notifier)
         )\
         .filter(Contract.id == contract_id)\
         .first()
 
-    # Article names are available through the relationship property
-    # No need to manually assign - the article_name property handles this
     return contract
 
 def get_contracts(db: Session, skip: int = 0, limit: int = 50) -> tuple[List[Contract], int]:
@@ -41,7 +44,13 @@ def get_contracts(db: Session, skip: int = 0, limit: int = 50) -> tuple[List[Con
     # Use selectinload to avoid N+1 queries for items and articles
     from sqlalchemy.orm import selectinload
     contracts = db.query(Contract)\
-        .options(selectinload(Contract.items).selectinload(ContractItem.article))\
+        .options(
+            selectinload(Contract.items).selectinload(ContractItem.article),
+            selectinload(Contract.items).selectinload(ContractItem.specifications),
+            selectinload(Contract.creator),
+            selectinload(Contract.poster),
+            selectinload(Contract.finance_notifier)
+        )\
         .order_by(Contract.modified_date.desc())\
         .offset(skip)\
         .limit(limit)\
@@ -54,14 +63,15 @@ def get_conveyors(db: Session, skip: int = 0, limit: int = 100) -> List[Conveyor
     """Get list of conveyors for dropdown lists"""
     return db.query(Conveyor).offset(skip).limit(limit).all()
 
-def generate_contract_number(db: Session, seller_code: str = "SELL") -> str:
+def generate_contract_number(db: Session, seller_code: str = "SELL", reference_date: Optional[datetime] = None) -> str:
     """
-    Generate automatic contract number in format: SELLYYMM0001
-    Based on seller code + year and month + sequence
-    Fixed SQL injection vulnerability by using parameterized queries
+    Generate automatic contract number in format: [SellerCode][Year][Month][0001]
+    Based on seller code + year(2 digits) and month(2 digits) + sequence(4 digits)
+    Example: SL26010001
     """
-    today = datetime.now()
-    year_month = today.strftime("%y%m")  # Example: 2411
+    # Use provided date or current date
+    target_date = reference_date or datetime.now()
+    year_month = target_date.strftime("%y%m") # Example: 2601 (26 for 2026)
     
     # Sanitize seller_code to prevent SQL injection
     sanitized_seller_code = ''.join(c for c in seller_code if c.isalnum())
@@ -69,6 +79,7 @@ def generate_contract_number(db: Session, seller_code: str = "SELL") -> str:
         sanitized_seller_code = sanitized_seller_code[:10]
     
     # Create the pattern for LIKE query using proper parameterization
+    # Format: [SellerCode][Year][Month]%
     pattern = f"{sanitized_seller_code}{year_month}%"
     
     # Find last contract for this seller in this month using safe query
@@ -80,9 +91,11 @@ def generate_contract_number(db: Session, seller_code: str = "SELL") -> str:
     if last_contract and last_contract.contract_no:
         try:
             # Extract serial number safely
+            # Format is [SellerCode][Year][Month][Serial]
             contract_no = last_contract.contract_no
-            if contract_no.startswith(f"{sanitized_seller_code}{year_month}"):
-                serial_part = contract_no[len(sanitized_seller_code) + len(year_month):]
+            prefix = f"{sanitized_seller_code}{year_month}"
+            if contract_no.startswith(prefix):
+                serial_part = contract_no[len(prefix):]
                 if len(serial_part) == 4 and serial_part.isdigit():
                     last_num = int(serial_part)
                     next_num = last_num + 1
@@ -113,7 +126,9 @@ def create_contract_item(contract_id: uuid.UUID, item_data, qty: float, total: f
     Create a ContractItem object from item data.
     This helper reduces code duplication.
     """
-    return ContractItem(
+    from models.core_models import ContractItemSpecification
+    
+    db_item = ContractItem(
         contract_id=contract_id,
         article_id=item_data.article_id,
         qty_lot=item_data.qty_lot,
@@ -124,6 +139,18 @@ def create_contract_item(contract_id: uuid.UUID, item_data, qty: float, total: f
         price=item_data.price,
         total=total
     )
+    
+    # Add specifications if provided
+    if hasattr(item_data, 'specifications') and item_data.specifications:
+        for spec in item_data.specifications:
+            db_spec = ContractItemSpecification(
+                spec_key=spec.spec_key,
+                spec_value=spec.spec_value,
+                display_order=spec.display_order
+            )
+            db_item.specifications.append(db_spec)
+            
+    return db_item
 
 # ---------------------------------------------------------
 # Create Operation
@@ -137,7 +164,21 @@ def create_contract(db: Session, contract: ContractCreate, user_id: uuid.UUID) -
 
         # If frontend didn't send number, generate one
         if not contract_no:
-            contract_no = generate_contract_number(db, "CNT")
+            # Try to get seller code from seller_id
+            seller_code = "CNT" # Default
+            if contract.seller_id:
+                from models.core_models import Seller
+                seller = db.query(Seller).filter(Seller.id == contract.seller_id).first()
+                if seller and seller.seller_code:
+                    seller_code = seller.seller_code
+            
+            # Use issue_date if available for the contract number
+            ref_date = None
+            if contract.issue_date:
+                # issue_date is already a date object from Pydantic
+                ref_date = datetime.combine(contract.issue_date, datetime.min.time())
+            
+            contract_no = generate_contract_number(db, seller_code, ref_date)
 
         # 2. Create contract object
         db_contract = Contract(
@@ -146,6 +187,7 @@ def create_contract(db: Session, contract: ContractCreate, user_id: uuid.UUID) -
             status=contract.status,
             issue_date=contract.issue_date,
             shipment_date=contract.shipment_date,
+            shipment_period=contract.shipment_period,
             contract_currency=contract.contract_currency,
             
             # Parties
@@ -153,6 +195,7 @@ def create_contract(db: Session, contract: ContractCreate, user_id: uuid.UUID) -
             shipper_id=contract.shipper_id,
             buyer_id=contract.buyer_id,
             broker_id=contract.broker_id,
+            agent_id=contract.agent_id,
             conveyor_id=contract.conveyor_id,
             
             # Terms
@@ -180,9 +223,18 @@ def create_contract(db: Session, contract: ContractCreate, user_id: uuid.UUID) -
             dispatch_rate=contract.dispatch_rate,
             laycan_date_from=contract.laycan_date_from,
             laycan_date_to=contract.laycan_date_to,
+            
+            # Additional reference fields
+            seller_contract_ref_no=contract.seller_contract_ref_no,
+            seller_contract_date=contract.seller_contract_date,
+            actual_shipped_quantity=contract.actual_shipped_quantity,
+            vessel_name=contract.vessel_name,
+            ata_date=contract.ata_date,
+            ata_time=contract.ata_time,
 
             # System data
             created_by=user_id,
+            posted_by=user_id if contract.status == "posted" else None,
             posted_date=func.now() if contract.status == "posted" else None
         )
         
@@ -211,25 +263,50 @@ def create_contract(db: Session, contract: ContractCreate, user_id: uuid.UUID) -
 # Update Operation
 # ---------------------------------------------------------
 
-def update_contract(db: Session, contract_id: uuid.UUID, contract: ContractCreate) -> Optional[Contract]:
+def update_contract(db: Session, contract_id: uuid.UUID, contract: ContractCreate, user_id: uuid.UUID = None) -> Optional[Contract]:
     """Update existing contract"""
     try:
         db_contract = db.query(Contract).filter(Contract.id == contract_id).first()
         if not db_contract:
             return None
         
+        # --- Concurrency Check (Optimistic Locking) ---
+        if contract.version is not None and db_contract.version != contract.version:
+            logger.warning(f"Concurrency conflict for contract {contract_id}. Client version: {contract.version}, DB version: {db_contract.version}")
+            raise HTTPException(
+                status_code=409,
+                detail="CONCURRENCY_CONFLICT"
+            )
+        
         # 1. Update basic fields
-        update_data = contract.dict(exclude={'items', 'created_at', 'created_by', 'posted_date'})
+        update_data = contract.dict(exclude={'items', 'created_at', 'created_by', 'posted_date', 'version'})
         
         for key, value in update_data.items():
             if value is not None:
                 setattr(db_contract, key, value)
         
+        # Increment version for optimistic locking
+        db_contract.version = (db_contract.version or 0) + 1
+        
         # Special logic when converting to Posted for first time
         if contract.status == "posted" and not db_contract.posted_date:
             db_contract.posted_date = func.now()
+            db_contract.posted_by = user_id
             if not db_contract.contract_no:
-                db_contract.contract_no = generate_contract_number(db, "CNT")
+                # Get seller code
+                seller_code = "CNT"
+                if db_contract.seller_id:
+                    from models.core_models import Seller
+                    seller = db.query(Seller).filter(Seller.id == db_contract.seller_id).first()
+                    if seller and seller.seller_code:
+                        seller_code = seller.seller_code
+                
+                # Use issue_date
+                ref_date = None
+                if db_contract.issue_date:
+                    ref_date = datetime.combine(db_contract.issue_date, datetime.min.time())
+                
+                db_contract.contract_no = generate_contract_number(db, seller_code, ref_date)
         
         # 2. Update items smartly
         existing_items = db.query(ContractItem).filter(ContractItem.contract_id == contract_id).all()
@@ -253,6 +330,21 @@ def update_contract(db: Session, contract_id: uuid.UUID, contract: ContractCreat
                     db_item.packing = item_data.packing
                     db_item.price = item_data.price
                     db_item.total = total
+                    
+                    # Update specifications for existing item
+                    if hasattr(item_data, 'specifications'):
+                        from models.core_models import ContractItemSpecification
+                        # Remove existing specifications and add new ones (simpler than matching)
+                        db.query(ContractItemSpecification).filter(ContractItemSpecification.contract_item_id == db_item.id).delete()
+                        for spec in item_data.specifications:
+                            db_spec = ContractItemSpecification(
+                                contract_item_id=db_item.id,
+                                spec_key=spec.spec_key,
+                                spec_value=spec.spec_value,
+                                display_order=spec.display_order
+                            )
+                            db.add(db_spec)
+                    
                     incoming_item_ids.add(item_id_str)
                 else:
                     # Add new item
@@ -290,21 +382,38 @@ def delete_contract(db: Session, contract_id: uuid.UUID) -> Optional[dict]:
         
         # 2. Delete related financial transactions
         db.query(FinancialTransaction).filter(FinancialTransaction.contract_id == contract_id).delete()
-
+        
         # 3. Handle related delivery notes
-        # Option A: Delete them (if business logic allows)
         db.query(DeliveryNote).filter(DeliveryNote.contract_id == contract_id).delete()
         
         # 4. Delete related documents
         db.query(ContractDocument).filter(ContractDocument.contract_id == contract_id).delete()
 
-        # 5. Delete the contract (this will also delete items due to cascade="all, delete-orphan")
+        # 5. Delete the contract
         db.delete(db_contract)
         db.commit()
         return {"message": "Contract deleted successfully"}
         
     except Exception as e:
         logger.error(f"Failed to delete contract {contract_id}: {e}")
+        db.rollback()
+        raise e
+
+def notify_finance(db: Session, contract_id: uuid.UUID, user_id: uuid.UUID) -> Optional[Contract]:
+    """Record finance notification for a contract"""
+    try:
+        db_contract = db.query(Contract).filter(Contract.id == contract_id).first()
+        if not db_contract:
+            return None
+        
+        db_contract.finance_notified_by = user_id
+        db_contract.finance_notified_at = func.now()
+        
+        db.commit()
+        db.refresh(db_contract)
+        return db_contract
+    except Exception as e:
+        logger.error(f"Failed to notify finance for contract {contract_id}: {e}")
         db.rollback()
         raise e
 

@@ -92,8 +92,8 @@ const ContractList = () => {
   };
 
   useEffect(() => {
-    fetchContracts();
-  }, []);
+    fetchContracts(1);
+  }, [currentTab, searchQuery]);
 
   // --- Filtering Logic ---
   const filteredContracts = useMemo(() => {
@@ -103,8 +103,8 @@ const ContractList = () => {
       const matchTab = 
         currentTab === 0 ? true :
         currentTab === 1 ? (status === 'pending' || status === 'draft') :
-        currentTab === 2 ? (status === 'active' || status === 'posted') :
-        currentTab === 3 ? status === 'completed' : true;
+        currentTab === 2 ? (status === 'active' || status === 'posted' || status === 'confirmed') :
+        currentTab === 3 ? (status === 'completed' || status === 'executed') : true;
 
       // 2. Filter by Search
       const searchLower = searchQuery.toLowerCase();
@@ -161,7 +161,15 @@ const ContractList = () => {
       })) {
         try {
           await api.delete(`contracts/${contract.id}`);
+          
+          // 1. First, remove from local state for immediate feedback
           setContracts(prev => prev.filter(c => c.id !== contract.id));
+          
+          // 2. Then re-fetch to ensure pagination and server state are synced
+          // If we are on a page that might now be empty, fetchContracts will handle it
+          await fetchContracts(pagination.page);
+          
+          alert(t('Contract deleted successfully'), t('Success'), 'success');
         } catch (error: unknown) {
           console.error('Failed to delete contract:', error);
           const apiError = error as { response?: { data?: { detail?: string } }; message?: string };

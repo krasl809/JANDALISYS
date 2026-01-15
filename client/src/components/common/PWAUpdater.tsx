@@ -8,7 +8,10 @@ const PWAUpdater = () => {
   const { t } = useTranslation();
 
   useEffect(() => {
-    if (import.meta.env.PROD) {
+    // Register service worker if in production OR if specifically enabled in development
+    const shouldRegister = import.meta.env.PROD || (import.meta.env.DEV && true); // VitePWA configured with enabled: true
+    
+    if (shouldRegister) {
       registerSW({
         onNeedRefresh() {
           const handleUpdate = async () => {

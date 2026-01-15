@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, memo } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
   Autocomplete, TextField, Button, Container, Typography, Box, MenuItem,
@@ -16,7 +16,9 @@ import { Contract, FinancialTransaction } from '../../types/contracts';
 interface PaymentFormProps {
   contractId?: string;
   isEmbedded?: boolean;
+  ledger?: FinancialTransaction[];
   onSaveSuccess?: () => void;
+  onRefresh?: () => void;
 }
 
 // BankAccount interface
@@ -32,15 +34,16 @@ interface BankAccount {
     created_at: string;
 }
 
-const PaymentForm: React.FC<PaymentFormProps> = ({ contractId, onSaveSuccess }) => {
+const PaymentForm: React.FC<PaymentFormProps> = memo(({ contractId, ledger: propsLedger, onSaveSuccess, onRefresh }) => {
   const { t } = useTranslation();
   const theme = useTheme();
   const { palette, boxShadows }: any = theme;
   const [contracts, setContracts] = useState<any[]>([]);
   const [contract, setContract] = useState<any>(null);
-  const [history, setHistory] = useState<FinancialTransaction[]>([]); // ✅ حالة لتخزين سجل الدفعات
+  const [history, setHistory] = useState<FinancialTransaction[]>([]); 
   const [notification, setNotification] = useState({ open: false, message: '', severity: 'success' as 'success' | 'error' });
   const isEmbedded = !!contractId;
+  const isImportContract = useMemo(() => contract?.direction === 'import', [contract]);
 
   const [formData, setFormData] = useState({
     contract_id: contractId || '',
@@ -72,7 +75,12 @@ const PaymentForm: React.FC<PaymentFormProps> = ({ contractId, onSaveSuccess }) 
 
 
   // --- Fetch Data ---
-  const fetchPayments = async (cId: string, contractData?: any) => {
+  const fetchPayments = useCallback(async (cId: string, contractData?: any) => {
+      if (propsLedger) {
+          const payments = propsLedger.filter(t => t.type === 'Payment').slice(-10);
+          setHistory(payments);
+          return;
+      }
       try {
           const res = await api.get(`contracts/${cId}/ledger`);
           const rawLedger: any[] = res.data;
@@ -130,18 +138,18 @@ const PaymentForm: React.FC<PaymentFormProps> = ({ contractId, onSaveSuccess }) 
       } catch (error) {
           console.error("Failed to load transactions", error);
       }
-  };
+  }, [propsLedger, contract]);
 
 
   // Fetch bank accounts
-  const loadBankAccounts = async () => {
+  const loadBankAccounts = React.useCallback(async () => {
     try {
       const res = await api.get('bank-accounts/');
       setBankAccounts(res.data);
     } catch (error) {
       console.error("Failed to load bank accounts", error);
     }
-  };
+  }, []);
 
   // Handle adding new bank account
   const handleAddBankAccount = async () => {
@@ -175,14 +183,19 @@ const PaymentForm: React.FC<PaymentFormProps> = ({ contractId, onSaveSuccess }) 
   useEffect(() => {
     const fetchData = async () => {
         if (isEmbedded && contractId) {
-            try {
-                const res = await api.get(`contracts/${contractId}`);
-                const data = res.data;
-                setContract(data);
-                setFormData(prev => ({ ...prev, contract_id: data.id, contract_no: data.contract_no, contract_currency: data.contract_currency }));
-                // ✅ جلب جميع الحركات المالية
-                await fetchPayments(contractId, data);
-            } catch(e) {}
+            if (propsLedger) {
+                const payments = propsLedger.filter(t => t.type === 'Payment').slice(-10);
+                setHistory(payments);
+            } else {
+                try {
+                    const res = await api.get(`contracts/${contractId}`);
+                    const data = res.data;
+                    setContract(data);
+                    setFormData(prev => ({ ...prev, contract_id: data.id, contract_no: data.contract_no, contract_currency: data.contract_currency }));
+                    // ✅ جلب جميع الحركات المالية
+                    await fetchPayments(contractId, data);
+                } catch(e) {}
+            }
         } else {
             api.get('contracts/').then(res => setContracts(res.data));
         }
@@ -190,7 +203,7 @@ const PaymentForm: React.FC<PaymentFormProps> = ({ contractId, onSaveSuccess }) 
         loadBankAccounts();
     };
     fetchData();
-  }, [contractId, isEmbedded]);
+  }, [contractId, isEmbedded, propsLedger, fetchPayments, loadBankAccounts]);
 
   const handleContractChange = (contract: Contract | null) => {
     if(contract) {
@@ -201,9 +214,42 @@ const PaymentForm: React.FC<PaymentFormProps> = ({ contractId, onSaveSuccess }) 
 
   const calculatedValue = (parseFloat(formData.amount) || 0) * (parseFloat(formData.exchange_rate) || 1);
 
+  const inputSx = useMemo(() => ({ 
+    '& .MuiOutlinedInput-root': { 
+      borderRadius: '8px',
+      bgcolor: palette.mode === 'light' 
+        ? alpha(palette.primary.main, 0.04) 
+        : alpha(palette.background.paper, 0.4),
+      border: `1.5px solid ${palette.mode === 'light' ? alpha(palette.divider, 0.6) : alpha(palette.divider, 0.45)}`,
+      '&:hover': { 
+        borderColor: alpha(palette.primary.main, 0.7),
+        bgcolor: palette.mode === 'light' ? alpha(palette.primary.main, 0.08) : alpha(palette.background.paper, 0.6),
+      },
+      '&.Mui-focused': { 
+        borderColor: palette.primary.main,
+        borderWidth: '2px', 
+        bgcolor: palette.mode === 'light' ? '#FFFFFF' : palette.background.paper,
+        boxShadow: `0 0 0 4px ${alpha(palette.primary.main, palette.mode === 'light' ? 0.15 : 0.25)}` 
+      },
+      '& fieldset': { border: 'none' },
+      '& .MuiInputBase-input': {
+        color: palette.text.primary,
+        padding: '8.5px 12px',
+        fontWeight: 600,
+        fontSize: '0.875rem',
+        '&::placeholder': {
+          color: palette.text.secondary,
+          opacity: 0.6
+        }
+      }
+    },
+    '& .MuiInputLabel-root': { color: palette.text.secondary },
+    '& .MuiAutocomplete-inputRoot': { padding: '2px 8px' }
+  }), [palette]);
+
   const handleSave = async () => {
-    if (!formData.contract_id || !formData.amount) {
-        setNotification({ open: true, message: 'Required fields missing', severity: 'error' });
+    if (!formData.contract_id || !formData.amount || !formData.bank_account_id) {
+        setNotification({ open: true, message: 'Contract, Amount and Bank Account are required', severity: 'error' });
         return;
     }
 
@@ -229,10 +275,12 @@ const PaymentForm: React.FC<PaymentFormProps> = ({ contractId, onSaveSuccess }) 
         setNotification({ open: true, message: 'Payment registered successfully', severity: 'success' });
         
         // تحديث السجل وإعادة تعيين النموذج
-        if (formData.contract_id) {
+        if (onRefresh) {
+            onRefresh();
+        } else if (formData.contract_id) {
             await fetchPayments(formData.contract_id);
-            // No need to fetch contract total again as it hasn't changed
         }
+        
         if (onSaveSuccess) onSaveSuccess(); // لتحديث التابات الأخرى (SOA)
         
         setFormData(prev => ({ ...prev, amount: '', ref_id: '', remarks: '', linked_transaction_id: '' }));
@@ -317,13 +365,14 @@ const PaymentForm: React.FC<PaymentFormProps> = ({ contractId, onSaveSuccess }) 
                       </Typography>
                       <Autocomplete 
                         options={contracts} 
-                        getOptionLabel={(opt) => opt.contract_no} 
+                        getOptionLabel={(opt) => opt?.contract_no || ''} 
                         onChange={(_, val) => handleContractChange(val)} 
                         renderInput={(params) => (
                           <TextField 
                             {...params} 
                             size="small" 
-                            sx={{ '& .MuiOutlinedInput-root': { borderRadius: '8px' } }}
+                            placeholder={t("examples.contractNo")}
+                            sx={inputSx}
                           />
                         )} 
                       />
@@ -340,7 +389,7 @@ const PaymentForm: React.FC<PaymentFormProps> = ({ contractId, onSaveSuccess }) 
                       size="small" 
                       value={formData.payment_date} 
                       onChange={e => setFormData({...formData, payment_date: e.target.value})} 
-                      sx={{ '& .MuiOutlinedInput-root': { borderRadius: '8px' } }}
+                      sx={inputSx}
                     />
                   </Grid>
 
@@ -354,7 +403,7 @@ const PaymentForm: React.FC<PaymentFormProps> = ({ contractId, onSaveSuccess }) 
                       size="small" 
                       value={formData.payment_method} 
                       onChange={e => setFormData({...formData, payment_method: e.target.value})}
-                      sx={{ '& .MuiOutlinedInput-root': { borderRadius: '8px' } }}
+                      sx={inputSx}
                     >
                       {['Bank Transfer', 'Cheque', 'Cash'].map(m => <MenuItem key={m} value={m}>{t(m)}</MenuItem>)}
                     </TextField>
@@ -368,9 +417,11 @@ const PaymentForm: React.FC<PaymentFormProps> = ({ contractId, onSaveSuccess }) 
                       type="number" 
                       fullWidth 
                       size="small" 
+                      placeholder={t("examples.amount")}
                       value={formData.amount} 
                       onChange={e => setFormData({...formData, amount: e.target.value})} 
                       InputProps={{ sx: { fontWeight: '700', color: palette.primary.main, borderRadius: '8px' } }} 
+                      sx={inputSx}
                     />
                   </Grid>
 
@@ -384,7 +435,7 @@ const PaymentForm: React.FC<PaymentFormProps> = ({ contractId, onSaveSuccess }) 
                       size="small" 
                       value={formData.currency} 
                       onChange={e => setFormData({...formData, currency: e.target.value})}
-                      sx={{ '& .MuiOutlinedInput-root': { borderRadius: '8px' } }}
+                      sx={inputSx}
                     >
                       {['USD', 'EUR', 'SAR', 'AED'].map(c => <MenuItem key={c} value={c}>{c}</MenuItem>)}
                     </TextField>
@@ -400,7 +451,7 @@ const PaymentForm: React.FC<PaymentFormProps> = ({ contractId, onSaveSuccess }) 
                       size="small" 
                       value={formData.exchange_rate} 
                       onChange={e => setFormData({...formData, exchange_rate: e.target.value})} 
-                      sx={{ '& .MuiOutlinedInput-root': { borderRadius: '8px' } }}
+                      sx={inputSx}
                     />
                   </Grid>
 
@@ -411,7 +462,7 @@ const PaymentForm: React.FC<PaymentFormProps> = ({ contractId, onSaveSuccess }) 
                     <Box sx={{ display: 'flex', gap: 1 }}>
                       <Autocomplete
                         options={bankAccounts}
-                        getOptionLabel={(option) => `${option.account_name} - ${option.account_number} (${option.bank_name})`}
+                        getOptionLabel={(option) => option ? `${option.account_name} - ${option.account_number} (${option.bank_name})` : ''}
                         value={bankAccounts.find(acc => acc.id === formData.bank_account_id) || null}
                         onChange={(_, value) => setFormData({...formData, bank_account_id: value?.id || ''})}
                         renderInput={(params) => (
@@ -420,7 +471,7 @@ const PaymentForm: React.FC<PaymentFormProps> = ({ contractId, onSaveSuccess }) 
                             size="small"
                             placeholder={t("Select bank account")}
                             fullWidth
-                            sx={{ '& .MuiOutlinedInput-root': { borderRadius: '8px' } }}
+                            sx={inputSx}
                           />
                         )}
                         sx={{ flex: 1 }}
@@ -453,7 +504,7 @@ const PaymentForm: React.FC<PaymentFormProps> = ({ contractId, onSaveSuccess }) 
                       size="small"
                       value={formData.linked_transaction_id}
                       onChange={e => setFormData({...formData, linked_transaction_id: e.target.value})}
-                      sx={{ '& .MuiOutlinedInput-root': { borderRadius: '8px' } }}
+                      sx={inputSx}
                     >
                       <MenuItem value=""><em>{t('None')}</em></MenuItem>
                       {history.filter(t => t.type === 'Invoice').map(inv => (
@@ -464,17 +515,31 @@ const PaymentForm: React.FC<PaymentFormProps> = ({ contractId, onSaveSuccess }) 
                     </TextField>
                   </Grid>
 
-                  <Grid size={{ xs: 12 }}>
+                  <Grid size={{ xs: 12, md: 6 }}>
                     <Typography variant="caption" fontWeight="700" color="text.secondary" sx={{ mb: 1, display: 'block', textTransform: 'uppercase' }}>
-                      {t('PAYMENT REFERENCE / NOTES')}
+                      {t('REFERENCE / RECEIPT NO')}
                     </Typography>
                     <TextField 
                       fullWidth 
                       size="small" 
+                      placeholder={t("examples.refId")}
                       value={formData.ref_id} 
                       onChange={e => setFormData({...formData, ref_id: e.target.value})} 
-                      placeholder={t("e.g. PAY-2025-001 or bank confirmation number")} 
-                      sx={{ '& .MuiOutlinedInput-root': { borderRadius: '8px' } }}
+                      sx={inputSx}
+                    />
+                  </Grid>
+
+                  <Grid size={{ xs: 12, md: 6 }}>
+                    <Typography variant="caption" fontWeight="700" color="text.secondary" sx={{ mb: 1, display: 'block', textTransform: 'uppercase' }}>
+                      {t('REMARKS / DESCRIPTION')}
+                    </Typography>
+                    <TextField 
+                      fullWidth 
+                      size="small" 
+                      placeholder={t("examples.remarks")}
+                      value={formData.remarks} 
+                      onChange={e => setFormData({...formData, remarks: e.target.value})} 
+                      sx={inputSx}
                     />
                   </Grid>
                 </Grid>
@@ -544,7 +609,7 @@ const PaymentForm: React.FC<PaymentFormProps> = ({ contractId, onSaveSuccess }) 
                             </TableCell>
                             <TableCell align="right" sx={{ py: 1.5 }}>
                               <Chip
-                                label={`${row.is_credit ? '-' : '+'}${row.amount.toLocaleString()} ${formData.contract_currency}`}
+                                label={`${(isImportContract ? !row.is_credit : row.is_credit) ? '-' : '+'}${row.amount.toLocaleString()} ${formData.contract_currency}`}
                                 size="small"
                                 sx={{
                                   bgcolor: alpha(row.is_credit ? palette.success.main : palette.error.main, 0.1),
@@ -816,6 +881,6 @@ const PaymentForm: React.FC<PaymentFormProps> = ({ contractId, onSaveSuccess }) 
       </Snackbar>
     </Container>
   );
-};
+});
 
 export default PaymentForm;

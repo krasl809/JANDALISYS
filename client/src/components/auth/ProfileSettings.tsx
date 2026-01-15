@@ -17,12 +17,22 @@ import api from '../../services/api';
 
 const ProfileSettings: React.FC = () => {
   const { t } = useTranslation();
-  const { user } = useAuth(); // We might need to refresh user data in context
+  const { user, refreshUser } = useAuth(); // We might need to refresh user data in context
 
   const [profileData, setProfileData] = useState({
     name: user?.name || '',
     email: user?.email || ''
   });
+
+  // Update profile data when user context changes
+  React.useEffect(() => {
+    if (user) {
+      setProfileData({
+        name: user.name,
+        email: user.email
+      });
+    }
+  }, [user]);
 
   const [passwordData, setPasswordData] = useState({
     old_password: '',
@@ -50,7 +60,9 @@ const ProfileSettings: React.FC = () => {
     try {
       await api.put('users/profile', profileData);
       setSuccess(t('Profile updated successfully'));
-      // Ideally update auth context here if needed
+      // Update local storage and context immediately
+      localStorage.setItem('user_name', profileData.name);
+      refreshUser();
     } catch (err: any) {
       setError(err.response?.data?.detail || 'Failed to update profile');
     } finally {

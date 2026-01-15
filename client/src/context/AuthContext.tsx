@@ -41,25 +41,42 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const userName = localStorage.getItem('user_name') || 'User';
     const savedPermissions = localStorage.getItem('user_permissions');
 
-    if (token && userId && userRole) {
+    if (token && userId) {
       let permissions: string[] = [];
-      try {
-        permissions = savedPermissions ? JSON.parse(savedPermissions) : [];
-      } catch (e) {
-        console.error("Failed to parse permissions", e);
-      }
+      let userName = localStorage.getItem('user_name') || 'User';
+      let userEmail = localStorage.getItem('user_email') || 'user@example.com';
+      let userRole = localStorage.getItem('user_role') || 'user';
 
-      // Try to refresh permissions from backend if we have a token
+      // Try to refresh full user info from backend if we have a token
       try {
-        // We use a dynamic import or require to avoid circular dependency if api service uses useAuth
         const api = (await import('../services/api')).default;
-        const response = await api.get(`rbac/user-permissions/${userId}`);
-        if (response.data && Array.isArray(response.data)) {
-          permissions = response.data;
+        
+        // Parallel requests for user info and permissions
+        const [userResponse, permResponse] = await Promise.all([
+          api.get('auth/me'),
+          api.get(`rbac/user-permissions/${userId}`)
+        ]);
+
+        if (userResponse.data) {
+          userName = userResponse.data.name;
+          userEmail = userResponse.data.email;
+          userRole = userResponse.data.role;
+          localStorage.setItem('user_name', userName);
+          localStorage.setItem('user_email', userEmail);
+          localStorage.setItem('user_role', userRole);
+        }
+
+        if (permResponse.data && Array.isArray(permResponse.data)) {
+          permissions = permResponse.data;
           localStorage.setItem('user_permissions', JSON.stringify(permissions));
         }
       } catch (error) {
-        console.warn("Could not refresh permissions from backend, using cached ones", error);
+        console.warn("Could not refresh user data from backend, using cached ones", error);
+        try {
+          permissions = savedPermissions ? JSON.parse(savedPermissions) : [];
+        } catch (e) {
+          console.error("Failed to parse permissions", e);
+        }
       }
 
       const userData = {

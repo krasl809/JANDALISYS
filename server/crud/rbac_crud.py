@@ -56,6 +56,14 @@ def assign_role_to_user(db: Session, user_id, role_id):
         db.execute(stmt)
         db.commit()
 
+def remove_all_user_roles(db: Session, user_id):
+    # Ensure UUID
+    if isinstance(user_id, str): user_id = uuid.UUID(user_id)
+    
+    stmt = user_roles.delete().where(user_roles.c.user_id == user_id)
+    db.execute(stmt)
+    db.commit()
+
 def get_user_permissions(db: Session, user_id):
     # Ensure UUID
     if isinstance(user_id, str):

@@ -157,6 +157,13 @@ class Contract(Base):
     contract_currency = Column(String(3), default="USD")
     pricing_status = Column(String(50), default="pending")
 
+    seller_contract_ref_no = Column(String(255), nullable=True)
+    seller_contract_date = Column(Date, nullable=True)
+    actual_shipped_quantity = Column(DECIMAL(10, 2), default=0)
+    vessel_name = Column(String(255), nullable=True)
+    ata_date = Column(Date, nullable=True)
+    ata_time = Column(String(10), nullable=True)
+
     contract_type = Column(String(50), default="fixed_price")
     demurrage_rate = Column(Text)
     discharge_rate = Column(Text)
@@ -177,11 +184,34 @@ class Contract(Base):
     posted_by = Column(UUID(as_uuid=True), ForeignKey("users.id"))
     posted_date = Column(DateTime)
     modified_date = Column(DateTime, default=func.now(), onupdate=func.now())
+    version = Column(Integer, default=1, nullable=False)
 
     finance_notified_by = Column(UUID(as_uuid=True), ForeignKey("users.id"))
     finance_notified_at = Column(DateTime)
     
     items = relationship("ContractItem", back_populates="contract", cascade="all, delete-orphan")
+    seller = relationship("Seller")
+    shipper = relationship("Shipper")
+    buyer = relationship("Buyer")
+    broker = relationship("Broker")
+    conveyor = relationship("Conveyor")
+    agent = relationship("Agent")
+    warehouse = relationship("Warehouse")
+    poster = relationship("User", foreign_keys=[posted_by])
+    finance_notifier = relationship("User", foreign_keys=[finance_notified_by])
+    creator = relationship("User", foreign_keys=[created_by])
+
+    @property
+    def created_by_name(self):
+        return self.creator.name if self.creator else None
+
+    @property
+    def posted_by_name(self):
+        return self.poster.name if self.poster else None
+
+    @property
+    def finance_notified_by_name(self):
+        return self.finance_notifier.name if self.finance_notifier else None
 
 class ContractItem(Base):
     __tablename__ = "contract_items"
@@ -202,6 +232,7 @@ class ContractItem(Base):
     
     contract = relationship("Contract", back_populates="items")
     article = relationship("Article")
+    specifications = relationship("ContractItemSpecification", back_populates="contract_item", cascade="all, delete-orphan")
 
     @property
     def article_name(self):
@@ -471,3 +502,17 @@ class ContractDocument(Base):
     document_type = relationship("DocumentType")
     uploader = relationship("User", foreign_keys=[uploaded_by])
     verifier = relationship("User", foreign_keys=[verified_by])
+
+class ContractItemSpecification(Base):
+    __tablename__ = "contract_item_specifications"
+    __table_args__ = {'extend_existing': True}
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    contract_item_id = Column(UUID(as_uuid=True), ForeignKey("contract_items.id"), nullable=False)
+    
+    spec_key = Column(String(255), nullable=False) # e.g., Moisture, Protein
+    spec_value = Column(String(255), nullable=False) # e.g., Max. 14%, min 7.3%
+    
+    display_order = Column(Integer, default=0)
+    
+    contract_item = relationship("ContractItem", back_populates="specifications")

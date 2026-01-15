@@ -71,7 +71,7 @@ const SettingsPage: React.FC = () => {
     { label: t('Agents'), icon: <BusinessCenter />, component: <AgentsList />, permission: 'view_agents' },
     { label: t('Documents'), icon: <DocumentIcon />, component: <DocumentsList />, permission: 'read_document_types' },
     { label: t('Payment Terms'), icon: <PaymentIcon />, component: <PaymentTermsList />, permission: 'read_payment_terms' },
-    { label: t('Incoterms'), icon: <IncotermIcon />, component: <IncotermsList />, permission: 'read_incoterms' },
+    { label: t('incoterms'), icon: <IncotermIcon />, component: <IncotermsList />, permission: 'read_incoterms' },
   ];
 
   const tabs = allTabs.filter(tab => {

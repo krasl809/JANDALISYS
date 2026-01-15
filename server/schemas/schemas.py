@@ -191,6 +191,22 @@ class UserUpdate(BaseModel):
     is_active: Optional[bool] = None
     language: Optional[str] = None
 
+# --- Contract Item Specifications ---
+class ContractItemSpecificationBase(BaseModel):
+    spec_key: str = Field(..., max_length=255, description="Specification name (e.g. Moisture)")
+    spec_value: str = Field(..., max_length=255, description="Specification value (e.g. Max. 14%)")
+    display_order: int = Field(0, description="Order for display")
+
+class ContractItemSpecificationCreate(ContractItemSpecificationBase):
+    id: Optional[uuid.UUID] = None
+
+class ContractItemSpecification(ContractItemSpecificationBase):
+    id: uuid.UUID
+    contract_item_id: uuid.UUID
+
+    class Config:
+        from_attributes = True
+
 # --- Contract Items ---
 class ContractItemBase(BaseModel):
     article_id: uuid.UUID = Field(..., description="Article ID")
@@ -205,6 +221,8 @@ class ContractItemBase(BaseModel):
     price: Optional[float] = Field(None, ge=0, le=1000000, description="Unit price")
     premium: Optional[float] = Field(0, ge=0, le=10000, description="Premium amount")
     
+    specifications: List[ContractItemSpecificationCreate] = Field(default=[], description="Item specifications")
+    
     @field_validator('quantity', 'qty_lot', 'qty_ton', 'price', 'premium')
     @classmethod
     def validate_positive_numbers(cls, v):
@@ -217,10 +235,11 @@ class ContractItemCreate(ContractItemBase):
 
 class ContractItem(ContractItemBase):
     id: uuid.UUID
-    total: float
+    total: Optional[float] = 0
     # نحتاج الاسم للعرض في الفرونت
     article_name: Optional[str] = None 
     article: Optional[ArticleEntity] = None
+    specifications: List[ContractItemSpecification] = []
 
     class Config:
         from_attributes = True
@@ -232,6 +251,7 @@ class ContractBase(BaseModel):
 
     issue_date: Optional[date] = Field(None, description="Contract issue date")
     shipment_date: Optional[date] = Field(None, description="Shipment date")
+    shipment_period: Optional[str] = Field(None, max_length=255, description="Shipment period (if date is not specified)")
     payment_terms: Optional[str] = Field(None, max_length=500, description="Payment terms")
     incoterms: Optional[str] = Field(None, max_length=100, description="Incoterms")
     bank_details: Optional[str] = Field(None, max_length=1000, description="Bank details")
@@ -248,15 +268,23 @@ class ContractBase(BaseModel):
     documents: Optional[str] = Field(None, max_length=1000, description="Required documents")
     contract_currency: str = Field(default="USD", description="Contract currency")
     
-    seller_id: uuid.UUID = Field(..., description="Seller ID")
+    seller_id: Optional[uuid.UUID] = Field(None, description="Seller ID")
     shipper_id: Optional[uuid.UUID] = Field(None, description="Shipper ID")
-    buyer_id: uuid.UUID = Field(..., description="Buyer ID")
+    buyer_id: Optional[uuid.UUID] = Field(None, description="Buyer ID")
     broker_id: Optional[uuid.UUID] = Field(None, description="Broker ID")
+    agent_id: Optional[uuid.UUID] = Field(None, description="Agent ID")
     
     # الحقول الجديدة
     conveyor_id: Optional[uuid.UUID] = Field(None, description="Conveyor ID")
     contract_type: ContractType = Field(default=ContractType.FIXED_PRICE, description="Contract type")
     pricing_status: PricingStatus = Field(default=PricingStatus.PENDING, description="Pricing status")
+    
+    seller_contract_ref_no: Optional[str] = Field(None, max_length=255, description="Seller contract reference number")
+    seller_contract_date: Optional[date] = Field(None, description="Seller contract date")
+    actual_shipped_quantity: Optional[float] = Field(0, ge=0, description="Actual shipped quantity")
+    vessel_name: Optional[str] = Field(None, max_length=255, description="Vessel name")
+    ata_date: Optional[date] = Field(None, description="Actual time of arrival date")
+    ata_time: Optional[str] = Field(None, max_length=10, description="Actual time of arrival time")
     
     # حقول الشحن
     demurrage_rate: Optional[str] = Field(None, max_length=100, description="Demurrage rate")
@@ -264,7 +292,15 @@ class ContractBase(BaseModel):
     dispatch_rate: Optional[str] = Field(None, max_length=100, description="Dispatch rate")
     laycan_date_from: Optional[date] = Field(None, description="Laycan start date")
     laycan_date_to: Optional[date] = Field(None, description="Laycan end date")
+    version: Optional[int] = Field(None, description="Contract version for optimistic locking")
     
+    @field_validator('issue_date', 'laycan_date_to', 'shipment_date', 'seller_contract_date', 'ata_date', 'laycan_date_from', mode='before')
+    @classmethod
+    def empty_str_to_none(cls, v):
+        if v == "":
+            return None
+        return v
+
     @field_validator('contract_currency')
     @classmethod
     def validate_currency(cls, v):
@@ -287,7 +323,7 @@ class ContractBase(BaseModel):
         return v
 
 class ContractCreate(ContractBase):
-    items: List[ContractItemCreate] = Field(..., min_items=1, max_items=100, description="Contract items")
+    items: List[ContractItemCreate] = Field(default=[], max_items=100, description="Contract items")
     status: ContractStatus = Field(default=ContractStatus.DRAFT, description="Contract status")
     contract_no: Optional[str] = Field(None, max_length=50, description="Contract number")
     
@@ -296,10 +332,11 @@ class ContractCreate(ContractBase):
     def validate_contract_no(cls, v):
         if v:
             import re
-            # Contract number should be alphanumeric, max 50 chars
-            if not re.match(r'^[A-Z0-9]{4,50}$', v.upper()):
-                raise ValueError('Contract number must be alphanumeric (4-50 characters)')
-        return v
+            # Contract number should be alphanumeric, allow common separators
+            # Pattern: Alphanumeric, hyphen, slash, dot, ampersand, space
+            if not re.match(r'^[A-Z0-9\-\/\.& ]{3,50}$', v.upper()):
+                raise ValueError('Contract number must be alphanumeric (3-50 characters, allowed: - / . & space)')
+        return v.strip() if v else v
 
 class Contract(ContractBase):
     id: uuid.UUID
@@ -308,6 +345,11 @@ class Contract(ContractBase):
     created_by: Optional[uuid.UUID] = None
     posted_date: Optional[datetime] = None
     modified_date: Optional[datetime] = None
+    
+    # Audit names for UI
+    created_by_name: Optional[str] = None
+    posted_by_name: Optional[str] = None
+    finance_notified_by_name: Optional[str] = None
     
     # القيم المالية
     financial_value: Optional[float] = 0
@@ -544,6 +586,7 @@ class ContractPricingRequest(BaseModel):
     """Schema for contract pricing requests"""
     prices: Optional[Dict[str, float]] = Field(None, description="Item ID to price mapping")
     status: Optional[PricingStatus] = Field(None, description="New pricing status")
+    version: Optional[int] = Field(None, description="Contract version for optimistic locking")
 
 class ContractPartialPricingRequest(BaseModel):
     """Schema for partial pricing requests"""
@@ -551,11 +594,13 @@ class ContractPartialPricingRequest(BaseModel):
     qty_priced: float = Field(..., ge=0, description="Quantity being priced")
     market_price: float = Field(..., ge=0, description="Market price per unit")
     pricing_date: Optional[str] = Field(None, description="Pricing date (YYYY-MM-DD)")
+    version: Optional[int] = Field(None, description="Contract version for optimistic locking")
 
 class PricingResponse(BaseModel):
     """Standard response for pricing operations"""
     message: str
     success: bool = True
+    version: Optional[int] = None
 
 # --- Contract Views ---
 class ContractViewBase(BaseModel):

@@ -23,12 +23,13 @@ interface NavProps {
 
 const menuItems = [
   { text: 'dashboard.title', path: '/', icon: <Dashboard />, permission: PERMISSIONS.VIEW_DASHBOARD },
-  { text: 'contracts', path: '/contracts', icon: <Description />, permission: PERMISSIONS.VIEW_CONTRACTS },
+  { text: 'contracts.title', path: '/contracts', icon: <Description />, permission: PERMISSIONS.VIEW_CONTRACTS },
   { text: 'pricing', path: '/pricing', icon: <PriceCheck />, permission: PERMISSIONS.VIEW_PRICING },
   { text: 'payments', path: '/payments', icon: <Payment />, permission: PERMISSIONS.VIEW_PAYMENTS },
   { text: 'Archive Dashboard', path: '/archive/dashboard', icon: <Dashboard />, permission: PERMISSIONS.VIEW_ARCHIVE },
   { text: 'Electronic Archive', path: '/archive', icon: <FolderSpecial />, permission: PERMISSIONS.VIEW_ARCHIVE },
   { text: 'Reports & Analytics', path: '/reports', icon: <Assessment />, permission: PERMISSIONS.VIEW_REPORTS },
+  { text: 'settings', path: '/settings', icon: <SettingsInputComponent />, permission: PERMISSIONS.VIEW_SETTINGS },
 ];
 
 const inventoryItems = [

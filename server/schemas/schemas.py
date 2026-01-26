@@ -252,6 +252,8 @@ class ContractBase(BaseModel):
     issue_date: Optional[date] = Field(None, description="Contract issue date")
     shipment_date: Optional[date] = Field(None, description="Shipment date")
     shipment_period: Optional[str] = Field(None, max_length=255, description="Shipment period (if date is not specified)")
+    shipment_date_start: Optional[date] = Field(None, description="Shipment start date")
+    shipment_date_end: Optional[date] = Field(None, description="Shipment end date")
     payment_terms: Optional[str] = Field(None, max_length=500, description="Payment terms")
     incoterms: Optional[str] = Field(None, max_length=100, description="Incoterms")
     bank_details: Optional[str] = Field(None, max_length=1000, description="Bank details")
@@ -313,6 +315,13 @@ class ContractBase(BaseModel):
     def validate_laycan_dates(cls, v, info):
         if v and info.data.get('laycan_date_from') and v < info.data['laycan_date_from']:
             raise ValueError('Laycan end date must be after start date')
+        return v
+
+    @field_validator('shipment_date_end')
+    @classmethod
+    def validate_shipment_dates(cls, v, info):
+        if v and info.data.get('shipment_date_start') and v < info.data['shipment_date_start']:
+            raise ValueError('Shipment end date must be after start date')
         return v
 
     @field_validator('shipment_date')

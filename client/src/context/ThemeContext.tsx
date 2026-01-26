@@ -261,17 +261,14 @@ export const AppThemeProvider: React.FC<{ children: React.ReactNode }> = ({ chil
               borderRadius: 8,
               backgroundColor: mode === 'light' ? 'transparent' : alpha(palette.background.paper, 0.4),
               '& fieldset': {
-                borderColor: mode === 'light' ? alpha('#344767', 0.25) : alpha(palette.divider, 0.8),
-                borderWidth: '1.5px',
+                borderColor: mode === 'light' ? '#d2d6da' : alpha(palette.divider, 0.45),
               },
               '&:hover fieldset': {
                 borderColor: palette.primary.main,
-                borderWidth: '1.5px',
               },
               '&.Mui-focused fieldset': {
                 borderColor: palette.primary.main,
-                borderWidth: '2px',
-                boxShadow: `0 0 0 3px ${alpha(palette.primary.main, 0.15)}`,
+                borderWidth: 2,
               },
               '&.Mui-disabled': {
                 backgroundColor: alpha(palette.action.disabledBackground, 0.05),

@@ -94,22 +94,20 @@ const PricingForm: React.FC<PricingFormProps> = memo(({ contractId, onSaveSucces
     '& .MuiOutlinedInput-root': {
       borderRadius: '8px',
       bgcolor: palette.mode === 'light' 
-        ? '#FFFFFF' 
+        ? alpha(palette.primary.main, 0.04) 
         : alpha(palette.background.paper, 0.4),
-      transition: 'all 0.2s',
-      '& fieldset': {
-        borderColor: palette.mode === 'light' ? alpha('#344767', 0.25) : alpha(palette.divider, 0.8),
-        borderWidth: '1.5px',
+      border: `1.5px solid ${palette.mode === 'light' ? alpha(palette.divider, 0.6) : alpha(palette.divider, 0.45)}`,
+      '&:hover': { 
+        borderColor: alpha(palette.primary.main, 0.7),
+        bgcolor: palette.mode === 'light' ? alpha(palette.primary.main, 0.08) : alpha(palette.background.paper, 0.6),
       },
-      '&:hover fieldset': { 
-        borderColor: palette.primary.main,
-        borderWidth: '1.5px',
-      },
-      '&.Mui-focused fieldset': {
+      '&.Mui-focused': {
         borderColor: palette.primary.main,
         borderWidth: '2px',
-        boxShadow: `0 0 0 4px ${alpha(palette.primary.main, 0.15)}`,
+        bgcolor: palette.mode === 'light' ? '#FFFFFF' : palette.background.paper,
+        boxShadow: `0 0 0 4px ${alpha(palette.primary.main, palette.mode === 'light' ? 0.15 : 0.25)}`,
       },
+      '& fieldset': { border: 'none' }
     },
     '& .MuiInputBase-input': {
       padding: '8.5px 12px',

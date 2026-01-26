@@ -120,19 +120,15 @@ const IncotermsList: React.FC = () => {
     // --- Styles ---
     const inputSx = useMemo(() => ({
         '& .MuiOutlinedInput-root': {
-            bgcolor: theme.palette.mode === 'dark' ? alpha(theme.palette.background.default, 0.4) : 'inherit',
+            bgcolor: theme.palette.mode === 'dark' ? 'background.paper' : 'inherit',
             '& fieldset': {
-                borderColor: theme.palette.mode === 'light' ? alpha('#344767', 0.25) : alpha(theme.palette.divider, 0.8),
-                borderWidth: '1.5px',
+                borderColor: theme.palette.mode === 'dark' ? alpha(theme.palette.divider, 0.45) : alpha(theme.palette.divider, 0.2),
             },
             '&:hover fieldset': {
                 borderColor: theme.palette.primary.main,
-                borderWidth: '1.5px',
             },
             '&.Mui-focused fieldset': {
                 borderColor: theme.palette.primary.main,
-                borderWidth: '2px',
-                boxShadow: `0 0 0 3px ${alpha(theme.palette.primary.main, 0.15)}`,
             },
         },
         '& .MuiInputBase-input::placeholder': {

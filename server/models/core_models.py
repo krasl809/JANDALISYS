@@ -141,6 +141,8 @@ class Contract(Base):
     issue_date = Column(Date, default=func.current_date())
     shipment_date = Column(Date, nullable=True)
     shipment_period = Column(String(255), nullable=True)
+    shipment_date_start = Column(Date, nullable=True)
+    shipment_date_end = Column(Date, nullable=True)
     payment_terms = Column(Text)
     incoterms = Column(Text)
     bank_details = Column(Text)

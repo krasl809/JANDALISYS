@@ -285,11 +285,15 @@ const Documents: React.FC<DocumentsProps> = memo(({ contractId }) => {
     try {
       // For viewable files (images, PDFs), open in new tab
       if (doc.mime_type.startsWith('image/') || doc.mime_type === 'application/pdf') {
+        const token = localStorage.getItem('access_token');
         const response = await api.get(`documents/${doc.id}/download`, {
-          responseType: 'blob'
+          responseType: 'blob',
+          headers: {
+            Authorization: `Bearer ${token}`
+          }
         });
 
-        const url = window.URL.createObjectURL(new Blob([response.data]));
+        const url = window.URL.createObjectURL(new Blob([response.data], { type: doc.mime_type }));
         window.open(url, '_blank');
         // Note: URL.revokeObjectURL can be called after some time to free memory
         setTimeout(() => window.URL.revokeObjectURL(url), 10000);
@@ -680,13 +684,14 @@ const Documents: React.FC<DocumentsProps> = memo(({ contractId }) => {
 
           <Stack spacing={3} mt={1}>
             {selectedFile && (
-              <Alert severity="info">
-                <Typography variant="body2">
-                  <strong>File:</strong> {selectedFile.name}<br />
-                  <strong>Size:</strong> {formatFileSize(selectedFile.size)}<br />
-                  <strong>Type:</strong> {selectedFile.type}
+              <Box sx={{ p: 2, bgcolor: 'action.hover', borderRadius: 1 }}>
+                <Typography variant="subtitle2" noWrap>
+                  {selectedFile.name}
                 </Typography>
-              </Alert>
+                <Typography variant="caption" color="text.secondary">
+                  {formatFileSize(selectedFile.size)} • {selectedFile.type}
+                </Typography>
+              </Box>
             )}
 
             <FormControl fullWidth>
@@ -707,34 +712,12 @@ const Documents: React.FC<DocumentsProps> = memo(({ contractId }) => {
 
             <TextField
               fullWidth
-              label="Document Number"
-              value={formData.document_number}
-              onChange={(e) => setFormData(prev => ({ ...prev, document_number: e.target.value }))}
-              placeholder="Invoice #, Certificate #, etc."
-            />
-
-            <TextField
-              fullWidth
               label="Description"
               value={formData.description}
               onChange={(e) => setFormData(prev => ({ ...prev, description: e.target.value }))}
               multiline
-              rows={2}
-              placeholder="Brief description of the document"
-            />
-
-            <TextField
-              fullWidth
-              type="date"
-              label="Expiry Date"
-              value={formData.expiry_date}
-              onChange={(e) => setFormData(prev => ({ ...prev, expiry_date: e.target.value }))}
-              InputLabelProps={{ shrink: true }}
-            />
-
-            <FormControlLabel
-              control={<Checkbox checked={formData.is_required} onChange={(e) => setFormData(prev => ({ ...prev, is_required: e.target.checked }))} />}
-              label="Required Document"
+              rows={3}
+              placeholder="Brief description of the document (Optional)"
             />
           </Stack>
         </DialogContent>

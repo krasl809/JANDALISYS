@@ -6,19 +6,55 @@ import {
   Box, Container, Typography, Tabs, Tab, Button, Card,
   Table, TableBody, TableCell, TableContainer, TableHead, TableRow,
   Chip, InputAdornment, TextField, IconButton, Stack, LinearProgress,
-  Menu, MenuItem, ListItemIcon, ListItemText, Badge, Divider
+  Menu, MenuItem, ListItemIcon, ListItemText, Badge, Divider, Collapse,
+  Grid, Paper, Avatar
 } from '@mui/material';
+import Grid2 from '@mui/material/Grid2';
 import { 
   Add, Search, FilterList, MoreVert, ArrowUpward, ArrowDownward, 
   KeyboardArrowDown, Edit, Visibility, DeleteOutline, ContentCopy, Timeline,
-  ChevronLeft, ChevronRight 
+  ChevronLeft, ChevronRight, List as ListIcon,
+  AttachMoney, Assignment, LocalShipping, Warning, CheckCircle
 } from '@mui/icons-material';
 import { alpha, useTheme } from '@mui/material/styles';
 import { useTranslation } from 'react-i18next';
 import { useConfirm } from '../../context/ConfirmContext';
+import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip as RechartsTooltip, Legend, BarChart, Bar, XAxis, YAxis, CartesianGrid } from 'recharts';
 
 import { ContractSummary } from '../../types/contracts';
-import MetricStrip from '../common/MetricStrip';
+import ShipmentMap from './ShipmentMap';
+
+// --- KPI Card Component ---
+const KpiCard = ({ title, value, subtitle, icon, color, trend }: any) => {
+  const theme = useTheme();
+  return (
+    <Card sx={{ height: '100%', p: 2.5, position: 'relative', overflow: 'hidden', boxShadow: theme.shadows[2] }}>
+      <Box sx={{ position: 'absolute', top: -10, right: -10, opacity: 0.1, transform: 'rotate(15deg)' }}>
+        {React.cloneElement(icon, { sx: { fontSize: 100, color: color } })}
+      </Box>
+      <Stack spacing={1}>
+        <Box display="flex" alignItems="center" gap={1.5}>
+          <Avatar sx={{ bgcolor: alpha(color, 0.1), color: color, width: 40, height: 40 }}>
+            {icon}
+          </Avatar>
+          <Typography variant="subtitle2" color="text.secondary" fontWeight={600}>
+            {title}
+          </Typography>
+        </Box>
+        <Typography variant="h4" fontWeight={700} color="text.primary">
+          {value}
+        </Typography>
+        {subtitle && (
+           <Typography variant="caption" color="text.secondary" sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+             {trend === 'up' && <ArrowUpward fontSize="inherit" color="success" />}
+             {trend === 'down' && <ArrowDownward fontSize="inherit" color="error" />}
+             {subtitle}
+           </Typography>
+        )}
+      </Stack>
+    </Card>
+  );
+};
 
 const ContractList = () => {
   const navigate = useNavigate();
@@ -92,8 +128,8 @@ const ContractList = () => {
   };
 
   useEffect(() => {
-    fetchContracts(1);
-  }, [currentTab, searchQuery]);
+    fetchContracts();
+  }, []);
 
   // --- Filtering Logic ---
   const filteredContracts = useMemo(() => {
@@ -103,8 +139,8 @@ const ContractList = () => {
       const matchTab = 
         currentTab === 0 ? true :
         currentTab === 1 ? (status === 'pending' || status === 'draft') :
-        currentTab === 2 ? (status === 'active' || status === 'posted' || status === 'confirmed') :
-        currentTab === 3 ? (status === 'completed' || status === 'executed') : true;
+        currentTab === 2 ? (status === 'active' || status === 'posted') :
+        currentTab === 3 ? status === 'completed' : true;
 
       // 2. Filter by Search
       const searchLower = searchQuery.toLowerCase();
@@ -118,11 +154,25 @@ const ContractList = () => {
   }, [contracts, currentTab, searchQuery]);
 
   // --- Metrics Calculation ---
-  const metrics = useMemo(() => {
-    const totalVol = filteredContracts.reduce((acc, c) => acc + c.qty, 0);
-    const totalVal = filteredContracts.reduce((acc, c) => acc + c.value, 0);
-    return { totalVol, totalVal };
-  }, [filteredContracts]);
+  const dashboardStats = useMemo(() => {
+    const active = contracts.filter(c => c.status === 'Active').length;
+    const pending = contracts.filter(c => c.status === 'Pending' || c.status === 'Draft').length;
+    const totalVal = contracts.reduce((acc, c) => acc + (c.value || 0), 0);
+    const totalVol = contracts.reduce((acc, c) => acc + (c.qty || 0), 0);
+    
+    const typeData = [
+      { name: t('Import'), value: contracts.filter(c => c.type === 'Import').length, color: palette.secondary.main },
+      { name: t('Export'), value: contracts.filter(c => c.type === 'Export').length, color: palette.primary.main },
+    ];
+
+    const statusData = [
+      { name: t('Active'), value: active, color: palette.success.main },
+      { name: t('Pending'), value: pending, color: palette.warning.main },
+      { name: t('Completed'), value: contracts.filter(c => c.status === 'Completed').length, color: palette.info.main },
+    ];
+
+    return { active, pending, totalVal, totalVol, typeData, statusData };
+  }, [contracts, palette, t]);
 
   // --- Handlers ---
   
@@ -161,15 +211,7 @@ const ContractList = () => {
       })) {
         try {
           await api.delete(`contracts/${contract.id}`);
-          
-          // 1. First, remove from local state for immediate feedback
           setContracts(prev => prev.filter(c => c.id !== contract.id));
-          
-          // 2. Then re-fetch to ensure pagination and server state are synced
-          // If we are on a page that might now be empty, fetchContracts will handle it
-          await fetchContracts(pagination.page);
-          
-          alert(t('Contract deleted successfully'), t('Success'), 'success');
         } catch (error: unknown) {
           console.error('Failed to delete contract:', error);
           const apiError = error as { response?: { data?: { detail?: string } }; message?: string };
@@ -202,8 +244,8 @@ const ContractList = () => {
       {/* 1. Header & Actions */}
       <Box display="flex" justifyContent="space-between" alignItems="center" mb={4} mt={2}>
         <Box>
-           <Typography variant="h4" fontWeight="600" color="text.primary" sx={{ letterSpacing: -0.5 }}>{t('Contract Management')}</Typography>
-           <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5, opacity: 0.8 }}>{t('Track, manage and analyze your trade agreements')}</Typography>
+           <Typography variant="h4" fontWeight="600" color="text.primary" sx={{ letterSpacing: -0.5 }}>{t('Contracts Executive Dashboard')}</Typography>
+           <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5, opacity: 0.8 }}>{t('Real-time overview of your global trade operations')}</Typography>
         </Box>
         
         <Box>
@@ -244,7 +286,95 @@ const ContractList = () => {
         </Box>
       </Box>
 
-      {/* 2. Smart Tabs & Filters */}
+      {/* 2. KPI Cards Row */}
+      <Grid2 container spacing={3} mb={4}>
+        <Grid2 size={{ xs: 12, sm: 6, md: 3 }}>
+          <KpiCard 
+            title={t('Active Contracts')} 
+            value={dashboardStats.active} 
+            subtitle={t('Contracts currently in progress')} 
+            icon={<Assignment />} 
+            color={palette.primary.main} 
+          />
+        </Grid2>
+        <Grid2 size={{ xs: 12, sm: 6, md: 3 }}>
+          <KpiCard 
+            title={t('Total Trade Value')} 
+            value={`$${(dashboardStats.totalVal / 1000000).toFixed(1)}M`} 
+            subtitle={t('Cumulative value of all contracts')} 
+            icon={<AttachMoney />} 
+            color={palette.success.main}
+            trend="up"
+          />
+        </Grid2>
+        <Grid2 size={{ xs: 12, sm: 6, md: 3 }}>
+          <KpiCard 
+            title={t('Pending Actions')} 
+            value={dashboardStats.pending} 
+            subtitle={t('Drafts and pending confirmations')} 
+            icon={<Warning />} 
+            color={palette.warning.main} 
+          />
+        </Grid2>
+        <Grid2 size={{ xs: 12, sm: 6, md: 3 }}>
+          <KpiCard 
+            title={t('Total Volume')} 
+            value={`${(dashboardStats.totalVol / 1000).toFixed(1)}K`} 
+            subtitle={t('Metric Tons across all contracts')} 
+            icon={<LocalShipping />} 
+            color={palette.secondary.main} 
+          />
+        </Grid2>
+      </Grid2>
+
+      {/* 3. Map & Charts Row */}
+      <Grid2 container spacing={3} mb={4}>
+        <Grid2 size={{ xs: 12, lg: 8 }}>
+          <ShipmentMap contracts={contracts} />
+        </Grid2>
+        <Grid2 size={{ xs: 12, lg: 4 }}>
+          <Card sx={{ height: 400, p: 2, display: 'flex', flexDirection: 'column' }}>
+            <Typography variant="h6" fontWeight={700} mb={2}>{t('Trade Composition')}</Typography>
+            <Box sx={{ flexGrow: 1 }}>
+              <ResponsiveContainer width="100%" height="100%">
+                <PieChart>
+                  <Pie
+                    data={dashboardStats.typeData}
+                    cx="50%"
+                    cy="50%"
+                    innerRadius={60}
+                    outerRadius={80}
+                    paddingAngle={5}
+                    dataKey="value"
+                  >
+                    {dashboardStats.typeData.map((entry, index) => (
+                      <Cell key={`cell-${index}`} fill={entry.color} />
+                    ))}
+                  </Pie>
+                  <RechartsTooltip />
+                  <Legend verticalAlign="bottom" height={36}/>
+                </PieChart>
+              </ResponsiveContainer>
+            </Box>
+            <Divider sx={{ my: 1 }} />
+            <Box mt={1}>
+              <Typography variant="caption" color="text.secondary" display="block" gutterBottom>
+                {t('Status Overview')}
+              </Typography>
+              <Stack spacing={1}>
+                {dashboardStats.statusData.map((status) => (
+                  <Box key={status.name} display="flex" justifyContent="space-between" alignItems="center">
+                    <Typography variant="body2">{status.name}</Typography>
+                    <Typography variant="body2" fontWeight={700}>{status.value}</Typography>
+                  </Box>
+                ))}
+              </Stack>
+            </Box>
+          </Card>
+        </Grid2>
+      </Grid2>
+
+      {/* 4. Filter & Search Card */}
       <Card sx={{ 
         mb: 4, 
         borderRadius: '12px', 
@@ -269,7 +399,7 @@ const ContractList = () => {
           </Tabs>
         </Box>
         
-        {/* Search Bar & Metrics */}
+        {/* Search Bar */}
         <Box p={2.5} display="flex" alignItems="center" gap={2} flexWrap="wrap">
             <TextField 
                 size="small" 
@@ -299,13 +429,10 @@ const ContractList = () => {
             >
                 {t('Filters')}
             </Button>
-            
-            <Box flexGrow={1} />
-            <MetricStrip totalVol={metrics.totalVol} totalVal={metrics.totalVal} /> 
         </Box>
       </Card>
 
-      {/* 3. Data Grid */}
+      {/* 5. Data Grid */}
       <TableContainer component={Card} sx={{ 
         borderRadius: '12px', 
         boxShadow: boxShadows.md, 

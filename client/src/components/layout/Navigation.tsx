@@ -29,7 +29,7 @@ const menuItems = [
   { text: 'Archive Dashboard', path: '/archive/dashboard', icon: <Dashboard />, permission: PERMISSIONS.VIEW_ARCHIVE },
   { text: 'Electronic Archive', path: '/archive', icon: <FolderSpecial />, permission: PERMISSIONS.VIEW_ARCHIVE },
   { text: 'Reports & Analytics', path: '/reports', icon: <Assessment />, permission: PERMISSIONS.VIEW_REPORTS },
-  { text: 'settings', path: '/settings', icon: <SettingsInputComponent />, permission: PERMISSIONS.VIEW_SETTINGS },
+  { text: 'Settings', path: '/settings', icon: <SettingsInputComponent />, permission: PERMISSIONS.VIEW_SETTINGS },
 ];
 
 const inventoryItems = [

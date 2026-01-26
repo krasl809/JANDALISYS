@@ -89,6 +89,8 @@ export interface ContractFormData {
   issue_date: string | null;
   shipment_date: string | null;
   shipment_period: string;
+  shipment_date_start: string | null;
+  shipment_date_end: string | null;
   actual_shipped_quantity: string;
   seller_id: string;
   shipper_id: string;
@@ -154,7 +156,6 @@ export interface ContractDetailsTabProps {
   formData: ContractFormData;
   items: ContractItem[];
   mode: 'export' | 'import';
-  isShipmentDate: boolean;
   lists: ContractLists;
   isFixedPrice: boolean;
   totalAmount: number;
@@ -162,7 +163,6 @@ export interface ContractDetailsTabProps {
   handleItemChange: (id: string, field: string, value: any) => void;
   handleAddItem: () => void;
   handleRemoveItem: (id: string) => void;
-  setIsShipmentDate: (value: boolean) => void;
   canEditContract: boolean;
   handleSave: (status: 'draft' | 'posted') => void;
   handleGenerateNumber: (sellerId: string) => void;

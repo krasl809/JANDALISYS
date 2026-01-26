@@ -17,7 +17,6 @@ interface ContractDetailsProps {
   formData: any;
   mode: 'export' | 'import';
   isGeneratingNo: boolean;
-  isShipmentDate: boolean;
   items: any[];
   charterItems: any[];
   lists: any;
@@ -29,7 +28,6 @@ interface ContractDetailsProps {
   handleRemoveItem: (itemId: string) => void;
   handleGenerateNumber: (sellerId: string) => void;
   handleAddEntity: (entityType: any) => void;
-  setIsShipmentDate: (val: boolean) => void;
   setCharterItems: React.Dispatch<React.SetStateAction<any[]>>;
   t: any;
   theme: Theme;
@@ -41,10 +39,10 @@ interface ContractDetailsProps {
 }
 
 const ContractDetails: React.FC<ContractDetailsProps> = React.memo(({ 
-    formData, mode, isGeneratingNo, isShipmentDate, items, charterItems, lists, 
+    formData, mode, isGeneratingNo, items, charterItems, lists, 
     totalAmount, isFixedPrice, handleInputChange, handleItemChange, 
     handleAddItem, handleRemoveItem, handleGenerateNumber, handleAddEntity, 
-    setIsShipmentDate, setCharterItems, t, theme, palette, boxShadows, headerSx, cellSx, inputTableSx
+    setCharterItems, t, theme, palette, boxShadows, headerSx, cellSx, inputTableSx
 }) => {
   return (
     <Grid container spacing={3}>
@@ -445,18 +443,13 @@ const ContractDetails: React.FC<ContractDetailsProps> = React.memo(({
                       <FieldLabel label={t("Marks")} />
                       <TextField fullWidth size="small" value={formData.marks} onChange={e => handleInputChange('marks', e.target.value)} placeholder={t("examples.marks")} />
                   </Grid>
-                  <Grid size={{ xs: 12, md: 6 }}>
-                      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1 }}>
-                          <FieldLabel label={isShipmentDate ? t("Shipment Date") : t("Shipment Period")} required />
-                          <Button size="small" onClick={() => setIsShipmentDate(!isShipmentDate)} sx={{ fontSize: '0.65rem', textTransform: 'none' }}>
-                              {isShipmentDate ? t("Switch to Period") : t("Switch to Date")}
-                          </Button>
-                      </Box>
-                      {isShipmentDate ? (
-                          <TextField type="date" fullWidth size="small" value={formData.shipment_date || ''} onChange={e => handleInputChange('shipment_date', e.target.value || null)} />
-                      ) : (
-                          <TextField fullWidth size="small" value={formData.shipment_period} onChange={e => handleInputChange('shipment_period', e.target.value)} placeholder={t("examples.shipmentPeriod")} />
-                      )}
+                  <Grid size={{ xs: 12, md: 3 }}>
+                      <FieldLabel label={t("Shipment Date From")} />
+                      <TextField type="date" fullWidth size="small" value={formData.shipment_date_start || ''} onChange={e => handleInputChange('shipment_date_start', e.target.value || null)} />
+                  </Grid>
+                  <Grid size={{ xs: 12, md: 3 }}>
+                      <FieldLabel label={t("Shipment Date To")} />
+                      <TextField type="date" fullWidth size="small" value={formData.shipment_date_end || ''} onChange={e => handleInputChange('shipment_date_end', e.target.value || null)} />
                   </Grid>
               </Grid>
               </CardContent>

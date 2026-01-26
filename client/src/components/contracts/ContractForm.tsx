@@ -66,6 +66,8 @@ const getInitialFormData = (direction: 'export' | 'import' = 'export') => ({
   // Shipment Fields
   shipment_date: '' as string | null,
   shipment_period: '', // FTA
+  shipment_date_start: '' as string | null,
+  shipment_date_end: '' as string | null,
   actual_shipped_quantity: '',
 
   // Parties
@@ -154,7 +156,6 @@ const ContractForm: React.FC<ContractFormProps> = ({ mode: propMode }) => {
     }
   }, []);
 
-  const [isShipmentDate, setIsShipmentDate] = useState(true);
   const [items, setItems] = useState<ContractItem[]>(getInitialItems());
 
   const [charterItems, setCharterItems] = useState<CharterPartyItem[]>([]);
@@ -362,7 +363,6 @@ const ContractForm: React.FC<ContractFormProps> = ({ mode: propMode }) => {
         setItems(getInitialItems());
         setCharterItems([]);
         setLedger([]);
-        setIsShipmentDate(true);
         
         checkForDraft();
         setLoading(false);
@@ -412,7 +412,6 @@ const ContractForm: React.FC<ContractFormProps> = ({ mode: propMode }) => {
           setItems(mappedItems);
         }
         
-        if (data.shipment_period) setIsShipmentDate(false);
         setMode(data.direction);
         fetchLedger(id);
       } catch (contractError: any) {
@@ -471,7 +470,7 @@ const ContractForm: React.FC<ContractFormProps> = ({ mode: propMode }) => {
   const cleanFormData = useCallback((data: any) => {
     const cleanedData = { ...data };
     const nullableFields = [
-      'shipment_date', 'laycan_date_from', 'laycan_date_to', 
+      'shipment_date', 'shipment_date_start', 'shipment_date_end', 'laycan_date_from', 'laycan_date_to', 
       'broker_id', 'conveyor_id', 'shipper_id', 'warehouse_id',             
       'place_of_origin', 'place_of_delivery',                
       'port_of_loading', 'destination',
@@ -486,7 +485,7 @@ const ContractForm: React.FC<ContractFormProps> = ({ mode: propMode }) => {
     });
 
     const dateFields = [
-      'issue_date', 'shipment_date', 'laycan_date_from', 'laycan_date_to', 
+      'issue_date', 'shipment_date', 'shipment_date_start', 'shipment_date_end', 'laycan_date_from', 'laycan_date_to', 
       'seller_contract_date', 'ata_date', 'arrival_loading_port_date', 
       'nor_date', 'loading_start_date', 'loading_end_date'
     ];
@@ -503,22 +502,13 @@ const ContractForm: React.FC<ContractFormProps> = ({ mode: propMode }) => {
       }
     });
 
-    if (!isShipmentDate) {
-      cleanedData.shipment_date = null;
-      if (!cleanedData.shipment_period?.trim()) {
-        cleanedData.shipment_period = 'Prompt Shipment';
-      }
-    } else {
-      cleanedData.shipment_period = '';
-    }
-
     cleanedData.payment_terms = cleanedData.payment_terms || '';
     cleanedData.incoterms = cleanedData.incoterms || '';
     cleanedData.bank_details = cleanedData.bank_details || '';
     if (!cleanedData.destination && mode === 'export') cleanedData.destination = '';
 
     return cleanedData;
-  }, [isShipmentDate, mode]);
+  }, [mode]);
 
   const preparePayload = useCallback((status: string) => {
     const cleanedData = cleanFormData(formData);
@@ -548,6 +538,8 @@ const ContractForm: React.FC<ContractFormProps> = ({ mode: propMode }) => {
       issue_date: cleanedData.issue_date,
       shipment_date: cleanedData.shipment_date,
       shipment_period: cleanedData.shipment_period,
+      shipment_date_start: cleanedData.shipment_date_start,
+      shipment_date_end: cleanedData.shipment_date_end,
       payment_terms: cleanedData.payment_terms,
       incoterms: cleanedData.incoterms,
       bank_details: cleanedData.bank_details,
@@ -1247,7 +1239,6 @@ const ContractForm: React.FC<ContractFormProps> = ({ mode: propMode }) => {
             formData={formData}
             mode={mode}
             isGeneratingNo={isGeneratingNo}
-            isShipmentDate={isShipmentDate}
             items={items}
             charterItems={charterItems}
             lists={lists}
@@ -1259,7 +1250,6 @@ const ContractForm: React.FC<ContractFormProps> = ({ mode: propMode }) => {
             handleRemoveItem={handleRemoveItem}
             handleGenerateNumber={handleGenerateNumber}
             handleAddEntity={handleAddEntity}
-            setIsShipmentDate={setIsShipmentDate}
             setCharterItems={setCharterItems}
             t={t}
             theme={theme}

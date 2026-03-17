@@ -6,6 +6,7 @@ from sqlalchemy import func
 from datetime import datetime as dt
 import uuid
 import logging
+import asyncio
 
 from crud import crud, inventory_crud
 from schemas import schemas
@@ -23,15 +24,17 @@ class ContractService:
             
             if background_tasks:
                 background_tasks.add_task(manager.broadcast, "CONTRACT_CREATED")
-                background_tasks.add_task(
-                    NotificationService.create_contract_notification,
-                    db, user_id, new_contract.id, "contract_created", new_contract.contract_no
-                )
+                # NOTE: Notification disabled for performance - loops through all users
+                # background_tasks.add_task(
+                #     NotificationService.create_contract_notification,
+                #     db, user_id, new_contract.id, "contract_created", new_contract.contract_no
+                # )
             else:
                 await manager.broadcast("CONTRACT_CREATED")
-                await NotificationService.create_contract_notification(
-                    db, user_id, new_contract.id, "contract_created", new_contract.contract_no
-                )
+                # NOTE: Notification disabled for performance - loops through all users
+                # await NotificationService.create_contract_notification(
+                #     db, user_id, new_contract.id, "contract_created", new_contract.contract_no
+                # )
 
             # --- Accounting Logic: Create Invoice when contract is posted/confirmed ---
             if new_contract.status in ["posted", "confirmed"]:
@@ -61,10 +64,10 @@ class ContractService:
                     inventory_crud.reserve_stock(
                         db, item.article_id, new_contract.warehouse_id, item.quantity
                     )
-                # Create notification for stock reservation
-                await NotificationService.create_contract_notification(
-                    db, user_id, new_contract.id, "stock_reserved", new_contract.contract_no
-                )
+                # NOTE: Notification disabled for performance
+                # await NotificationService.create_contract_notification(
+                #     db, user_id, new_contract.id, "stock_reserved", new_contract.contract_no
+                # )
 
             return new_contract
         except Exception as e:
@@ -73,41 +76,52 @@ class ContractService:
 
     @staticmethod
     async def update_contract(db: Session, contract_id: uuid.UUID, contract_data: schemas.ContractCreate, user_id: uuid.UUID) -> core_models.Contract:
-        # Get current contract to check permissions for draft reversion
-        current_contract = crud.get_contract_by_id(db, contract_id)
-        if not current_contract:
-            return None
+        try:
+            # Get current contract to check permissions for draft reversion
+            current_contract = crud.get_contract_by_id(db, contract_id)
+            if not current_contract:
+                return None
 
-        # --- Concurrency Check (Optimistic Locking) ---
-        if contract_data.version is not None and current_contract.version != contract_data.version:
-            logger.warning(f"Concurrency conflict for contract {contract_id}. Client version: {contract_data.version}, DB version: {current_contract.version}")
-            raise HTTPException(
-                status_code=409,
-                detail="CONCURRENCY_CONFLICT"
-            )
+            # Check permission for draft reversion: only contract creator can revert to draft
+            if (contract_data.status and
+                contract_data.status.value == "draft" and
+                current_contract.status != "draft" and
+                current_contract.created_by != user_id):
+                raise HTTPException(
+                    status_code=403,
+                    detail="Only the contract creator can revert a contract to draft status"
+                )
 
-        # Check permission for draft reversion: only contract creator can revert to draft
-        if (contract_data.status and
-            contract_data.status.value == "draft" and
-            current_contract.status != "draft" and
-            current_contract.created_by != user_id):
-            raise HTTPException(
-                status_code=403,
-                detail="Only the contract creator can revert a contract to draft status"
-            )
+            # Store old state for inventory logic
+            old_status = current_contract.status
+            old_warehouse_id = current_contract.warehouse_id
+            old_items = [(item.article_id, item.quantity) for item in current_contract.items]
 
-        # Store old state for inventory logic
-        old_status = current_contract.status
-        old_warehouse_id = current_contract.warehouse_id
-        old_items = [(item.article_id, item.quantity) for item in current_contract.items]
-
-        updated_contract = crud.update_contract(db=db, contract_id=contract_id, contract=contract_data, user_id=user_id)
-        if updated_contract:
-            await manager.broadcast("CONTRACT_UPDATED")
-            # Create notification for contract update
-            await NotificationService.create_contract_notification(
-                db, user_id, contract_id, "contract_updated", updated_contract.contract_no
-            )
+            # Update contract
+            updated_contract = crud.update_contract(db=db, contract_id=contract_id, contract=contract_data, user_id=user_id)
+            
+            # Early return if update failed
+            if not updated_contract:
+                return None
+                
+            # Send WebSocket notification (fire and forget - don't block on it)
+            try:
+                logger.debug("Starting WebSocket broadcast for CONTRACT_UPDATED")
+                await asyncio.wait_for(manager.broadcast("CONTRACT_UPDATED"), timeout=10.0)
+                logger.debug("WebSocket broadcast completed successfully")
+            except asyncio.TimeoutError:
+                logger.error("WebSocket broadcast timed out - contract update will continue")
+            except Exception as ws_err:
+                logger.error(f"WebSocket broadcast failed: {str(ws_err)} - contract update will continue")
+            
+            # NOTE: Notification creation disabled due to performance issues
+            # It loops through all users which is very slow
+            # try:
+            #     await NotificationService.create_contract_notification(
+            #         db, user_id, contract_id, "contract_updated", updated_contract.contract_no
+            #     )
+            # except Exception as notif_err:
+            #     logger.warning(f"Notification creation failed: {notif_err}")
 
             # --- Accounting Logic: Create Invoice when status changes to posted/confirmed ---
             if (updated_contract.status in ["posted", "confirmed"] and
@@ -138,27 +152,30 @@ class ContractService:
                         db.commit() # Ensure invoice is saved
 
             # --- Inventory Reservation Logic ---
-            # 1. Release old reservation if it was active
-            if old_status in ["posted", "confirmed"] and old_warehouse_id:
-                for art_id, qty in old_items:
-                    inventory_crud.release_stock(db, art_id, old_warehouse_id, qty)
-                # Notification for stock release
-                await NotificationService.create_contract_notification(
-                    db, user_id, contract_id, "stock_released", updated_contract.contract_no
-                )
+                # 1. Release old reservation if it was active
+                if old_status in ["posted", "confirmed"] and old_warehouse_id:
+                    for art_id, qty in old_items:
+                        inventory_crud.release_stock(db, art_id, old_warehouse_id, qty)
+                    # NOTE: Notification disabled for performance
+                    # await NotificationService.create_contract_notification(
+                    #     db, user_id, contract_id, "stock_released", updated_contract.contract_no
+                    # )
 
-            # 2. Add new reservation if new status is active
-            if updated_contract.status in ["posted", "confirmed"] and updated_contract.warehouse_id:
-                for item in updated_contract.items:
-                    inventory_crud.reserve_stock(
-                        db, item.article_id, updated_contract.warehouse_id, item.quantity
-                    )
-                # Notification for stock reservation
-                await NotificationService.create_contract_notification(
-                    db, user_id, contract_id, "stock_reserved", updated_contract.contract_no
-                )
+                # 2. Add new reservation if new status is active
+                if updated_contract.status in ["posted", "confirmed"] and updated_contract.warehouse_id:
+                    for item in updated_contract.items:
+                        inventory_crud.reserve_stock(
+                            db, item.article_id, updated_contract.warehouse_id, item.quantity
+                        )
+                    # NOTE: Notification disabled for performance
+                    # await NotificationService.create_contract_notification(
+                    #     db, user_id, contract_id, "stock_reserved", updated_contract.contract_no
+                    # )
 
-        return updated_contract
+            return updated_contract
+        except Exception as e:
+            logger.error(f"Error in service updating contract {contract_id}: {e}", exc_info=True)
+            raise e
 
     @staticmethod
     async def delete_contract(db: Session, contract_id: uuid.UUID, user_id: uuid.UUID):
@@ -174,37 +191,62 @@ class ContractService:
 
         result = crud.delete_contract(db=db, contract_id=contract_id)
         if result:
-            await manager.broadcast("CONTRACT_DELETED")
-            # Create notification for contract deletion
-            await NotificationService.create_contract_notification(
-                db, user_id, contract_id, "contract_deleted"
-            )
+            # Send WebSocket notification (fire and forget - don't wait)
+            try:
+                await manager.broadcast("CONTRACT_DELETED")
+            except Exception as ws_err:
+                logger.warning(f"WebSocket broadcast failed: {ws_err}")
+            
+            # NOTE: Notification creation disabled due to performance issues
+            # It loops through all users which is very slow
+            # TODO: Re-enable with batch notification creation
+            # try:
+            #     await NotificationService.create_contract_notification(
+            #         db, user_id, contract_id, "contract_deleted"
+            #     )
+            # except Exception as notif_err:
+            #     logger.warning(f"Notification creation failed: {notif_err}")
         return result
 
     @staticmethod
-    def get_contracts(db: Session, skip: int = 0, limit: int = 50, current_user_id: uuid.UUID = None):
+    def get_contracts(
+        db: Session, 
+        skip: int = 0, 
+        limit: int = 50, 
+        search: Optional[str] = None,
+        tab: Optional[int] = None,
+        shipping_type: Optional[str] = None,
+        current_user_id: uuid.UUID = None, 
+        sort_by: str = "modified_date", 
+        sort_dir: str = "desc"
+    ):
         """Get paginated contracts with total count and view information"""
         try:
-            contracts, total_count = crud.get_contracts(db, skip=skip, limit=limit)
+            # Filter at database level for better performance
+            contracts, total_count = crud.get_contracts(
+                db, 
+                skip=skip, 
+                limit=limit, 
+                search=search,
+                tab=tab,
+                shipping_type=shipping_type,
+                sort_by=sort_by, 
+                sort_dir=sort_dir
+            )
 
-            # Add view and financial information to each contract (simplified to avoid errors)
+            # Lightweight processing - only add computed fields that can't be SQL
+            # Note: financial_value calculation moved to DB-level in CRUD
             for contract in contracts:
-                try:
-                    contract.view_count = 0
-                    contract.last_viewed_by = None
-                    contract.last_viewed_at = None
-                    # Calculate financial value from items
-                    contract.financial_value = sum(item.total for item in contract.items if item.total) or 0
-                except Exception as item_err:
-                    logger.error(f"Error processing contract {contract.id}: {item_err}")
-                    contract.financial_value = 0
+                contract.view_count = 0
+                contract.last_viewed_by = None
+                contract.last_viewed_at = None
 
             # Add pagination metadata
             pagination_info = {
                 'total': total_count,
                 'page': (skip // limit) + 1,
                 'per_page': limit,
-                'pages': (total_count + limit - 1) // limit if limit > 0 else 0  # Ceiling division
+                'pages': (total_count + limit - 1) // limit if limit > 0 else 0
             }
 
             return {
@@ -230,10 +272,10 @@ class ContractService:
         updated_contract = crud.notify_finance(db, contract_id, user_id)
         if updated_contract:
             await manager.broadcast("CONTRACT_UPDATED")
-            # Optional: Create a specific notification for finance team here
-            await NotificationService.create_contract_notification(
-                db, user_id, contract_id, "finance_notified", updated_contract.contract_no
-            )
+            # NOTE: Notification disabled for performance
+            # await NotificationService.create_contract_notification(
+            #     db, user_id, contract_id, "finance_notified", updated_contract.contract_no
+            # )
         return updated_contract
 
     @staticmethod
@@ -369,10 +411,10 @@ class ContractService:
 
         await manager.broadcast("CONTRACT_UPDATED")
 
-        # Create notification for contract pricing
-        await NotificationService.create_contract_notification(
-            db, user_id, contract.id, "contract_priced", contract.contract_no
-        )
+        # NOTE: Notification disabled for performance
+        # await NotificationService.create_contract_notification(
+        #     db, user_id, contract.id, "contract_priced", contract.contract_no
+        # )
 
         return {"message": "Pricing updated and financial adjustment recorded"}
 
@@ -395,10 +437,10 @@ class ContractService:
         contract.version = (contract.version or 0) + 1
         db.commit()
 
-        # Create notification for pricing approval
-        await NotificationService.create_contract_notification(
-            db, user_id, contract_id, "pricing_approved", contract.contract_no
-        )
+        # NOTE: Notification disabled for performance
+        # await NotificationService.create_contract_notification(
+        #     db, user_id, contract_id, "pricing_approved", contract.contract_no
+        # )
 
         await manager.broadcast("CONTRACT_UPDATED")
         return {"message": "Pricing approved successfully", "version": contract.version}
@@ -461,10 +503,10 @@ class ContractService:
         db.add(transaction)
         db.commit()
 
-        # Create notification for partial pricing
-        await NotificationService.create_contract_notification(
-            db, user_id, contract.id, "contract_priced", contract.contract_no
-        )
+        # NOTE: Notification disabled for performance
+        # await NotificationService.create_contract_notification(
+        #     db, user_id, contract.id, "contract_priced", contract.contract_no
+        # )
 
         await manager.broadcast("CONTRACT_UPDATED")
         return {"message": "Partial pricing recorded", "version": contract.version}

@@ -163,6 +163,11 @@ const ContractLifecycle = () => {
         </IconButton>
         <Box>
             <Box display="flex" alignItems="center" gap={2}>
+                {contract.serial_number && (
+                  <Typography variant="h5" fontWeight="800" color="text.secondary" sx={{ opacity: 0.6 }}>
+                    #{contract.serial_number}
+                  </Typography>
+                )}
                 <Typography variant="h4" fontWeight="800" color="primary.main">
                   {contract.contract_no || t('contracts.draft_contract')}
                 </Typography>

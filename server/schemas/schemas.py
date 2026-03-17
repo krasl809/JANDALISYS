@@ -153,7 +153,7 @@ class Shipper(ShipperBase):
 
 # --- Articles ---
 class ArticleEntity(BaseModel):
-    id: uuid.UUID
+    id: Optional[uuid.UUID] = None
     article_name: str
     uom: str
     item_code: str
@@ -248,6 +248,8 @@ class ContractItem(ContractItemBase):
 class ContractBase(BaseModel):
     # ✅ الحقل الجديد لاتجاه العقد
     direction: ContractDirection = Field(default=ContractDirection.EXPORT, description="Contract direction")
+    serial_number: Optional[int] = Field(None, description="Serial number")
+    shipping_type: Optional[str] = Field(None, description="Shipping type (bulk or container)")
 
     issue_date: Optional[date] = Field(None, description="Contract issue date")
     shipment_date: Optional[date] = Field(None, description="Shipment date")

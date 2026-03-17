@@ -91,26 +91,38 @@ class ConnectionManager:
                 # Don't call disconnect here as it might dead-lock or be handled by the main loop
 
     async def broadcast(self, message: str):
-        """Send message to all connected clients"""
+        """Send message to all connected clients - optimized with error handling"""
+        logger.debug(f"Starting broadcast to {len(self.active_connections)} active connections with message: {message}")
+        
         async with self._lock:
             connections = self.active_connections[:]
         
+        if not connections:
+            logger.debug("No active connections to broadcast to")
+            return
+            
         disconnected = []
+        successful_sends = 0
+        
         for connection in connections:
             try:
-                await connection.send_text(message)
-            except Exception as e:
-                logger.warning(f"Failed to send message to WebSocket: {e}")
+                await asyncio.wait_for(connection.send_text(message), timeout=5.0)
+                successful_sends += 1
+            except asyncio.TimeoutError:
+                logger.error(f"Timeout sending message to WebSocket {connection.client}")
                 disconnected.append(connection)
+            except Exception as e:
+                logger.error(f"Failed to send message to WebSocket {connection.client}: {str(e)}")
+                disconnected.append(connection)
+        
+        logger.debug(f"Broadcast completed: {successful_sends} successful, {len(disconnected)} failed")
         
         # Clean up disconnected clients
         for conn in disconnected:
-            # Note: disconnect handles its own lock
-            pass
-        
-        if disconnected:
-            for conn in disconnected:
+            try:
                 await self.disconnect(conn)
+            except Exception as e:
+                logger.error(f"Error during disconnect cleanup for {conn.client}: {str(e)}")
 
     @property
     def connection_count(self) -> int:

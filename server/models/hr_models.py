@@ -42,8 +42,16 @@ class AttendanceLog(Base):
     status = Column(String, default="present") # present, late, early_leave
     verification_mode = Column(String, nullable=True) # Fingerprint, Face, Card, Password
     raw_status = Column(String, nullable=True) # Original status from device (101, 102, etc.)
+    
+    # Manual Edit Tracking
+    is_manually_edited = Column(Boolean, default=False) # Whether this record was manually edited
+    edited_by = Column(UUID(as_uuid=True), ForeignKey("employees.id"), nullable=True) # Who edited
+    edited_at = Column(DateTime, nullable=True) # When edited
+    edit_reason = Column(String, nullable=True) # Reason for edit
+    original_timestamp = Column(DateTime, nullable=True) # Original timestamp before edit
 
-    employee = relationship("Employee", backref="attendance_logs")
+    employee = relationship("Employee", foreign_keys=[employee_pk])
+    editor = relationship("Employee", foreign_keys=[edited_by])
     device = relationship("ZkDevice", backref="logs")
 
 class ShiftType(str, enum.Enum):
@@ -98,3 +106,41 @@ class EmployeeShiftAssignment(Base):
     
     employee = relationship("Employee", backref="shift_assignments")
     shift = relationship("WorkShift", backref="employee_assignments")
+
+class ProcessedAttendance(Base):
+    """Stored calculated daily attendance records"""
+    __tablename__ = "processed_attendance"
+    __table_args__ = {'extend_existing': True}
+
+    id = Column(Integer, primary_key=True, index=True)
+    employee_pk = Column(UUID(as_uuid=True), ForeignKey("employees.id"), nullable=False)
+    work_date = Column(DateTime, nullable=False, index=True)  # The date (normalized to midnight)
+    
+    # Calculated fields
+    check_in = Column(DateTime, nullable=True)
+    check_out = Column(DateTime, nullable=True)
+    work_hours = Column(Float, default=0.0)  # Total work hours
+    overtime_hours = Column(Float, default=0.0)  # Overtime hours
+    late_minutes = Column(Integer, default=0)  # Minutes late
+    early_leave_minutes = Column(Integer, default=0)  # Minutes early left
+    status = Column(String, default="present")  # present, late, early_leave, absent, holiday
+    
+    # Shift info
+    shift_id = Column(Integer, ForeignKey("work_shifts.id"), nullable=True)
+    expected_hours = Column(Float, default=8.0)
+    
+    # Processing metadata
+    is_calculated = Column(Boolean, default=True)
+    calculated_at = Column(DateTime, default=datetime.datetime.utcnow)
+    calculation_version = Column(String, default="1.0")  # To track calculation logic changes
+    
+    # Manual adjustments
+    has_manual_adjustment = Column(Boolean, default=False)
+    adjusted_work_hours = Column(Float, nullable=True)
+    adjustment_reason = Column(String, nullable=True)
+    adjusted_by = Column(UUID(as_uuid=True), ForeignKey("employees.id"), nullable=True)
+    adjusted_at = Column(DateTime, nullable=True)
+    
+    employee = relationship("Employee", foreign_keys=[employee_pk])
+    shift = relationship("WorkShift")
+    adjuster = relationship("Employee", foreign_keys=[adjusted_by])

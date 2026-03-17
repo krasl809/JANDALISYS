@@ -1,9 +1,9 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
 import api from '../../services/api';
 import {
-  Container, Table, TableBody, TableCell, TableContainer, TableHead, TableRow,
+  Container, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, TableSortLabel,
   Typography, Box, Button, Chip, TextField, Card, CardContent, InputAdornment, 
   CircularProgress, useTheme, alpha, IconButton, Stack
 } from '@mui/material';
@@ -20,6 +20,7 @@ const ContractReview: React.FC = () => {
   const [contracts, setContracts] = useState<ContractPricingReview[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
+  const [sortConfig, setSortConfig] = useState<{ field: keyof ContractPricingReview, direction: 'asc' | 'desc' }>({ field: 'issue_date', direction: 'desc' });
 
   useEffect(() => {
     fetchContracts();
@@ -28,12 +29,7 @@ const ContractReview: React.FC = () => {
   const fetchContracts = async () => {
     try {
       const response = await api.get('contracts/pending-pricing');
-      // Sort: Pending first, then by date
-      const sorted = response.data.sort((a: ContractPricingReview, b: ContractPricingReview) => {
-        if (a.pricing_status === 'pending' && b.pricing_status !== 'pending') return -1;
-        return new Date(b.issue_date).getTime() - new Date(a.issue_date).getTime();
-      });
-      setContracts(sorted);
+      setContracts(response.data);
     } catch (err) {
       console.error('Error fetching pricing contracts:', err);
     } finally {
@@ -41,10 +37,37 @@ const ContractReview: React.FC = () => {
     }
   };
 
-  const filteredContracts = contracts.filter(c => 
-    c.contract_no.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    c.buyer_name?.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+  const handleSort = (field: keyof ContractPricingReview) => {
+    setSortConfig(prev => ({
+      field,
+      direction: prev.field === field && prev.direction === 'asc' ? 'desc' : 'asc'
+    }));
+  };
+
+  const filteredContracts = useMemo(() => {
+    let result = contracts.filter(c => 
+      c.contract_no.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      c.serial_number?.toString().includes(searchTerm) ||
+      c.buyer_name?.toLowerCase().includes(searchTerm.toLowerCase())
+    );
+
+    return result.sort((a, b) => {
+      const field = sortConfig.field;
+      const direction = sortConfig.direction === 'asc' ? 1 : -1;
+      
+      const aValue = a[field];
+      const bValue = b[field];
+
+      if (aValue === undefined || aValue === null) return 1 * direction;
+      if (bValue === undefined || bValue === null) return -1 * direction;
+
+      if (typeof aValue === 'string' && typeof bValue === 'string') {
+        return aValue.localeCompare(bValue) * direction;
+      }
+      
+      return ((aValue as any) > (bValue as any) ? 1 : -1) * direction;
+    });
+  }, [contracts, searchTerm, sortConfig]);
 
   // Helper for soft colored chips
   const getStatusChip = (status: string) => {
@@ -226,18 +249,69 @@ const ContractReview: React.FC = () => {
         <TableContainer>
           <Table sx={{ minWidth: 800 }}>
             <TableHead>
-              <TableRow>
-                <TableCell sx={{ py: 2, fontWeight: 700, textTransform: 'uppercase', fontSize: '0.7rem', letterSpacing: '0.5px' }}>{t('contracts.contract_no')}</TableCell>
-                <TableCell sx={{ py: 2, fontWeight: 700, textTransform: 'uppercase', fontSize: '0.7rem', letterSpacing: '0.5px' }}>{t('contracts.buyer')}</TableCell>
-                <TableCell sx={{ py: 2, fontWeight: 700, textTransform: 'uppercase', fontSize: '0.7rem', letterSpacing: '0.5px' }}>{t('contracts.destination')}</TableCell>
-                <TableCell sx={{ py: 2, fontWeight: 700, textTransform: 'uppercase', fontSize: '0.7rem', letterSpacing: '0.5px' }}>{t('contracts.status')}</TableCell>
-                <TableCell sx={{ py: 2, fontWeight: 700, textTransform: 'uppercase', fontSize: '0.7rem', letterSpacing: '0.5px' }}>{t('contracts.est_value')}</TableCell>
-                <TableCell align="right" sx={{ py: 2, fontWeight: 700, textTransform: 'uppercase', fontSize: '0.7rem', letterSpacing: '0.5px' }}>{t('common.actions')}</TableCell>
+              <TableRow sx={{ bgcolor: alpha(palette.primary.main, 0.04) }}>
+                <TableCell sx={{ py: 2, fontWeight: 700, textTransform: 'uppercase', fontSize: '0.7rem', letterSpacing: '0.5px' }}>
+                  <TableSortLabel
+                    active={sortConfig.field === 'serial_number'}
+                    direction={sortConfig.field === 'serial_number' ? sortConfig.direction : 'asc'}
+                    onClick={() => handleSort('serial_number')}
+                  >
+                    {t('contracts.serial_number')}
+                  </TableSortLabel>
+                </TableCell>
+                <TableCell sx={{ py: 2, fontWeight: 700, textTransform: 'uppercase', fontSize: '0.7rem', letterSpacing: '0.5px' }}>
+                  <TableSortLabel
+                    active={sortConfig.field === 'contract_no'}
+                    direction={sortConfig.field === 'contract_no' ? sortConfig.direction : 'asc'}
+                    onClick={() => handleSort('contract_no')}
+                  >
+                    {t('contracts.contract_no')}
+                  </TableSortLabel>
+                </TableCell>
+                <TableCell sx={{ py: 2, fontWeight: 700, textTransform: 'uppercase', fontSize: '0.7rem', letterSpacing: '0.5px' }}>
+                  <TableSortLabel
+                    active={sortConfig.field === 'buyer_name'}
+                    direction={sortConfig.field === 'buyer_name' ? sortConfig.direction : 'asc'}
+                    onClick={() => handleSort('buyer_name')}
+                  >
+                    {t('contracts.buyer')}
+                  </TableSortLabel>
+                </TableCell>
+                <TableCell sx={{ py: 2, fontWeight: 700, textTransform: 'uppercase', fontSize: '0.7rem', letterSpacing: '0.5px' }}>
+                  <TableSortLabel
+                    active={sortConfig.field === 'destination'}
+                    direction={sortConfig.field === 'destination' ? sortConfig.direction : 'asc'}
+                    onClick={() => handleSort('destination')}
+                  >
+                    {t('contracts.destination')}
+                  </TableSortLabel>
+                </TableCell>
+                <TableCell sx={{ py: 2, fontWeight: 700, textTransform: 'uppercase', fontSize: '0.7rem', letterSpacing: '0.5px' }}>
+                  <TableSortLabel
+                    active={sortConfig.field === 'pricing_status'}
+                    direction={sortConfig.field === 'pricing_status' ? sortConfig.direction : 'asc'}
+                    onClick={() => handleSort('pricing_status')}
+                  >
+                    {t('contracts.status')}
+                  </TableSortLabel>
+                </TableCell>
+                <TableCell sx={{ py: 2, fontWeight: 700, textTransform: 'uppercase', fontSize: '0.7rem', letterSpacing: '0.5px' }}>
+                  <TableSortLabel
+                    active={sortConfig.field === 'issue_date'}
+                    direction={sortConfig.field === 'issue_date' ? sortConfig.direction : 'asc'}
+                    onClick={() => handleSort('issue_date')}
+                  >
+                    {t('contracts.issue_date')}
+                  </TableSortLabel>
+                </TableCell>
+                <TableCell align="right" sx={{ py: 2, fontWeight: 700, textTransform: 'uppercase', fontSize: '0.7rem', letterSpacing: '0.5px' }}>
+                  {t('common.actions')}
+                </TableCell>
               </TableRow>
             </TableHead>
             <TableBody>
               {filteredContracts.length > 0 ? (
-                filteredContracts.map((contract) => (
+                filteredContracts.map((contract: ContractPricingReview) => (
                   <TableRow 
                     key={contract.id} 
                     hover 
@@ -249,7 +323,12 @@ const ContractReview: React.FC = () => {
                     onClick={() => navigate(`/pricing?contract_id=${contract.id}`)}
                   >
                     <TableCell sx={{ py: 2 }}>
-                      <Typography variant="body2" fontWeight="700" color="primary.main">
+                      <Typography variant="body2" fontWeight={600} color="primary.main">
+                        {contract.serial_number || '-'}
+                      </Typography>
+                    </TableCell>
+                    <TableCell sx={{ py: 2 }}>
+                      <Typography variant="body2" fontWeight={600}>
                         {contract.contract_no}
                       </Typography>
                     </TableCell>

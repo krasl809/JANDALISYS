@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useMemo, useCallback } from 'react';
+import React, { useEffect, useState, useMemo, useCallback, lazy, Suspense } from 'react';
 import {
     Box, Typography, Paper, Chip, Button, Grid, Card,
     MenuItem, FormControl, InputLabel, Select, Divider,
@@ -6,22 +6,24 @@ import {
     ToggleButton, ToggleButtonGroup, useTheme, TablePagination,
     Stack, LinearProgress, Menu, ListItemIcon, ListItemText,
     Dialog, DialogTitle, DialogContent, List, ListItem, ListItemAvatar,
-    CircularProgress, TextField, Autocomplete, InputAdornment
+    CircularProgress, TextField, Autocomplete, InputAdornment, Skeleton
 } from '@mui/material';
 import { DataGrid, GridColDef, GridToolbar, GridRenderCellParams } from '@mui/x-data-grid';
 import {
     Refresh, Warning, Error as ErrorIcon, AccessTime,
     Group, ViewList, TableChart,
-    CalendarToday, GetApp,
+    CalendarToday, GetApp, Calculate,
     TrendingUp, MoreVert, ExpandMore,
     FiberManualRecord, Delete, CheckCircle, Alarm, Cancel, Print,
-    Close, PersonPinCircle, Computer, People, Search, FilterList, FilterListOff
+    Close, PersonPinCircle, Computer, People, Search, FilterList, FilterListOff,
+    ChevronLeft, ChevronRight, History
 } from '@mui/icons-material';
 import api from '../../services/api';
 import { useTranslation } from 'react-i18next';
 import { useConfirm } from '../../context/ConfirmContext';
-import AttendanceAnalytics from '../../components/hr/AttendanceAnalytics';
-import MonthView from './MonthView';
+
+const MonthView = lazy(() => import('./MonthView'));
+const TransactionsView = lazy(() => import('./TransactionsView'));
 import { format, parseISO, startOfMonth, endOfMonth, isSameDay, isToday, differenceInDays, addDays } from 'date-fns';
 import { AdapterDateFns } from '@mui/x-date-pickers/AdapterDateFns';
 import { LocalizationProvider, DatePicker } from '@mui/x-date-pickers';
@@ -125,36 +127,132 @@ interface AttendanceSummary {
 // Optimized Custom Hooks
 const useAttendanceData = (filters: any) => {
     const [rows, setRows] = useState<AttendanceRecord[]>([]);
+    const [transactions, setTransactions] = useState<any[]>([]);
+    const [totalTransactions, setTotalTransactions] = useState(0);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
+    const [lastFetchTime, setLastFetchTime] = useState<number>(0);
+    const [cache, setCache] = useState<Map<string, { data: any; timestamp: number }>>(new Map());
 
     const { alert: showAlert } = useConfirm();
     const { t } = useTranslation();
 
+    // Generate cache key from filters
+    const getCacheKey = (f: any) => {
+        return `${f.viewMode}-${f.currentMonth}-${f.startDate}-${f.endDate}-${f.selectedEmployee}-${f.selectedDepartment}-${f.selectedStatus}-${f.selectedShift}-${f.debouncedSearch}-${f.rawView}`;
+    };
+
     const fetchLogs = useCallback(async (silent = false) => {
         if (!silent) setLoading(true);
         setError(null);
-        try {
-            const params = new URLSearchParams();
-            if (filters.viewMode === 'month') {
+        
+        // Check cache first (cache 45s to reduce server load)
+        const cacheKey = getCacheKey(filters);
+        const cached = cache.get(cacheKey);
+        const now = Date.now();
+        const CACHE_TTL_MS = 45000;
+        if (cached && (now - cached.timestamp) < CACHE_TTL_MS) {
+            if (filters.viewMode === 'transactions') {
+                setTransactions(cached.data);
+                setTotalTransactions(cached.data.length);
+            } else {
+                setRows(cached.data);
+            }
+            if (!silent) setLoading(false);
+            return;
+        }
+        
+        // If in transactions view, fetch raw transactions (paginated for performance)
+        if (filters.viewMode === 'transactions') {
+            try {
+                const params = new URLSearchParams();
                 const monthStart = startOfMonth(filters.currentMonth || new Date());
                 const monthEnd = endOfMonth(filters.currentMonth || new Date());
                 params.append('start_date', format(monthStart, 'yyyy-MM-dd'));
                 params.append('end_date', format(monthEnd, 'yyyy-MM-dd'));
-            } else {
-                if (filters.startDate) params.append('start_date', format(filters.startDate, 'yyyy-MM-dd'));
-                if (filters.endDate) params.append('end_date', format(filters.endDate, 'yyyy-MM-dd'));
-            }
+                if (filters.selectedEmployee) params.append('employee_id', filters.selectedEmployee);
+                else if (filters.debouncedSearch) params.append('search', filters.debouncedSearch);
+                if (filters.selectedDepartment) params.append('department', filters.selectedDepartment);
+                params.append('raw', 'true');
+                params.append('limit', '5000');
+                params.append('offset', '0');
 
+                const res = await api.get(`hr/attendance?${params}`);
+                const data = res.data || [];
+                setTransactions(data);
+                setTotalTransactions(data.length);
+                setCache(prev => new Map(prev).set(cacheKey, { data, timestamp: now }));
+            } catch (error: any) {
+                console.error('Error fetching transactions:', error);
+            } finally {
+                if (!silent) setLoading(false);
+            }
+            return;
+        }
+
+        // Month/table view: try lighter processed API first when no search/filters
+        const useProcessed = filters.viewMode === 'month' && !filters.rawView && !filters.debouncedSearch &&
+            !filters.selectedStatus && !filters.selectedShift && !filters.selectedEmployee;
+        if (useProcessed) {
+            try {
+                const monthStart = startOfMonth(filters.currentMonth || new Date());
+                const monthEnd = endOfMonth(filters.currentMonth || new Date());
+                const startStr = format(monthStart, 'yyyy-MM-dd');
+                const endStr = format(monthEnd, 'yyyy-MM-dd');
+                const dept = filters.selectedDepartment ? `&department=${encodeURIComponent(filters.selectedDepartment)}` : '';
+                const res = await api.get(`hr/attendance/processed?start_date=${startStr}&end_date=${endStr}${dept}`);
+                const processed = res.data || [];
+                const mapped: AttendanceRecord[] = processed.map((r: any) => ({
+                    id: String(r.id),
+                    employee_id: r.employee_id,
+                    employee_name: r.employee_name,
+                    check_in_date: r.work_date ? r.work_date.slice(0, 10) : '',
+                    check_in: r.check_in || '',
+                    check_out: r.check_out || '',
+                    actual_work: r.work_hours ?? 0,
+                    capacity: 8,
+                    overtime: r.overtime_hours ?? 0,
+                    status: r.status || 'present',
+                    late_minutes: r.late_minutes,
+                    early_leave_minutes: r.early_leave_minutes,
+                    has_manual_adjustment: r.has_manual_adjustment,
+                    adjusted_work_hours: r.adjusted_work_hours,
+                    adjustment_reason: r.adjustment_reason
+                }));
+                setRows(mapped);
+                setCache(prev => new Map(prev).set(cacheKey, { data: mapped, timestamp: now }));
+                if (!silent) setLoading(false);
+                return;
+            } catch (_) {
+                // Fall back to full attendance API
+            }
+        }
+
+        // Normal attendance data fetch (with server-side limit for stability)
+        try {
+            const params = new URLSearchParams();
+            if (!filters.debouncedSearch) {
+                if (filters.viewMode === 'month') {
+                    const monthStart = startOfMonth(filters.currentMonth || new Date());
+                    const monthEnd = endOfMonth(filters.currentMonth || new Date());
+                    params.append('start_date', format(monthStart, 'yyyy-MM-dd'));
+                    params.append('end_date', format(monthEnd, 'yyyy-MM-dd'));
+                } else {
+                    if (filters.startDate) params.append('start_date', format(filters.startDate, 'yyyy-MM-dd'));
+                    if (filters.endDate) params.append('end_date', format(filters.endDate, 'yyyy-MM-dd'));
+                }
+            }
             if (filters.selectedEmployee) params.append('employee_id', filters.selectedEmployee);
             if (filters.selectedDepartment) params.append('department', filters.selectedDepartment);
             if (filters.selectedStatus) params.append('status', filters.selectedStatus);
             if (filters.selectedShift) params.append('shift', filters.selectedShift);
-            if (filters.search) params.append('search', filters.search);
+            if (filters.debouncedSearch) params.append('search', filters.debouncedSearch);
             if (filters.rawView) params.append('raw', 'true');
+            params.append('limit', '20000');
 
             const res = await api.get(`hr/attendance?${params}`);
             setRows(res.data as AttendanceRecord[]);
+            setCache(prev => new Map(prev).set(cacheKey, { data: res.data, timestamp: now }));
         } catch (error: any) {
             console.error('Error fetching attendance:', error);
             const errorMessage = error.response?.data?.detail || error.message || 'فشل في تحميل بيانات الحضور';
@@ -163,13 +261,18 @@ const useAttendanceData = (filters: any) => {
         } finally {
             if (!silent) setLoading(false);
         }
-    }, [filters.viewMode, filters.currentMonth, filters.startDate, filters.endDate, filters.selectedEmployee, filters.selectedDepartment, filters.search, filters.rawView, filters.selectedStatus, filters.selectedShift, showAlert, t]);
+    }, [filters.viewMode, filters.currentMonth, filters.startDate, filters.endDate, filters.selectedEmployee, filters.selectedDepartment, filters.debouncedSearch, filters.rawView, filters.selectedStatus, filters.selectedShift, showAlert, t, cache, getCacheKey]);
 
     useEffect(() => {
         fetchLogs();
     }, [fetchLogs]);
 
-    return { rows, loading, error, refetch: fetchLogs };
+    // Clear cache when filters change significantly
+    useEffect(() => {
+        // Keep cache but update on next fetch
+    }, [filters.viewMode, filters.currentMonth, filters.selectedEmployee, filters.selectedDepartment]);
+
+    return { rows, transactions, totalTransactions, loading, error, refetch: fetchLogs, clearCache: () => setCache(new Map()) };
 };
 
 const useAttendanceFilters = () => {
@@ -181,8 +284,19 @@ const useAttendanceFilters = () => {
     const [selectedShift, setSelectedShift] = useState('');
     const [search, setSearch] = useState('');
     const [rawView, setRawView] = useState(false);
-    const [viewMode, setViewMode] = useState<'table' | 'month' | 'analytics'>('month');
+    const [viewMode, setViewMode] = useState<'table' | 'month' | 'transactions'>('month');
     const [currentMonth, setCurrentMonth] = useState(new Date());
+    
+    // Debounced search value for performance
+    const [debouncedSearch, setDebouncedSearch] = useState('');
+    
+    // Debounce search - wait 300ms after typing stops
+    useEffect(() => {
+        const timer = setTimeout(() => {
+            setDebouncedSearch(search);
+        }, 300);
+        return () => clearTimeout(timer);
+    }, [search]);
 
     const handleDateChange = useCallback((newDate: Date) => {
         if (!startDate) {
@@ -197,11 +311,20 @@ const useAttendanceFilters = () => {
         }
     }, [startDate, endDate]);
 
-    const handleViewModeChange = useCallback((mode: typeof viewMode) => {
-        if (mode) {
-            setViewMode(mode);
-        }
+    // New function to handle date range selection from MonthView
+    const handleDateRangeSelect = useCallback((start: Date, end: Date) => {
+        setStartDate(start);
+        setEndDate(end);
+        setViewMode('table');
     }, []);
+
+    // New function to handle single day selection from MonthView
+    const handleSingleDaySelect = useCallback((date: Date) => {
+        setStartDate(date);
+        setEndDate(date);
+        setViewMode('table');
+    }, []);
+
 
     const clearFilters = useCallback(() => {
         setStartDate(new Date());
@@ -211,6 +334,7 @@ const useAttendanceFilters = () => {
         setSelectedStatus('');
         setSelectedShift('');
         setSearch('');
+        setDebouncedSearch('');
     }, []);
 
     return {
@@ -221,6 +345,7 @@ const useAttendanceFilters = () => {
         selectedStatus,
         selectedShift,
         search,
+        debouncedSearch,
         rawView,
         viewMode,
         currentMonth,
@@ -233,8 +358,10 @@ const useAttendanceFilters = () => {
         setSearch,
         setRawView,
         setCurrentMonth,
+        setViewMode,
         handleDateChange,
-        handleViewModeChange,
+        handleDateRangeSelect,
+        handleSingleDaySelect,
         clearFilters
     };
 };
@@ -261,7 +388,7 @@ const RecentActivitySidebar = () => {
 
     useEffect(() => {
         fetchRecentActivity();
-        const interval = setInterval(fetchRecentActivity, 30000); // Update every 30 seconds
+        const interval = setInterval(fetchRecentActivity, 60000); // Update every 60 seconds
         return () => clearInterval(interval);
     }, [fetchRecentActivity]);
 
@@ -297,14 +424,15 @@ const RecentActivitySidebar = () => {
                 bgcolor: colors.white,
                 boxShadow: shadows.md,
                 height: '100%', 
-                maxHeight: '800px', 
-                overflowY: 'auto',
+                maxHeight: '300px', 
+                overflowX: 'auto',
+                overflowY: 'hidden',
                 border: `1px solid ${alpha(colors.secondary, 0.05)}`,
-                '&::-webkit-scrollbar': { width: '4px' },
-                '&::-webkit-scrollbar-thumb': { bgcolor: alpha(colors.secondary, 0.2), borderRadius: '4px' }
+                '&::-webkit-scrollbar': { height: '6px', width: '6px' },
+                '&::-webkit-scrollbar-thumb': { bgcolor: alpha(colors.secondary, 0.3), borderRadius: '3px' }
             }}
         >
-            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
+            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
                 <Typography variant="subtitle1" fontWeight="800" sx={{ display: 'flex', alignItems: 'center', gap: 1.5, color: colors.dark }}>
                     <Box sx={{ 
                         width: 36, 
@@ -318,7 +446,7 @@ const RecentActivitySidebar = () => {
                     }}>
                         <AccessTime sx={{ color: colors.primary, fontSize: 20 }} />
                     </Box>
-                    {t('Live Activity')}
+                    {t('Recent Activity')}
                 </Typography>
                 <Chip 
                     label={t('LIVE')} 
@@ -339,68 +467,64 @@ const RecentActivitySidebar = () => {
                 />
             </Box>
 
-            <Stack spacing={2}>
+            <Box sx={{ display: 'flex', gap: 2, overflowX: 'auto', pb: 1 }}>
                 {recentLogs.map((log, idx) => (
                     <Box key={log.id || idx} sx={{ 
                         display: 'flex', 
-                        gap: 2, 
+                        gap: 1.5, 
                         alignItems: 'center',
                         p: 2,
+                        minWidth: '280px',
+                        maxWidth: '320px',
                         borderRadius: '12px',
                         transition: 'all 0.2s ease',
-                        border: `1px solid transparent`,
+                        border: `1px solid ${alpha(colors.secondary, 0.1)}`,
+                        bgcolor: alpha(colors.bg, 0.5),
                         '&:hover': { 
-                            bgcolor: alpha(colors.primary, 0.02),
-                            borderColor: alpha(colors.primary, 0.05),
-                            transform: 'translateX(-4px)'
+                            bgcolor: alpha(colors.primary, 0.05),
+                            borderColor: alpha(colors.primary, 0.2),
+                            transform: 'translateY(-2px)'
                         }
                     }}>
                         <Avatar 
                             sx={{ 
-                                width: 42, 
-                                height: 42, 
+                                width: 38, 
+                                height: 38, 
                                 background: log.type === 'check_in' ? colors.gradientSuccess : colors.gradientWarning,
                                 color: colors.white,
-                                fontSize: '1rem',
+                                fontSize: '0.85rem',
                                 fontWeight: 800,
-                                borderRadius: '12px',
-                                boxShadow: shadows.sm
+                                borderRadius: '10px',
+                                boxShadow: shadows.xs,
+                                flexShrink: 0
                             }}
                         >
                             {log.employee_name?.[0]}
                         </Avatar>
                         
                         <Box sx={{ flex: 1, minWidth: 0 }}>
-                            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-                                <Typography variant="body2" fontWeight="800" color={colors.dark} noWrap sx={{ maxWidth: '70%' }}>
-                                    {log.employee_name}
-                                </Typography>
-                                <Typography variant="caption" fontWeight="800" sx={{ color: colors.primary, bgcolor: alpha(colors.primary, 0.05), px: 1, py: 0.25, borderRadius: '4px' }}>
-                                    {format(parseISO(log.timestamp), 'HH:mm')}
-                                </Typography>
-                            </Box>
-                            
-                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mt: 0.5 }}>
+                            <Typography variant="body2" fontWeight="800" color={colors.dark} noWrap>
+                                {log.employee_name}
+                            </Typography>
+                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mt: 0.25 }}>
                                 <Box sx={{ 
-                                    width: 8, 
-                                    height: 8, 
+                                    width: 6, 
+                                    height: 6, 
                                     borderRadius: '50%', 
                                     bgcolor: log.type === 'check_in' ? colors.success : colors.warning,
-                                    boxShadow: `0 0 0 2px ${alpha(log.type === 'check_in' ? colors.success : colors.warning, 0.15)}`
+                                    flexShrink: 0
                                 }} />
                                 <Typography variant="caption" fontWeight="700" sx={{ color: log.type === 'check_in' ? colors.success : colors.warning }}>
                                     {log.type === 'check_in' ? t('Check In') : t('Check Out')}
                                 </Typography>
-                                <Typography variant="caption" sx={{ color: colors.secondary, mx: 0.5 }}>•</Typography>
-                                <Typography variant="caption" sx={{ color: alpha(colors.secondary, 0.8), fontSize: '0.7rem', display: 'flex', alignItems: 'center', gap: 0.5 }}>
-                                    <Computer sx={{ fontSize: 12 }} />
-                                    {log.device}
+                                <Typography variant="caption" sx={{ color: colors.primary, fontWeight: 800 }}>
+                                    {format(parseISO(log.timestamp), 'HH:mm')}
                                 </Typography>
                             </Box>
                         </Box>
                     </Box>
                 ))}
-            </Stack>
+            </Box>
         </Paper>
     );
 };
@@ -426,7 +550,7 @@ const DeviceStatusWidget = () => {
 
     useEffect(() => {
         fetchDevices();
-        const interval = setInterval(fetchDevices, 60000); // Update every minute
+        const interval = setInterval(fetchDevices, 120000); // Update every 2 minutes
         return () => clearInterval(interval);
     }, []);
 
@@ -529,7 +653,7 @@ const SyncDevicesButton = ({ onSyncSuccess }: { onSyncSuccess: () => void }) => 
     const handleSync = async () => {
         setSyncing(true);
         try {
-            const res = await api.post('hr/devices/sync-multiple', {});
+            const res = await api.post('hr/devices/sync-multiple', {}, { timeout: 180000 });
             const total = res.data.total_new_logs;
             showAlert(t('Synced successfully! Found {{count}} new logs.', { count: total }), t('Sync Success'), 'success');
             onSyncSuccess();
@@ -797,6 +921,50 @@ const AttendanceMoreActions = React.memo(({
         handleClose();
     };
 
+    const handleRecalculate = async () => {
+        handleClose();
+        
+        // Get date range
+        let startDate: Date, endDate: Date;
+        
+        if (filters.viewMode === 'month') {
+            startDate = startOfMonth(filters.currentMonth || new Date());
+            endDate = endOfMonth(filters.currentMonth || new Date());
+        } else if (filters.startDate && filters.endDate) {
+            startDate = filters.startDate;
+            endDate = filters.endDate;
+        } else {
+            // Default to last 30 days
+            startDate = new Date();
+            startDate.setDate(startDate.getDate() - 30);
+            endDate = new Date();
+        }
+        
+        try {
+            const params = new URLSearchParams();
+            params.append('start_date', format(startDate, 'yyyy-MM-dd'));
+            params.append('end_date', format(endDate, 'yyyy-MM-dd'));
+            if (filters.selectedEmployee) {
+                params.append('employee_id', filters.selectedEmployee);
+            }
+            
+            showAlert(t('Recalculating attendance...'), t('Processing'), 'info');
+            
+            const res = await api.post(`hr/attendance/recalculate?${params}`, {}, { timeout: 300000 });
+            
+            if (res.data.status === 'success') {
+                showAlert(res.data.message || t('Recalculation completed'), t('Success'), 'success');
+                // Refresh the data
+                onRefresh();
+            } else {
+                showAlert(t('Recalculation failed'), t('Error'), 'error');
+            }
+        } catch (error: any) {
+            console.error('Error recalculating:', error);
+            showAlert(error.response?.data?.detail || t('Recalculation failed'), t('Error'), 'error');
+        }
+    };
+
     return (
         <>
             <Button
@@ -863,7 +1031,7 @@ const AttendanceMoreActions = React.memo(({
             >
                 <MenuItem 
                     onClick={handleRawViewToggle}
-                    disabled={filters.viewMode === 'month' || filters.viewMode === 'analytics'}
+                    disabled={filters.viewMode === 'month'}
                 >
                     <ListItemIcon sx={{ minWidth: 'auto !important' }}>
                         {filters.rawView ? <TableChart fontSize="small" /> : <ViewList fontSize="small" />}
@@ -875,6 +1043,12 @@ const AttendanceMoreActions = React.memo(({
                         <GetApp fontSize="small" />
                     </ListItemIcon>
                     <ListItemText>{t('Export CSV')}</ListItemText>
+                </MenuItem>
+                <MenuItem onClick={handleRecalculate} disabled={loading}>
+                    <ListItemIcon sx={{ minWidth: 'auto !important' }}>
+                        <Calculate fontSize="small" />
+                    </ListItemIcon>
+                    <ListItemText>{t('Recalculate')}</ListItemText>
                 </MenuItem>
                 <MenuItem onClick={handlePrint}>
                     <ListItemIcon sx={{ minWidth: 'auto !important' }}>
@@ -968,9 +1142,34 @@ const AttendanceControls = React.memo(({
         }, 500);
     };
 
+    // Keyboard navigation handler
+    const handleKeyDown = (e: React.KeyboardEvent) => {
+        // Ctrl+F or F3 to focus search
+        if ((e.ctrlKey || e.metaKey) && e.key === 'f') {
+            e.preventDefault();
+            const searchInput = document.querySelector('input[placeholder*="Search"]') as HTMLInputElement;
+            if (searchInput) searchInput.focus();
+        }
+        // Escape to clear filters
+        if (e.key === 'Escape') {
+            setSearchValue('');
+            onFilterChange('search', '');
+            onFilterChange('selectedDepartment', '');
+            onFilterChange('selectedEmployee', '');
+            onFilterChange('selectedStatus', '');
+            onFilterChange('selectedShift', '');
+        }
+        // Enter to apply filters
+        if (e.key === 'Enter') {
+            onApplyFilters();
+        }
+    };
+
     return (
         <Paper 
             elevation={0}
+            onKeyDown={handleKeyDown}
+            tabIndex={0}
             sx={{
                 p: 2.5,
                 mb: 3,
@@ -978,6 +1177,7 @@ const AttendanceControls = React.memo(({
                 backgroundColor: colors.white,
                 boxShadow: shadows.md,
                 border: `1px solid ${alpha(colors.secondary, 0.05)}`,
+                outline: 'none',
             }}
         >
             {/* Main Controls Row */}
@@ -990,7 +1190,7 @@ const AttendanceControls = React.memo(({
                     <ToggleButtonGroup
                         value={filters.viewMode}
                         exclusive
-                        onChange={(_, v) => v && filters.handleViewModeChange(v)}
+                        onChange={(_, v) => v && filters.setViewMode(v)}
                         size="small"
                         sx={{
                             backgroundColor: alpha(colors.light, 0.8),
@@ -1030,17 +1230,17 @@ const AttendanceControls = React.memo(({
                             <TableChart sx={{ marginInlineEnd: 1, fontSize: 18 }} />
                             {t('List')}
                         </ToggleButton>
-                        <ToggleButton value="analytics">
-                            <TrendingUp sx={{ marginInlineEnd: 1, fontSize: 18 }} />
-                            {t('Analytics')}
+                        <ToggleButton value="transactions">
+                            <History sx={{ marginInlineEnd: 1, fontSize: 18 }} />
+                            {t('Transactions')}
                         </ToggleButton>
                     </ToggleButtonGroup>
-            </Box>
+                </Box>
 
-            <Divider orientation="vertical" flexItem sx={{ mx: 1, height: 24, alignSelf: 'center', opacity: 0.1 }} />
+                <Divider orientation="vertical" flexItem sx={{ mx: 1, height: 24, alignSelf: 'center', opacity: 0.1 }} />
 
-            {/* Action Menu */}
-            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, marginInlineStart: 'auto' }}>
+                {/* Action Menu */}
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, marginInlineStart: 'auto' }}>
                     <AttendanceMoreActions 
                         filters={filters} 
                         onRefresh={onRefresh} 
@@ -1154,7 +1354,7 @@ const AttendanceControls = React.memo(({
                 </Grid>
 
                 {/* Date Range */}
-                {(filters.viewMode === 'table' || filters.viewMode === 'analytics') ? (
+                {filters.viewMode === 'table' ? (
                     <>
                         <Grid item xs={12} sm={6} md={2.5}>
                             <Typography variant="caption" fontWeight="800" sx={{ color: colors.secondary, mb: 0.5, display: 'block', textTransform: 'uppercase', ml: 0.5 }}>
@@ -1245,9 +1445,22 @@ const AttendanceControls = React.memo(({
                     </Typography>
                     <FormControl fullWidth size="small">
                         <Select
-                            value={filters.selectedEmployee}
-                            onChange={(e) => onFilterChange('selectedEmployee', e.target.value)}
+                            value={filters.selectedEmployee || ''}
+                            onChange={(e) => {
+                                onFilterChange('selectedEmployee', e.target.value);
+                            }}
                             displayEmpty
+                            MenuProps={{
+                                PaperProps: {
+                                    sx: {
+                                        maxHeight: 400,
+                                        '& .MuiMenuItem-root': {
+                                            fontSize: '0.85rem',
+                                            py: 1
+                                        }
+                                    }
+                                }
+                            }}
                             sx={{
                                 borderRadius: '10px',
                                 bgcolor: colors.white,
@@ -1256,14 +1469,26 @@ const AttendanceControls = React.memo(({
                                 '&.Mui-focused .MuiOutlinedInput-notchedOutline': { borderColor: colors.primary, borderWidth: '2px' }
                             }}
                         >
-                            <MenuItem value="">{t('All Employees')}</MenuItem>
-                            {employees
-                                .filter(emp => !filters.selectedDepartment || emp.department_id === filters.selectedDepartment)
-                                .map((emp, index) => (
-                                    <MenuItem key={emp.id || emp.employee_id || `emp-${index}`} value={emp.employee_id}>
-                                        {emp.name} ({emp.employee_id})
-                                    </MenuItem>
-                                ))}
+                            <MenuItem value="">
+                                <Typography variant="body2" color="textSecondary">
+                                    {t('All Employees')}
+                                </Typography>
+                            </MenuItem>
+                            {employees.map((emp, index) => (
+                                <MenuItem 
+                                    key={emp.id || emp.employee_id || `emp-${index}`} 
+                                    value={emp.employee_id}
+                                    sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}
+                                >
+                                    <Avatar sx={{ width: 24, height: 24, bgcolor: colors.primary, fontSize: '0.7rem', fontWeight: 700 }}>
+                                        {emp.name?.[0]}
+                                    </Avatar>
+                                    <Box>
+                                        <Typography variant="body2" fontWeight="600">{emp.name}</Typography>
+                                        <Typography variant="caption" color="textSecondary">{emp.employee_id}</Typography>
+                                    </Box>
+                                </MenuItem>
+                            ))}
                         </Select>
                     </FormControl>
                 </Grid>
@@ -1323,6 +1548,53 @@ const AttendanceControls = React.memo(({
                     {/* Placeholder for alignment */}
                 </Grid>
             </Grid>
+
+            {/* Keyboard Shortcuts Hint */}
+            <Box sx={{ 
+                display: 'flex', 
+                gap: 2, 
+                mt: 2, 
+                pt: 2, 
+                borderTop: `1px solid ${alpha(colors.secondary, 0.1)}`,
+                flexWrap: 'wrap'
+            }}>
+                <Typography variant="caption" sx={{ color: colors.secondary, display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                    <Box component="span" sx={{ 
+                        bgcolor: alpha(colors.primary, 0.1), 
+                        px: 0.75, 
+                        py: 0.25, 
+                        borderRadius: '4px',
+                        fontFamily: 'monospace',
+                        fontSize: '0.65rem',
+                        fontWeight: 700
+                    }}>Ctrl+F</Box>
+                    {t('Search')}
+                </Typography>
+                <Typography variant="caption" sx={{ color: colors.secondary, display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                    <Box component="span" sx={{ 
+                        bgcolor: alpha(colors.primary, 0.1), 
+                        px: 0.75, 
+                        py: 0.25, 
+                        borderRadius: '4px',
+                        fontFamily: 'monospace',
+                        fontSize: '0.65rem',
+                        fontWeight: 700
+                    }}>Enter</Box>
+                    {t('Apply')}
+                </Typography>
+                <Typography variant="caption" sx={{ color: colors.secondary, display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                    <Box component="span" sx={{ 
+                        bgcolor: alpha(colors.primary, 0.1), 
+                        px: 0.75, 
+                        py: 0.25, 
+                        borderRadius: '4px',
+                        fontFamily: 'monospace',
+                        fontSize: '0.65rem',
+                        fontWeight: 700
+                    }}>Esc</Box>
+                    {t('Clear')}
+                </Typography>
+            </Box>
         </Paper>
     );
 });
@@ -1371,6 +1643,14 @@ const TableView = React.memo(({
                     loading={loading}
                     getRowId={(row) => row.id || row.employee_pk || `${row.employee_id}-${row.check_in_date}-${row.check_in}`}
                     slots={{ toolbar: GridToolbar }}
+                    // Performance optimizations
+                    disableRowSelectionOnClick
+                    rowHeight={50}
+                    density="standard"
+                    // Virtualization settings
+                    hideFooterSelectedRowCount
+                    // Pagination settings
+                    paginationMode="client"
                     slotProps={{
                         toolbar: {
                             showQuickFilter: true,
@@ -1473,6 +1753,7 @@ const TableView = React.memo(({
 
 // Main AttendancePage Component - Optimized
 const AttendancePage: React.FC = () => {
+    const [selectedDate, setSelectedDate] = useState<Date | null>(null);
     const theme = useTheme();
     const colors = getAttendanceColors(theme);
     const shadows = getAttendanceShadows(theme);
@@ -1481,7 +1762,9 @@ const AttendancePage: React.FC = () => {
 
     // Custom hooks
     const filters = useAttendanceFilters();
-    const { rows, loading, error, refetch } = useAttendanceData({
+    
+    // Memoized filter object to prevent unnecessary re-renders
+    const memoizedFilters = useMemo(() => ({
         startDate: filters.startDate,
         endDate: filters.endDate,
         selectedEmployee: filters.selectedEmployee,
@@ -1489,10 +1772,25 @@ const AttendancePage: React.FC = () => {
         selectedStatus: filters.selectedStatus,
         selectedShift: filters.selectedShift,
         search: filters.search,
+        debouncedSearch: filters.debouncedSearch,
         rawView: filters.rawView,
         viewMode: filters.viewMode,
         currentMonth: filters.currentMonth
-    });
+    }), [
+        filters.startDate,
+        filters.endDate,
+        filters.selectedEmployee,
+        filters.selectedDepartment,
+        filters.selectedStatus,
+        filters.selectedShift,
+        filters.search,
+        filters.debouncedSearch,
+        filters.rawView,
+        filters.viewMode,
+        filters.currentMonth
+    ]);
+    
+    const { rows, transactions, totalTransactions, loading, error, refetch } = useAttendanceData(memoizedFilters);
 
     const [summary, setSummary] = useState<AttendanceSummary>({
         total_employees: 0,
@@ -1602,21 +1900,17 @@ const AttendancePage: React.FC = () => {
         });
     }, [rows, t, filters.selectedDepartment]);
 
-    // Optimized data fetching
+    // Optimized data fetching - load all employees for filter dropdown
     const fetchEmployees = useCallback(async () => {
         try {
             const params = new URLSearchParams();
             
-            // If in analytics mode, fetch all employees to get accurate statistics
-            if (filters.viewMode === 'analytics') {
-                params.append('limit', '0');
-            } else {
-                params.append('page', (page + 1).toString());
-                params.append('limit', rowsPerPage.toString());
-            }
+            // Get all employees without pagination for filter dropdown
+            params.append('limit', '1000');
+            params.append('page', '1');
 
             if (filters.selectedDepartment) params.append('department', filters.selectedDepartment);
-            if (filters.selectedShift) params.append('shift', filters.selectedShift);
+            if (filters.search) params.append('search', filters.search);
 
             const res = await api.get(`hr/employees?${params}`);
             setEmployees(res.data.employees || []);
@@ -1624,7 +1918,7 @@ const AttendancePage: React.FC = () => {
         } catch (error) {
             console.error('Error fetching employees:', error);
         }
-    }, [page, rowsPerPage, filters.selectedDepartment, filters.selectedShift, filters.viewMode]);
+    }, [page, rowsPerPage, filters.selectedDepartment, filters.selectedShift, filters.viewMode, filters.search]);
 
     const fetchDepartments = useCallback(async () => {
         try {
@@ -2007,11 +2301,6 @@ const AttendancePage: React.FC = () => {
                     </Box>
                 )}
 
-                {/* Summary Cards */}
-                {!filters.rawView && (
-                    <AttendanceSummaryCards summary={summary} onCardClick={handleCardClick} />
-                )}
-
                 {/* Detail Dialog */}
                 <Dialog 
                     className="no-print"
@@ -2170,18 +2459,17 @@ const AttendancePage: React.FC = () => {
                 </Box>
 
                 {/* Content Area */}
-                <Grid container spacing={2}>
-                    <Grid item xs={12} md={filters.viewMode === 'analytics' ? 12 : 9} sx={{ overflow: 'visible' }}>
-                        {filters.viewMode === 'analytics' && (
-                            <AttendanceAnalytics 
-                                data={rows} 
-                                employees={employees} 
-                                startDate={filters.startDate || new Date()} 
-                                endDate={filters.endDate || new Date()} 
-                            />
+                <Grid container spacing={2} direction="column" sx={{ width: '100%', overflow: 'hidden' }}>
+                    {/* Main Table/Month View */}
+                    <Grid item xs={12} sx={{ width: '100%', overflowX: 'auto' }}>
+                        {loading && (
+                            <Paper elevation={0} sx={{ p: 3, borderRadius: '16px', minHeight: 400 }}>
+                                <Skeleton variant="rectangular" height={60} sx={{ borderRadius: '12px', mb: 2 }} />
+                                <Skeleton variant="rectangular" height={400} sx={{ borderRadius: '12px' }} />
+                            </Paper>
                         )}
-
-                        {filters.viewMode === 'table' && (
+                        
+                        {!loading && filters.viewMode === 'table' && (
                             <TableView
                                 rows={rows}
                                 columns={columns}
@@ -2194,29 +2482,57 @@ const AttendancePage: React.FC = () => {
                             />
                         )}
 
-                        {filters.viewMode === 'month' && (
-                            <MonthView
-                                rows={rows}
-                                employees={employees}
-                                filters={{
-                                    ...filters,
-                                    startDate: filters.startDate || undefined,
-                                    endDate: filters.endDate || undefined
-                                }}
-                                totalEmployees={totalEmployees}
-                                page={page}
-                                rowsPerPage={rowsPerPage}
-                                handlePageChange={handlePageChange}
-                                handleRowsPerPageChange={handleRowsPerPageChange}
-                            />
+                        {!loading && filters.viewMode === 'month' && (
+                            <Suspense fallback={<Skeleton variant="rectangular" height={400} sx={{ borderRadius: '12px' }} />}>
+                                <MonthView
+                                    rows={rows}
+                                    employees={employees}
+                                    filters={{
+                                        ...filters,
+                                        startDate: filters.startDate || undefined,
+                                        endDate: filters.endDate || undefined
+                                    }}
+                                    totalEmployees={totalEmployees}
+                                    page={page}
+                                    rowsPerPage={rowsPerPage}
+                                    handlePageChange={handlePageChange}
+                                    handleRowsPerPageChange={handleRowsPerPageChange}
+                                    onDateRangeChange={(start, end) => {
+                                        filters.setStartDate(start);
+                                        filters.setEndDate(end);
+                                        filters.setViewMode('table');
+                                    }}
+                                    onSingleDaySelect={(date) => {
+                                        setSelectedDate(date);
+                                        filters.setStartDate(date);
+                                        filters.setEndDate(date);
+                                        filters.setViewMode('table');
+                                    }}
+                                />
+                            </Suspense>
+                        )}
+
+                        {!loading && filters.viewMode === 'transactions' && (
+                            <Suspense fallback={<Skeleton variant="rectangular" height={400} sx={{ borderRadius: '12px' }} />}>
+                                <TransactionsView
+                                    transactions={transactions}
+                                    loading={loading}
+                                    page={page}
+                                    rowsPerPage={rowsPerPage}
+                                    totalTransactions={totalTransactions}
+                                    handlePageChange={handlePageChange}
+                                    handleRowsPerPageChange={handleRowsPerPageChange}
+                                    onRefresh={() => refetch()}
+                                    preSelectedEmployee={filters.selectedEmployee}
+                                />
+                            </Suspense>
                         )}
                     </Grid>
 
-                    {filters.viewMode !== 'analytics' && (
-                        <Grid item xs={12} md={3} className="no-print">
-                            <RecentActivitySidebar />
-                        </Grid>
-                    )}
+                    {/* Recent Activity - Below the table */}
+                    <Grid item xs={12} className="no-print">
+                        <RecentActivitySidebar />
+                    </Grid>
                 </Grid>
             </Box>
         </LocalizationProvider>

@@ -35,22 +35,27 @@ async def create_contract(
 
 @router.get("/", response_model=schemas.ContractListResponse)
 def read_contracts(
-    skip: int = 0, 
-    limit: int = 100, 
+    skip: int = 0,
+    limit: int = 50,
+    search: Optional[str] = None,
+    tab: Optional[int] = None,
+    shipping_type: Optional[str] = None,
+    sort_by: str = "modified_date",
+    sort_dir: str = "desc",
     db: Session = Depends(get_db),
-    current_user: schemas.User = Depends(get_current_user)
+    current_user: schemas.User = Depends(require_permission("read_contracts"))
 ):
-    """Get paginated contracts with metadata"""
-    # Validate pagination parameters
-    if limit > 100:  # Prevent excessive loads
-        limit = 100
-    if limit <= 0:
-        limit = 50
-    if skip < 0:
-        skip = 0
-        
-    result = ContractService.get_contracts(db, skip, limit)
-    return result
+    return ContractService.get_contracts(
+        db, 
+        skip=skip, 
+        limit=limit, 
+        search=search,
+        tab=tab,
+        shipping_type=shipping_type,
+        current_user_id=current_user.id, 
+        sort_by=sort_by, 
+        sort_dir=sort_dir
+    )
 
 @router.get("/next-number")
 def get_next_number(
@@ -102,10 +107,20 @@ async def update_contract(
     db: Session = Depends(get_db),
     current_user: schemas.User = Depends(require_permission("write_contracts"))
 ):
-    updated_contract = await ContractService.update_contract(db, contract_id, contract, current_user.id)
-    if updated_contract is None:
-        raise HTTPException(status_code=404, detail="Contract not found")
-    return updated_contract
+    """
+    Update an existing contract.
+    Business logic delegated to ContractService.
+    """
+    import logging
+    logger = logging.getLogger(__name__)
+    try:
+        updated_contract = await ContractService.update_contract(db, contract_id, contract, current_user.id)
+        if updated_contract is None:
+            raise HTTPException(status_code=404, detail="Contract not found")
+        return updated_contract
+    except Exception as e:
+        logger.error(f"Error updating contract {contract_id}: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
 
 @router.post("/{contract_id}/notify-finance", response_model=schemas.Contract)
 async def notify_finance(

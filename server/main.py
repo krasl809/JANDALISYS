@@ -59,7 +59,7 @@ from crud import rbac_crud
 from core.auth import authenticate_user, create_access_token, get_current_user, get_password_hash, require_permission
 
 # Import routers
-from routers import contracts, conveyors, agents, financial_transactions, departments, hr, notifications, dashboard, inventory, payments, bank_accounts, documents, archive, exchange_units
+from routers import contracts, conveyors, agents, financial_transactions, departments, hr, notifications, dashboard, inventory, payments, bank_accounts, documents, archive, exchange_units, surveys, public_surveys, leave
 from rbac.rbac_main import router as rbac_router
 
 # استيراد مدير الويب سوكيت
@@ -177,6 +177,9 @@ app.include_router(payments.router, prefix="/api", tags=["payments"])
 app.include_router(bank_accounts.router, prefix="/api", tags=["bank_accounts"])
 app.include_router(archive.router, prefix="/api", tags=["archive"])
 app.include_router(exchange_units.router, prefix="/api/exchange-units", tags=["exchange_units"])
+app.include_router(surveys.router, prefix="/api", tags=["surveys"])
+app.include_router(public_surveys.router, prefix="/api", tags=["public_surveys"])
+app.include_router(leave.router, prefix="/api/leave", tags=["leave"])
 
 # --- WebSocket Endpoint ---
 @app.websocket("/ws")
@@ -260,10 +263,11 @@ def startup_event():
                 "read_conveyors", "write_conveyors", "read_articles", "write_articles", "read_payment_terms", "write_payment_terms",
                 "read_incoterms", "write_incoterms", "read_document_types", "write_document_types",
                 "view_agents", "manage_agents", "view_inventory", "manage_inventory",
-                "archive_read", "archive_upload", "archive_download", "archive_delete", "archive_write"
+                "archive_read", "archive_upload", "archive_download", "archive_delete", "archive_write",
+                "manage_surveys", "view_survey_analytics"
             ],
             "hr_manager": [
-                "view_hr", "manage_hr"
+                "view_hr", "manage_hr", "manage_surveys", "view_survey_analytics"
             ],
             "manager": [
                 "view_dashboard", "view_reports", "view_inventory",
@@ -314,7 +318,11 @@ def startup_event():
             ],
             "hr_admin": [
                 "view_dashboard", "view_hr", "manage_hr", "view_reports", "view_settings",
-                "view_employees", "manage_employees", "view_employee_details", "edit_employee_info"
+                "view_employees", "manage_employees", "view_employee_details", "edit_employee_info",
+                "manage_surveys", "view_survey_analytics"
+            ],
+            "survey_admin": [
+                "manage_surveys", "view_survey_analytics"
             ]
         }
         
@@ -406,11 +414,11 @@ def startup_event():
 
         # Create 6 default archive users
         archive_users = [
-            {"name": "م. سايد شهوان", "email": "s.chehwan@archive.com", "role": "archive_admin"},
-            {"name": "أ. نازك الجندلي", "email": "n.jandali@archive.com", "role": "archive_admin"},
-            {"name": "أ. ماهر الريحاوي", "email": "m.alrihawi@archive.com", "role": "archive_admin"},
-            {"name": "م. غزوان البيك", "email": "mg.bek@archive.com", "role": "archive_admin"},
-            {"name": "أ. عبيدة الحامد", "email": "O.alhamed@archive.com", "role": "archive_admin"},
+            {"name": "م. سايد شهوان", "email": "said.shahwan@archive.com", "role": "archive_admin"},
+            {"name": "أ. نازك الجندلي", "email": "nazik.jandali@archive.com", "role": "archive_admin"},
+            {"name": "أ. ماهر الريحاوي", "email": "maher.rehayi@archive.com", "role": "archive_admin"},
+            {"name": "أ. غزوان البيك", "email": "ghazwan.baik@archive.com", "role": "archive_admin"},
+            {"name": "أ. عبيدة الحامد", "email": "obada.hamed@archive.com", "role": "archive_admin"},
             {"name": "مستعرض الأرشيف", "email": "viewer@archive.com", "role": "archive_viewer"}
         ]
         
@@ -636,36 +644,42 @@ async def readiness(db: Session = Depends(get_db)):
 def login_auth(user_credentials: schemas.UserLogin, db: Session = Depends(get_db)):
     print(f"DEBUG: Login attempt for email: {user_credentials.email}", flush=True)
     
-    user = authenticate_user(db, user_credentials.email, user_credentials.password)
-    print(f"DEBUG: authenticate_user result: {user}", flush=True)
-    
-    if not user:
-        print(f"DEBUG: Authentication failed for {user_credentials.email}", flush=True)
-        raise HTTPException(status_code=401, detail="Invalid credentials")
-    
-    print(f"DEBUG: User authenticated successfully: {user.email}", flush=True)
-    
-    token = create_access_token({"sub": str(user.id)})
-    print(f"DEBUG: Token created successfully", flush=True)
-    
-    # Fetch permissions for the user's role
-    role_obj = db.query(rbac_models.Role).filter(rbac_models.Role.name == user.role).first()
-    print(f"DEBUG: Role object found: {role_obj is not None}", flush=True)
-    
-    permissions = []
-    if role_obj:
-        permissions = [p.name for p in role_obj.permissions]
-        print(f"DEBUG: Permissions found: {len(permissions)}", flush=True)
-    else:
-        print(f"DEBUG: No role object found for role: {user.role}", flush=True)
+    try:
+        user = authenticate_user(db, user_credentials.email, user_credentials.password)
+        print(f"DEBUG: authenticate_user result: {user}", flush=True)
         
-    return {
-        "access_token": token, 
-        "token_type": "bearer", 
-        "user_id": str(user.id), 
-        "role": user.role,
-        "permissions": permissions
-    }
+        if not user:
+            print(f"DEBUG: Authentication failed for {user_credentials.email}", flush=True)
+            raise HTTPException(status_code=401, detail="Invalid credentials")
+        
+        print(f"DEBUG: User authenticated successfully: {user.email}", flush=True)
+        
+        token = create_access_token({"sub": str(user.id)})
+        print(f"DEBUG: Token created successfully", flush=True)
+        
+        # Fetch permissions for the user's role
+        role_obj = db.query(rbac_models.Role).filter(rbac_models.Role.name == user.role).first()
+        print(f"DEBUG: Role object found: {role_obj is not None}", flush=True)
+        
+        permissions = []
+        if role_obj:
+            permissions = [p.name for p in role_obj.permissions]
+            print(f"DEBUG: Permissions found: {len(permissions)}", flush=True)
+        else:
+            print(f"DEBUG: No role object found for role: {user.role}", flush=True)
+            
+        return {
+            "access_token": token, 
+            "token_type": "bearer", 
+            "user_id": str(user.id), 
+            "role": user.role,
+            "permissions": permissions
+        }
+    except Exception as e:
+        print(f"DEBUG: Exception in login_auth: {e}", flush=True)
+        import traceback
+        traceback.print_exc()
+        raise
 
 @app.post("/api/auth/register", response_model=dict)
 def register(user_data: schemas.UserRegister, db: Session = Depends(get_db), current_user = Depends(get_current_user)):
@@ -1014,7 +1028,10 @@ def read_brokers(db: Session = Depends(get_db), current_user = Depends(require_p
     try:
         return db.query(core_models.Broker).all()
     except Exception as e:
-        raise HTTPException(status_code=500, detail="Failed to retrieve brokers")
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.error(f"Error retrieving brokers: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Failed to retrieve brokers: {str(e)}")
 
 @app.post("/api/brokers/", response_model=schemas.Broker)
 def create_broker(broker: schemas.BrokerCreate, db: Session = Depends(get_db), current_user = Depends(require_permission("write_brokers"))):

@@ -49,6 +49,19 @@ if not DATABASE_URL.startswith("sqlite://"):
         "pool_recycle": 3600,     # Recycle connections every hour
     })
     logger.info("Database connection pooling enabled")
+else:
+    # SQLite-specific configuration for better concurrency
+    engine_kwargs.update({
+        "poolclass": QueuePool,
+        "pool_size": 5,          # SQLite has limited concurrent write support
+        "max_overflow": 10,      # Additional connections when needed
+        "pool_timeout": 60,       # Longer timeout for SQLite
+        "connect_args": {
+            "check_same_thread": False,  # Allow multi-threaded access
+            "timeout": 30,               # Connection timeout
+        },
+    })
+    logger.warning("⚠️ SQLite connection pooling configured with reduced pool size")
 
 engine = create_engine(DATABASE_URL, **engine_kwargs)
 
@@ -74,7 +87,10 @@ def get_db():
         logger.exception("Database session error")
         raise
     finally:
-        db.close()
+        try:
+            db.close()
+        except Exception as e:
+            logger.warning(f"Error closing database session: {e}")
 
 def check_db_connection():
     """Health check for database connection"""

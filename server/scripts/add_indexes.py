@@ -39,12 +39,12 @@ def add_indexes():
         ("idx_employees_department", "employees", ["department_id"]),
         ("idx_employees_status", "employees", ["status"]),
         
-        # Attendance indexes
+        # Attendance indexes (aligned with models.hr_models.AttendanceLog)
         ("idx_attendance_employee", "attendance_logs", ["employee_id"]),
-        ("idx_attendance_date", "attendance_logs", ["check_in_date"]),
         ("idx_attendance_timestamp", "attendance_logs", ["timestamp"]),
         ("idx_attendance_status", "attendance_logs", ["status"]),
-        ("idx_attendance_composite", "attendance_logs", ["employee_id", "check_in_date"]),
+        # Composite index to speed up range queries per employee
+        ("idx_attendance_employee_timestamp", "attendance_logs", ["employee_id", "timestamp"]),
         
         # Contract indexes
         ("idx_contracts_status", "contracts", ["status"]),

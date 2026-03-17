@@ -55,6 +55,13 @@ const AttendancePage = lazy(() => import('./pages/hr/AttendancePage'));
 const DevicesPage = lazy(() => import('./pages/hr/DevicesPage'));
 const ShiftSettingsPage = lazy(() => import('./pages/hr/ShiftSettingsPage'));
 
+// Leave Management Imports
+const LeaveDashboard = lazy(() => import('./pages/hr/LeaveDashboard'));
+const LeaveSettingsPage = lazy(() => import('./pages/hr/LeaveSettingsPage'));
+const LeaveRequestForm = lazy(() => import('./pages/hr/LeaveRequestForm'));
+const ApprovalWorkflowSettings = lazy(() => import('./pages/hr/ApprovalWorkflowSettings'));
+const LeaveApprovalPage = lazy(() => import('./pages/hr/LeaveApprovalPage'));
+
 // Employee Management Imports
 const EmployeesPage = lazy(() => import('./pages/employees/EmployeesPage'));
 const ArchiveBrowser = lazy(() => import('./pages/archive/ArchiveBrowser'));
@@ -65,6 +72,14 @@ const EditEmployeePage = lazy(() => import('./pages/employees/EditEmployeePage')
 const EmployeeForm = lazy(() => import('./components/employees/EmployeeForm'));
 const EmployeeImport = lazy(() => import('./pages/hr/EmployeeImport'));
 const ServerOffline = lazy(() => import('./components/pages/ServerOffline'));
+
+// Survey System Imports
+const SurveyListPage = lazy(() => import('./pages/surveys/SurveyListPage'));
+const SurveyBuilderPage = lazy(() => import('./pages/surveys/SurveyBuilderPage'));
+const SurveyAnalyticsPage = lazy(() => import('./pages/surveys/SurveyAnalyticsPage'));
+const SurveyResponsesPage = lazy(() => import('./pages/surveys/SurveyResponsesPage'));
+const SurveyTemplatesPage = lazy(() => import('./pages/surveys/SurveyTemplatesPage'));
+const PublicSurveyPage = lazy(() => import('./pages/public/PublicSurveyPage'));
 
 const LoadingFallback = () => (
   <Box display="flex" justifyContent="center" alignItems="center" height="100vh">
@@ -82,6 +97,9 @@ function App() {
             {/* 1. Public Routes */}
             <Route path="/login" element={<Login />} />
             <Route path="/offline" element={<ServerOffline />} />
+            
+            {/* Public Survey Route - No Auth Required */}
+            <Route path="/survey/:id" element={<PublicSurveyPage />} />
 
             {/* 2. Protected Routes */}
             <Route element={
@@ -123,6 +141,12 @@ function App() {
 
               {/* HR Module */}
               <Route path="/hr" element={<ProtectedRoute><HrDashboard /></ProtectedRoute>} />
+              <Route path="/hr/leave" element={<ProtectedRoute><LeaveDashboard /></ProtectedRoute>} />
+              <Route path="/hr/leave/new" element={<ProtectedRoute><LeaveRequestForm /></ProtectedRoute>} />
+              <Route path="/hr/leave/:id" element={<ProtectedRoute><LeaveRequestForm /></ProtectedRoute>} />
+              <Route path="/hr/leave/settings" element={<ProtectedRoute><LeaveSettingsPage /></ProtectedRoute>} />
+              <Route path="/hr/leave/workflow-settings" element={<ProtectedRoute><ApprovalWorkflowSettings /></ProtectedRoute>} />
+              <Route path="/hr/leave/approvals" element={<ProtectedRoute><LeaveApprovalPage /></ProtectedRoute>} />
               <Route path="/hr/attendance" element={<ProtectedRoute><AttendancePage /></ProtectedRoute>} />
 
               <Route path="/hr/devices" element={<ProtectedRoute><DevicesPage /></ProtectedRoute>} />
@@ -142,6 +166,14 @@ function App() {
 
               {/* Legacy Employee Route - Redirect to New System */}
               <Route path="/hr/employees" element={<Navigate to="/employees" replace />} />
+
+              {/* Survey Module */}
+              <Route path="/admin/surveys" element={<ProtectedRoute><SurveyListPage /></ProtectedRoute>} />
+              <Route path="/admin/surveys/templates" element={<ProtectedRoute><SurveyTemplatesPage /></ProtectedRoute>} />
+              <Route path="/admin/surveys/create" element={<ProtectedRoute><SurveyBuilderPage /></ProtectedRoute>} />
+              <Route path="/admin/surveys/:id/edit" element={<ProtectedRoute><SurveyBuilderPage /></ProtectedRoute>} />
+              <Route path="/admin/surveys/:id/analytics" element={<ProtectedRoute><SurveyAnalyticsPage /></ProtectedRoute>} />
+              <Route path="/admin/surveys/:id/responses" element={<ProtectedRoute><SurveyResponsesPage /></ProtectedRoute>} />
             </Route>
 
             {/* 3. 404 Catch All */}

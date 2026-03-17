@@ -9,7 +9,7 @@ import {
   Dashboard, Description, PriceCheck, Payment,
   LocalShipping, ExpandLess, ExpandMore, Assessment,
   AccessTime, SettingsInputComponent, People, Schedule,
-  FolderSpecial
+  FolderSpecial, Assignment, EventAvailable
 } from '@mui/icons-material';
 import { alpha } from '@mui/material/styles';
 import { useAuth } from '../../context/AuthContext';
@@ -19,6 +19,7 @@ interface NavProps {
   width: number;
   mobileOpen: boolean;
   handleDrawerToggle: () => void;
+  sidebarCollapsed?: boolean;
 }
 
 const menuItems = [
@@ -60,7 +61,7 @@ const SHADOWS = {
   lg: '0 15px 35px rgba(50, 50, 93, 0.1)',
 };
 
-const Navigation: React.FC<NavProps> = ({ width, mobileOpen, handleDrawerToggle }) => {
+const Navigation: React.FC<NavProps> = ({ width, mobileOpen, handleDrawerToggle, sidebarCollapsed }) => {
   const { t, i18n } = useTranslation();
   const navigate = useNavigate();
   const location = useLocation();
@@ -70,6 +71,7 @@ const Navigation: React.FC<NavProps> = ({ width, mobileOpen, handleDrawerToggle 
   const isRTL = i18n.language.startsWith('ar');
   const [invOpen, setInvOpen] = React.useState(true);
   const [empOpen, setEmpOpen] = React.useState(true);
+  const [surveyOpen, setSurveyOpen] = React.useState(true);
 
   // Dynamic Theme Colors
   const isDark = theme.palette.mode === 'dark';
@@ -110,6 +112,8 @@ const Navigation: React.FC<NavProps> = ({ width, mobileOpen, handleDrawerToggle 
   const showInventory = React.useMemo(() => hasPermission(PERMISSIONS.VIEW_INVENTORY), [hasPermission]);
   const showHR = React.useMemo(() => hasPermission(PERMISSIONS.VIEW_HR), [hasPermission]);
   const canManageHR = React.useMemo(() => hasPermission(PERMISSIONS.MANAGE_HR), [hasPermission]);
+  const showSurveys = React.useMemo(() => hasPermission(PERMISSIONS.VIEW_SURVEYS) || hasPermission(PERMISSIONS.VIEW_SURVEY_ANALYTICS), [hasPermission]);
+  const canManageSurveys = React.useMemo(() => hasPermission(PERMISSIONS.MANAGE_SURVEYS), [hasPermission]);
 
   const drawerContent = React.useMemo(() => (
     <Box dir={isRTL ? 'rtl' : 'ltr'} sx={{ height: '100%', display: 'flex', flexDirection: 'column', bgcolor: sidebarBg, color: textInactive }}>
@@ -610,20 +614,216 @@ const Navigation: React.FC<NavProps> = ({ width, mobileOpen, handleDrawerToggle 
                   />
                 </ListItemButton>
               )}
+
+              {/* Leave Management */}
+              <ListItemButton
+                onClick={() => navigate('/hr/leave')}
+                sx={{ 
+                  borderRadius: '8px', 
+                  mb: 0.5, 
+                  mx: 1.5,
+                  px: 2,
+                  py: 1.2,
+                  flexDirection: 'row',
+                  color: location.pathname.startsWith('/hr/leave') ? textActive : textInactive,
+                  background: location.pathname.startsWith('/hr/leave') ? COLORS.gradientPrimary : 'transparent',
+                  boxShadow: location.pathname.startsWith('/hr/leave') ? SHADOWS.sm : 'none',
+                  transition: 'all 0.2s ease-in-out',
+                  '&:hover': { 
+                    bgcolor: location.pathname.startsWith('/hr/leave') ? accentColor : hoverBg,
+                    color: location.pathname.startsWith('/hr/leave') ? textActive : (isDark ? '#fff' : COLORS.dark),
+                    transform: isRTL ? 'translateX(-4px)' : 'translateX(4px)'
+                  }
+                }}
+              >
+                <ListItemIcon sx={{ 
+                  minWidth: 'auto', 
+                  marginInlineEnd: 2,
+                  color: location.pathname.startsWith('/hr/leave') ? textActive : 'inherit' 
+                }}>
+                  <EventAvailable sx={{ fontSize: 18 }} />
+                </ListItemIcon>
+                <ListItemText 
+                  primary={t('leave.title', 'Leave Management')} 
+                  primaryTypographyProps={{ 
+                    fontSize: '0.875rem', 
+                    fontWeight: location.pathname.startsWith('/hr/leave') ? 700 : 400,
+                    textAlign: isRTL ? 'right' : 'left',
+                    sx: { display: 'block', width: '100%' }
+                  }} 
+                  sx={{ 
+                    m: 0,
+                    '& .MuiListItemText-primary': {
+                      display: 'flex',
+                      justifyContent: 'flex-start'
+                    }
+                  }}
+                />
+              </ListItemButton>
+            </>
+          )}
+
+          {/* Surveys Section */}
+          {showSurveys && (
+            <>
+              <Typography variant="caption" sx={{ px: 2, mb: 1, mt: 3, display: 'block', fontWeight: 600, fontSize: '0.75rem', color: textInactive, opacity: 0.8 }}>
+                {t('Surveys')}
+              </Typography>
+
+              <ListItemButton
+                onClick={() => setSurveyOpen(!surveyOpen)}
+                sx={{ 
+                  borderRadius: '8px', 
+                  mb: 0.5, 
+                  mx: 1.5,
+                  px: 2,
+                  py: 1.2,
+                  flexDirection: 'row',
+                  color: location.pathname.startsWith('/admin/surveys') ? textActive : textInactive,
+                  background: location.pathname.startsWith('/admin/surveys') ? COLORS.gradientPrimary : 'transparent',
+                  boxShadow: location.pathname.startsWith('/admin/surveys') ? SHADOWS.sm : 'none',
+                  transition: 'all 0.2s ease-in-out',
+                  '&:hover': { 
+                    bgcolor: location.pathname.startsWith('/admin/surveys') ? accentColor : hoverBg,
+                    color: location.pathname.startsWith('/admin/surveys') ? textActive : (isDark ? '#fff' : COLORS.dark),
+                    transform: isRTL ? 'translateX(-4px)' : 'translateX(4px)'
+                  }
+                }}
+              >
+                <ListItemIcon sx={{ 
+                  minWidth: 'auto', 
+                  marginInlineEnd: 2,
+                  color: location.pathname.startsWith('/admin/surveys') ? textActive : 'inherit' 
+                }}>
+                  <Assignment sx={{ fontSize: 18 }} />
+                </ListItemIcon>
+                <ListItemText 
+                  primary={t('Surveys')} 
+                  primaryTypographyProps={{ 
+                    fontSize: '0.875rem', 
+                    fontWeight: location.pathname.startsWith('/admin/surveys') ? 700 : 400,
+                    textAlign: isRTL ? 'right' : 'left',
+                    sx: { display: 'block', width: '100%' }
+                  }} 
+                  sx={{ 
+                    m: 0,
+                    '& .MuiListItemText-primary': {
+                      display: 'flex',
+                      justifyContent: 'flex-start'
+                    }
+                  }}
+                />
+                {surveyOpen ? <ExpandLess sx={{ opacity: 0.8, fontSize: 18, color: location.pathname.startsWith('/admin/surveys') ? textActive : 'inherit' }} /> : <ExpandMore sx={{ opacity: 0.8, fontSize: 18, color: location.pathname.startsWith('/admin/surveys') ? textActive : 'inherit' }} />}
+              </ListItemButton>
+
+              <Collapse in={surveyOpen} timeout="auto" unmountOnExit>
+                <List component="div" disablePadding sx={{ mx: 1.5 }}>
+                  <ListItemButton
+                    onClick={() => { navigate('/admin/surveys'); if (mobileOpen) handleDrawerToggle(); }}
+                    sx={{
+                      pl: isRTL ? 2 : 6.5, pr: isRTL ? 6.5 : 2,
+                      borderRadius: '8px', mb: 0.2,
+                      flexDirection: 'row',
+                      color: location.pathname === '/admin/surveys' ? textActive : textInactive,
+                      background: location.pathname === '/admin/surveys' ? alpha(COLORS.primary, 0.1) : 'transparent',
+                      '&:hover': { bgcolor: alpha(COLORS.primary, 0.15) }
+                    }}
+                  >
+                    <ListItemText 
+                      primary={t('Survey List')} 
+                      primaryTypographyProps={{ 
+                        fontSize: '0.8rem', 
+                        fontWeight: location.pathname === '/admin/surveys' ? 600 : 400,
+                        textAlign: isRTL ? 'right' : 'left',
+                        sx: { display: 'block', width: '100%' }
+                      }} 
+                      sx={{ 
+                        m: 0,
+                        '& .MuiListItemText-primary': {
+                          display: 'flex',
+                          justifyContent: 'flex-start'
+                        }
+                      }}
+                    />
+                  </ListItemButton>
+
+                  {canManageSurveys && (
+                    <ListItemButton
+                      onClick={() => { navigate('/admin/surveys/create'); if (mobileOpen) handleDrawerToggle(); }}
+                      sx={{
+                        pl: isRTL ? 2 : 6.5, pr: isRTL ? 6.5 : 2,
+                        borderRadius: '8px', mb: 0.2,
+                        flexDirection: 'row',
+                        color: location.pathname === '/admin/surveys/create' ? textActive : textInactive,
+                        background: location.pathname === '/admin/surveys/create' ? alpha(COLORS.primary, 0.1) : 'transparent',
+                        '&:hover': { bgcolor: alpha(COLORS.primary, 0.15) }
+                      }}
+                    >
+                      <ListItemText 
+                        primary={t('Create Survey')} 
+                        primaryTypographyProps={{ 
+                          fontSize: '0.8rem', 
+                          fontWeight: location.pathname === '/admin/surveys/create' ? 600 : 400,
+                          textAlign: isRTL ? 'right' : 'left',
+                          sx: { display: 'block', width: '100%' }
+                        }} 
+                        sx={{ 
+                          m: 0,
+                          '& .MuiListItemText-primary': {
+                            display: 'flex',
+                            justifyContent: 'flex-start'
+                          }
+                        }}
+                      />
+                    </ListItemButton>
+                  )}
+
+                  <ListItemButton
+                    onClick={() => { navigate('/admin/surveys/templates'); if (mobileOpen) handleDrawerToggle(); }}
+                    sx={{
+                      pl: isRTL ? 2 : 6.5, pr: isRTL ? 6.5 : 2,
+                      borderRadius: '8px', mb: 0.2,
+                      flexDirection: 'row',
+                      color: location.pathname === '/admin/surveys/templates' ? textActive : textInactive,
+                      background: location.pathname === '/admin/surveys/templates' ? alpha(COLORS.primary, 0.1) : 'transparent',
+                      '&:hover': { bgcolor: alpha(COLORS.primary, 0.15) }
+                    }}
+                  >
+                    <ListItemText 
+                      primary={t('Templates')} 
+                      primaryTypographyProps={{ 
+                        fontSize: '0.8rem', 
+                        fontWeight: location.pathname === '/admin/surveys/templates' ? 600 : 400,
+                        textAlign: isRTL ? 'right' : 'left',
+                        sx: { display: 'block', width: '100%' }
+                      }} 
+                      sx={{ 
+                        m: 0,
+                        '& .MuiListItemText-primary': {
+                          display: 'flex',
+                          justifyContent: 'flex-start'
+                        }
+                      }}
+                    />
+                  </ListItemButton>
+                </List>
+              </Collapse>
             </>
           )}
         </List>
       </Box>
 
     </Box >
-  ), [sidebarBg, textInactive, accentColor, isDark, t, dividerColor, filteredMenuItems, location.pathname, navigate, mobileOpen, handleDrawerToggle, hoverBg, textActive, isRTL, showInventory, invOpen, memoizedInventoryItems, showHR, empOpen, canManageHR]);
+  ), [sidebarBg, textInactive, accentColor, isDark, t, dividerColor, filteredMenuItems, location.pathname, navigate, mobileOpen, handleDrawerToggle, hoverBg, textActive, isRTL, showInventory, invOpen, memoizedInventoryItems, showHR, empOpen, canManageHR, showSurveys, surveyOpen, canManageSurveys]);
 
   return (
     <Box 
       component="nav" 
       sx={{ 
-        width: { md: width }, 
+        width: { md: sidebarCollapsed ? 0 : width }, 
         flexShrink: { md: 0 },
+        transition: 'width 0.3s ease',
+        overflow: 'hidden',
         // التأكد من أن الحاوية تتبع اتجاه الصفحة
         position: 'relative',
         zIndex: theme.zIndex.drawer
@@ -644,12 +844,12 @@ const Navigation: React.FC<NavProps> = ({ width, mobileOpen, handleDrawerToggle 
         {drawerContent}
       </Drawer>
 
-      {/* Desktop drawer */}
+      {/* Desktop drawer - hidden when collapsed */}
       <Drawer
         variant="permanent"
         anchor="left"
         sx={{
-          display: { xs: 'none', md: 'block' },
+          display: { xs: 'none', md: sidebarCollapsed ? 'none' : 'block' },
           '& .MuiDrawer-paper': {
             ...drawerPaperStyles,
             position: 'fixed',

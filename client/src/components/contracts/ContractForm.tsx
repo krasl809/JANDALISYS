@@ -55,6 +55,8 @@ interface ContractFormProps {
 
 const getInitialFormData = (direction: 'export' | 'import' = 'export') => ({
   contract_no: '',
+  serial_number: null as number | null,
+  shipping_type: 'bulk' as 'bulk' | 'container' | 'bags' | null,
   contract_type: 'fixed_price',
   direction: direction,
   issue_date: new Date().toISOString().split('T')[0] as string | null,
@@ -376,6 +378,10 @@ const ContractForm: React.FC<ContractFormProps> = ({ mode: propMode }) => {
         
         // Sanitization
         const safeData = Object.keys(data).reduce((acc, key) => {
+          if (key === 'version') {
+            acc[key] = typeof data[key] === 'number' ? data[key] : null;
+            return acc;
+          }
           acc[key] = data[key] === null ? '' : data[key];
           return acc;
         }, {} as any);
@@ -514,9 +520,9 @@ const ContractForm: React.FC<ContractFormProps> = ({ mode: propMode }) => {
     const cleanedData = cleanFormData(formData);
     const uuidOrNull = (value: string) => (value === 'NA' || !value) ? null : value;
 
-    // Filter items: must have a valid article_id (UUID format usually 36 chars)
+    // Filter items: must have a valid article_id
     const itemsToSave = items
-      .filter(item => item.article_id && typeof item.article_id === 'string' && item.article_id.length === 36)
+      .filter(item => item.article_id && typeof item.article_id === 'string' && item.article_id.length > 0)
       .map(i => ({
         id: i.id && i.id.length > 20 ? i.id : undefined, // Keep real UUIDs, discard temp IDs
         article_id: i.article_id,
@@ -550,16 +556,17 @@ const ContractForm: React.FC<ContractFormProps> = ({ mode: propMode }) => {
       port_of_loading: cleanedData.port_of_loading,
       place_of_origin: cleanedData.place_of_origin,
       place_of_delivery: cleanedData.place_of_delivery,
-      warehouse_id: null,
+      warehouse_id: uuidOrNull(cleanedData.warehouse_id),
       contract_currency: cleanedData.contract_currency,
-      seller_id: cleanedData.seller_id,
+      seller_id: uuidOrNull(cleanedData.seller_id),
       shipper_id: uuidOrNull(cleanedData.shipper_id),
-      buyer_id: cleanedData.buyer_id,
+      buyer_id: uuidOrNull(cleanedData.buyer_id),
       broker_id: uuidOrNull(cleanedData.broker_id),
       agent_id: uuidOrNull(cleanedData.agent_id),
       conveyor_id: uuidOrNull(cleanedData.conveyor_id),
-      contract_type: cleanedData.contract_type,
-      pricing_status: cleanedData.pricing_status,
+       contract_type: cleanedData.contract_type,
+       shipping_type: cleanedData.shipping_type,
+       pricing_status: cleanedData.pricing_status,
       demurrage_rate: cleanedData.demurrage_rate,
       discharge_rate: cleanedData.discharge_rate,
       dispatch_rate: cleanedData.dispatch_rate,
@@ -573,7 +580,8 @@ const ContractForm: React.FC<ContractFormProps> = ({ mode: propMode }) => {
       ata_time: cleanedData.ata_time,
       status: status,
       contract_no: cleanedData.contract_no,
-      version: formData.version,
+      serial_number: cleanedData.serial_number ? Number(cleanedData.serial_number) : null,
+      version: typeof formData.version === 'number' ? formData.version : null,
       items: itemsToSave
     };
   }, [formData, items, cleanFormData]);
@@ -820,8 +828,11 @@ const ContractForm: React.FC<ContractFormProps> = ({ mode: propMode }) => {
     }
     
     try {
+        console.log('handleSave: Starting save with payload:', JSON.stringify(payload).substring(0, 200));
         if (id) {
+          console.log('handleSave: Updating existing contract', id);
           const res = await api.put(`contracts/${id}`, payload);
+          console.log('handleSave: Update response received:', res.status, res.data);
           setFormData(prev => ({ 
             ...prev, 
             version: res.data.version, 
@@ -831,6 +842,7 @@ const ContractForm: React.FC<ContractFormProps> = ({ mode: propMode }) => {
           setHasUnsavedChanges(false);
           setAutoSaveStatus('saved');
           setLastAutoSave(new Date());
+          console.log('handleSave: Setting success notification');
           setNotification({ open: true, message: t('Updated successfully'), severity: 'success' });
       } else {
           const res = await api.post('contracts/', payload);
@@ -850,9 +862,21 @@ const ContractForm: React.FC<ContractFormProps> = ({ mode: propMode }) => {
         // Clear saved status after 3 seconds
         setTimeout(() => setAutoSaveStatus('idle'), 3000);
         
-    } catch (err: any) {
+     } catch (err: any) {
+        console.error('handleSave: Error saving contract:', err);
+        console.error('handleSave: Error details:', {
+            message: err.message,
+            response: err.response?.data,
+            status: err.response?.status,
+            headers: err.response?.headers
+        });
         let msg = t('Error saving contract.');
-        if (err.response?.status === 403) {
+        
+        // More detailed error logging
+        if (err.code === 'ECONNABORTED') {
+            msg = t('Request timed out. The contract may have been saved. Please refresh the page to check.');
+            console.warn('Request timeout - contract may have been saved despite error');
+        } else if (err.response?.status === 403) {
             msg = t('Access denied. Insufficient permissions.');
             setCanEditContract(false);
             setCanEditPricing(false);
@@ -861,6 +885,9 @@ const ContractForm: React.FC<ContractFormProps> = ({ mode: propMode }) => {
         } else if (err.response?.data?.detail) {
              const d = err.response.data.detail;
              msg = Array.isArray(d) ? d.map((e: any) => `${e.loc[e.loc.length-1]}: ${e.msg}`).join(', ') : d;
+        } else if (!err.response && err.message) {
+            // Network error without response - might have saved
+            msg = t('Network error. The contract may have been saved. Please refresh the page to verify.');
         }
         setAutoSaveStatus('error');
         setTimeout(() => setAutoSaveStatus('idle'), 3000);
@@ -1324,9 +1351,8 @@ const ContractForm: React.FC<ContractFormProps> = ({ mode: propMode }) => {
           <Documents contractId={id} />
       </TabPanel>
 
-      {/* Floating Actions */}
-      {activeTab === 0 && (
-        <Paper elevation={4} sx={{ position: 'fixed', bottom: 0, left: 0, right: 0, zIndex: 1100, py: 2, bgcolor: theme.palette.mode === 'dark' ? alpha(theme.palette.background.paper, 0.95) : theme.palette.background.paper, borderTop: `1px solid ${theme.palette.divider}` }}>
+      {/* Floating Actions - Always visible for all tabs */}
+      <Paper elevation={4} sx={{ position: 'fixed', bottom: 0, left: 0, right: 0, zIndex: 1100, py: 2, bgcolor: theme.palette.mode === 'dark' ? alpha(theme.palette.background.paper, 0.95) : theme.palette.background.paper, borderTop: `1px solid ${theme.palette.divider}` }}>
             <Container maxWidth="xl">
                 <Stack direction="row" spacing={2} justifyContent="space-between" alignItems="center">
                     <Box>
@@ -1350,7 +1376,6 @@ const ContractForm: React.FC<ContractFormProps> = ({ mode: propMode }) => {
                 </Stack>
             </Container>
         </Paper>
-      )}
 
       <Dialog open={deleteDialogOpen} onClose={() => setDeleteDialogOpen(false)}>
         <DialogTitle>{t("Confirm Deletion")}</DialogTitle>
@@ -1369,7 +1394,15 @@ const ContractForm: React.FC<ContractFormProps> = ({ mode: propMode }) => {
         onEntityAdded={handleEntityAdded}
       />
 
-      <Snackbar open={notification.open} autoHideDuration={4000} onClose={() => setNotification({...notification, open: false})}><Alert severity={notification.severity}>{notification.message}</Alert></Snackbar>
+      <Snackbar 
+        open={notification.open} 
+        autoHideDuration={4000} 
+        onClose={() => setNotification({...notification, open: false})}
+        anchorOrigin={{ vertical: 'top', horizontal: 'center' }}
+        sx={{ zIndex: 9999 }}
+      >
+        <Alert severity={notification.severity}>{notification.message}</Alert>
+      </Snackbar>
     </Container>
   );
 };

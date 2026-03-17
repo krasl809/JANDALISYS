@@ -17,7 +17,7 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ children, requiredPermi
     isAuthenticated,
     userEmail: user?.email,
     requiredPermission,
-    routePermission: ROUTE_PERMISSIONS[location.pathname]
+    routePermission: getRoutePermission(location.pathname)
   });
 
   // Check if user is authenticated
@@ -32,8 +32,8 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ children, requiredPermi
     return <Navigate to="/" replace />;
   }
 
-  // Check route-based permissions
-  const routePermission = ROUTE_PERMISSIONS[location.pathname];
+  // Check route-based permissions using pattern matching
+  const routePermission = getRoutePermission(location.pathname);
   if (routePermission && !hasPermission(routePermission)) {
     console.warn(`🚫 Missing route permission: ${routePermission}`);
     return <Navigate to="/" replace />;
@@ -41,6 +41,22 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ children, requiredPermi
 
   console.log("✅ ProtectedRoute: Access granted");
   return <>{children}</>;
+};
+
+// Helper function to match dynamic routes with parameters
+const getRoutePermission = (path: string): string | undefined => {
+  // Iterate through all route patterns
+  for (const [pattern, permission] of Object.entries(ROUTE_PERMISSIONS)) {
+    // Convert route pattern to regex (e.g., /admin/surveys/:id/responses -> /admin/surveys/[^/]+/responses)
+    const regexPattern = pattern.replace(/:\w+/g, '[^/]+');
+    const regex = new RegExp(`^${regexPattern}$`);
+    
+    if (regex.test(path)) {
+      return permission;
+    }
+  }
+  
+  return undefined;
 };
 
 export default ProtectedRoute;

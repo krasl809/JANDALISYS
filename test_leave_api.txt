@@ -1,0 +1,2 @@
+Status: 401
+Response: {"detail":"Not authenticated"}

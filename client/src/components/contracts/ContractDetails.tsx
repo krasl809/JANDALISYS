@@ -53,6 +53,22 @@ const ContractDetails: React.FC<ContractDetailsProps> = React.memo(({
               <CardContent sx={{ p: 3 }}>
               <SectionHeader title={t("General Information")} icon={<Description fontSize="small" />} />
               <Grid container spacing={3}>
+                  <Grid size={{ xs: 12, md: 2 }}>
+                      <FieldLabel label={t("contracts.serial_number")} />
+                      <TextField 
+                        fullWidth 
+                        size="small" 
+                        type="number"
+                        value={formData.serial_number || ''} 
+                        onChange={(e) => handleInputChange('serial_number', e.target.value)}
+                        placeholder="1, 2, ..." 
+                        slotProps={{ 
+                          input: {
+                            sx: { bgcolor: alpha(palette.primary.main, 0.02), borderRadius: '8px' }
+                          }
+                        }}
+                      />
+                  </Grid>
                   <Grid size={{ xs: 12, md: 4 }}>
                       <FieldLabel label={t("Contract Reference No.")} />
                       <TextField 
@@ -82,11 +98,11 @@ const ContractDetails: React.FC<ContractDetailsProps> = React.memo(({
                         }} 
                       />
                   </Grid>
-                  <Grid size={{ xs: 12, md: 4 }}>
+                  <Grid size={{ xs: 12, md: 3 }}>
                       <FieldLabel label={t("Issue Date")} required />
                       <TextField type="date" fullWidth size="small" value={formData.issue_date || ''} onChange={e => handleInputChange('issue_date', e.target.value || new Date().toISOString().split('T')[0])} />
                   </Grid>
-                  <Grid size={{ xs: 12, md: 4 }}>
+                  <Grid size={{ xs: 12, md: 3 }}>
                       <FieldLabel label={t("Currency")} />
                       <TextField select fullWidth size="small" value={formData.contract_currency} onChange={e => handleInputChange('contract_currency', e.target.value)}>
                           {['USD', 'EUR', 'SAR', 'GBP'].map(c => <MenuItem key={c} value={c}>{c}</MenuItem>)}
@@ -94,13 +110,23 @@ const ContractDetails: React.FC<ContractDetailsProps> = React.memo(({
                   </Grid>
 
                   {mode === 'import' && (
-                      <Grid size={{ xs: 12, md: 4 }}>
-                          <FieldLabel label={t("Pricing Model")} />
-                          <RadioGroup row value={formData.contract_type} onChange={e => { handleInputChange('contract_type', e.target.value); }}>
-                              <FormControlLabel value="fixed_price" control={<Radio size="small"/>} label={<Typography variant="body2">{t("Fixed price")}</Typography>} />
-                              <FormControlLabel value="stock_market" control={<Radio size="small"/>} label={<Typography variant="body2">{t("Stock/exchange market")}</Typography>} />
-                          </RadioGroup>
-                      </Grid>
+                      <>
+                        <Grid size={{ xs: 12, md: 4 }}>
+                            <FieldLabel label={t("Pricing Model")} />
+                            <RadioGroup row value={formData.contract_type} onChange={e => { handleInputChange('contract_type', e.target.value); }}>
+                                <FormControlLabel value="fixed_price" control={<Radio size="small"/>} label={<Typography variant="body2">{t("Fixed price")}</Typography>} />
+                                <FormControlLabel value="stock_market" control={<Radio size="small"/>} label={<Typography variant="body2">{t("Stock/exchange market")}</Typography>} />
+                            </RadioGroup>
+                        </Grid>
+                        <Grid size={{ xs: 12, md: 8 }}>
+                            <FieldLabel label={t("contracts.shipping_type")} />
+                            <RadioGroup row value={formData.shipping_type || 'bulk'} onChange={e => { handleInputChange('shipping_type', e.target.value); }}>
+                                <FormControlLabel value="bulk" control={<Radio size="small"/>} label={<Typography variant="body2">{t("contracts.bulk")}</Typography>} />
+                                <FormControlLabel value="container" control={<Radio size="small"/>} label={<Typography variant="body2">{t("contracts.container")}</Typography>} />
+                                <FormControlLabel value="bags" control={<Radio size="small"/>} label={<Typography variant="body2">{t("contracts.bags")}</Typography>} />
+                            </RadioGroup>
+                        </Grid>
+                      </>
                   )}
                   
                   <Grid size={{ xs: 12, md: 4 }}>

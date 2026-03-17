@@ -18,6 +18,9 @@ PERM_HR_WRITE = "hr_write"
 
 router = APIRouter(prefix="/hr", tags=["HR Management"])
 
+# Simple in-process cache for HR dashboard to reduce load on heavy queries
+_dashboard_cache: dict = {"key": None, "timestamp": None, "data": None}
+
 @router.get("/dashboard")
 def get_hr_dashboard(
     db: Session = Depends(get_db), 
@@ -33,10 +36,18 @@ def get_hr_dashboard(
     if hasattr(department, 'default'): department = None
     if hasattr(shift, 'default'): shift = None
 
+    # Cache key and lookup (per department/shift)
+    cache_key = f"{department or ''}:{shift or ''}"
+    now = datetime.datetime.utcnow()
+    if (
+        _dashboard_cache["key"] == cache_key
+        and _dashboard_cache["timestamp"] is not None
+        and (now - _dashboard_cache["timestamp"]).total_seconds() < 60
+    ):
+        return _dashboard_cache["data"]
+
     # Simple stats
     today = datetime.date.today()
-    today_str = today.isoformat()
-    
     emp_query = db.query(employee_models.Employee).filter(employee_models.Employee.status == 'active')
     
     if department:
@@ -61,9 +72,12 @@ def get_hr_dashboard(
     active_employees = emp_query.all()
     total_employees = len(active_employees)
     
-    # Attendance today
+    # Attendance today (use index-friendly timestamp range)
+    today_start = datetime.datetime.combine(today, datetime.time.min)
+    today_end = today_start + datetime.timedelta(days=1)
     today_logs_query = db.query(hr_models.AttendanceLog).filter(
-        func.date(hr_models.AttendanceLog.timestamp) == today_str
+        hr_models.AttendanceLog.timestamp >= today_start,
+        hr_models.AttendanceLog.timestamp < today_end
     )
     
     if department or shift:
@@ -302,7 +316,8 @@ def get_absent_employees(
 
 @router.get("/recent-activity")
 def get_recent_activity(db: Session = Depends(get_db), current_user = Depends(get_current_user)):
-    # Optimized: Use join to get employee name in one query
+    # Only last 24h for index-friendly range + eager load device to avoid N+1
+    since = datetime.datetime.utcnow() - datetime.timedelta(hours=24)
     logs_query = db.query(
         hr_models.AttendanceLog,
         employee_models.Employee.full_name
@@ -312,12 +327,14 @@ def get_recent_activity(db: Session = Depends(get_db), current_user = Depends(ge
             hr_models.AttendanceLog.employee_pk == employee_models.Employee.id,
             hr_models.AttendanceLog.employee_id == employee_models.Employee.code
         )
+    ).options(joinedload(hr_models.AttendanceLog.device)).filter(
+        hr_models.AttendanceLog.timestamp >= since
     ).order_by(
         hr_models.AttendanceLog.timestamp.desc()
     ).limit(15)
-    
+
     results = logs_query.all()
-    
+
     return [{
         "id": log.id,
         "employee_id": log.employee_id,
@@ -725,7 +742,9 @@ def get_attendance(
     start_date: str = Query(None),
     end_date: str = Query(None),
     search: str = Query(None),
-    raw: bool = Query(False)
+    raw: bool = Query(False),
+    limit: int = Query(20000, ge=1, le=100000),
+    offset: int = Query(0, ge=0)
 ):
     # Handle Query objects if called directly in tests
     if hasattr(employee_id, 'default'): employee_id = None
@@ -736,29 +755,49 @@ def get_attendance(
     if hasattr(end_date, 'default'): end_date = None
     if hasattr(search, 'default'): search = None
     if hasattr(raw, 'default'): raw = False
+    if hasattr(limit, 'default'): limit = 20000
+    if hasattr(offset, 'default'): offset = 0
 
     query = db.query(
         hr_models.AttendanceLog,
         employee_models.Employee
     ).outerjoin(
-        employee_models.Employee, 
+        employee_models.Employee,
         or_(
             hr_models.AttendanceLog.employee_pk == employee_models.Employee.id,
             hr_models.AttendanceLog.employee_id == employee_models.Employee.code
         )
-    )
+    ).options(joinedload(hr_models.AttendanceLog.device))
 
+    # Use timestamp range (index-friendly) instead of func.date()
     if start_date:
-        query = query.filter(func.date(hr_models.AttendanceLog.timestamp) >= start_date)
+        try:
+            start_dt = datetime.datetime.strptime(start_date, "%Y-%m-%d")
+            query = query.filter(hr_models.AttendanceLog.timestamp >= start_dt)
+        except ValueError:
+            query = query.filter(func.date(hr_models.AttendanceLog.timestamp) >= start_date)
     if end_date:
-        query = query.filter(func.date(hr_models.AttendanceLog.timestamp) <= end_date)
+        try:
+            end_dt = datetime.datetime.strptime(end_date, "%Y-%m-%d") + datetime.timedelta(days=1)
+            query = query.filter(hr_models.AttendanceLog.timestamp < end_dt)
+        except ValueError:
+            query = query.filter(func.date(hr_models.AttendanceLog.timestamp) <= end_date)
     
     if search:
-        search_filter = or_(
+        search_conditions = [
             employee_models.Employee.full_name.ilike(f"%{search}%"),
-            employee_models.Employee.code.ilike(f"%{search}%")
-        )
-        query = query.filter(search_filter)
+            employee_models.Employee.code.ilike(f"%{search}%"),
+            hr_models.AttendanceLog.employee_id.ilike(f"%{search}%")
+        ]
+        
+        # If search looks like a UUID, add check for Employee.id
+        try:
+            uuid_obj = uuid.UUID(search)
+            search_conditions.append(employee_models.Employee.id == uuid_obj)
+        except ValueError:
+            pass
+
+        query = query.filter(or_(*search_conditions))
     elif employee_id:
         # Check both UUID and Code for flexibility
         try:
@@ -773,7 +812,13 @@ def get_attendance(
             query = query.filter(employee_models.Employee.code == employee_id)
     
     if department:
-        query = query.filter(employee_models.Employee.department_id == department)
+        # Convert department to UUID if it's a valid UUID string
+        try:
+            dept_uuid = uuid.UUID(department)
+            query = query.filter(employee_models.Employee.department_id == dept_uuid)
+        except (ValueError, TypeError):
+            # If not a valid UUID, try matching by department name
+            query = query.filter(employee_models.Employee.department_name.ilike(f"%{department}%"))
 
     if shift:
         # Join with EmployeeShiftAssignment and WorkShift to filter by shift name
@@ -794,7 +839,11 @@ def get_attendance(
     if raw and status:
         query = query.filter(hr_models.AttendanceLog.status == status)
 
-    logs = query.order_by(hr_models.AttendanceLog.timestamp.asc()).all()
+    logs_query = query.order_by(hr_models.AttendanceLog.timestamp.asc())
+    if raw:
+        logs = logs_query.limit(limit).offset(offset).all()
+    else:
+        logs = logs_query.limit(limit).all()
     
     # Pre-fetch data for optimization
     emp_pks = {log.AttendanceLog.employee_pk for log in logs if log.AttendanceLog.employee_pk}
@@ -845,7 +894,14 @@ def get_attendance(
         "timestamp": log.AttendanceLog.timestamp.isoformat(),
         "type": log.AttendanceLog.type,
         "status": log.AttendanceLog.status,
-        "device": log.AttendanceLog.device.name if log.AttendanceLog.device else "Manual"
+        "device": log.AttendanceLog.device.name if log.AttendanceLog.device else "Manual",
+        # Manual edit tracking fields
+        "is_manually_edited": log.AttendanceLog.is_manually_edited or False,
+        "raw_status": log.AttendanceLog.raw_status,
+        "edited_by": str(log.AttendanceLog.edited_by) if log.AttendanceLog.edited_by else None,
+        "edited_at": log.AttendanceLog.edited_at.isoformat() if log.AttendanceLog.edited_at else None,
+        "edit_reason": log.AttendanceLog.edit_reason,
+        "original_timestamp": log.AttendanceLog.original_timestamp.isoformat() if log.AttendanceLog.original_timestamp else None
     } for log in logs]
 
     if raw:
@@ -888,6 +944,50 @@ def get_attendance(
 
 def process_employee_sessions(emp_id, logs, db, assignment_map=None, work_days_map=None):
     sessions = []
+    
+    # Filter out duplicate movements:
+    # 1. Same type within 30 minutes - keep only the first
+    # 2. Different types within 30 minutes - keep only the first (cancel second)
+    if logs and len(logs) > 0:
+        filtered_logs = [logs[0]]
+        for i in range(1, len(logs)):
+            current = logs[i]
+            previous = filtered_logs[-1]
+            
+            # Parse timestamps
+            try:
+                current_ts = current.get("timestamp")
+                previous_ts = previous.get("timestamp")
+                
+                if current_ts and previous_ts:
+                    # Handle both string and datetime objects
+                    if isinstance(current_ts, str):
+                        current_time = datetime.datetime.fromisoformat(current_ts.replace('Z', '+00:00'))
+                    else:
+                        current_time = current_ts
+                        
+                    if isinstance(previous_ts, str):
+                        previous_time = datetime.datetime.fromisoformat(previous_ts.replace('Z', '+00:00'))
+                    else:
+                        previous_time = previous_ts
+                    
+                    # Calculate time difference in minutes
+                    diff_minutes = (current_time - previous_time).total_seconds() / 60
+                    
+                    # If same type and less than 30 minutes, skip this log
+                    if current.get("type") == previous.get("type") and abs(diff_minutes) < 30:
+                        continue
+                    
+                    # If different types and less than 30 minutes, skip this log (cancel second movement)
+                    if current.get("type") != previous.get("type") and abs(diff_minutes) < 30:
+                        continue
+            except Exception as e:
+                # If there's any error, just keep the log
+                pass
+            
+            filtered_logs.append(current)
+        logs = filtered_logs
+    
     i = 0
     while i < len(logs):
         log = logs[i]
@@ -910,13 +1010,42 @@ def process_employee_sessions(emp_id, logs, db, assignment_map=None, work_days_m
                 i = j # Move pointer to this check_out
                 break
             if next_log["type"] == "check_in":
+                # Check if this check_in is actually a mislabeled check_out (e.g. from mixed device)
+                t1 = datetime.datetime.fromisoformat(log["timestamp"])
+                t2 = datetime.datetime.fromisoformat(next_log["timestamp"])
+                # If diff > 1 hour and same day, treat as check_out
+                if t1.date() == t2.date() and (t2 - t1).total_seconds() > 3600:
+                    # Treat next_log as end of session
+                    # Clone it to avoid modifying original reference if used elsewhere
+                    fake_out = next_log.copy()
+                    fake_out["type"] = "check_out" 
+                    end_log = fake_out
+                    session_logs.append(fake_out)
+                    i = j
+                    break
+                
                 # New session started without check_out
                 break
             session_logs.append(next_log)
             j += 1
         
         # Process the session
-        sessions.append(calculate_session_metrics(emp_id, session_logs, db, assignment_map, work_days_map))
+        # Only segment if the session spans multiple days (crosses midnight)
+        first_log = session_logs[0]
+        last_log = session_logs[-1] if session_logs else None
+        if first_log and last_log:
+            first_ts = datetime.datetime.fromisoformat(first_log["timestamp"])
+            last_ts = datetime.datetime.fromisoformat(last_log["timestamp"])
+            # Only segment if spans multiple days
+            if first_ts.date() != last_ts.date():
+                sessions.extend(segment_session_by_day(emp_id, session_logs, db, assignment_map, work_days_map))
+            else:
+                # Single day session - just calculate metrics directly
+                metrics = calculate_session_metrics(emp_id, session_logs, db, assignment_map, work_days_map)
+                metrics["segment"] = "single"
+                metrics["is_real_check_in"] = True
+                metrics["is_real_check_out"] = bool(last_log.get("type") == "check_out")
+                sessions.append(metrics)
         i += 1
         
     return sessions
@@ -930,6 +1059,16 @@ def calculate_session_metrics(emp_id, session_logs, db, assignment_map=None, wor
         emp_name = first_in.get("employee_name")
         check_in_dt = datetime.datetime.fromisoformat(first_in["timestamp"])
         date_str = first_in["timestamp"][:10]
+        
+        # Check if this is a segmented session (multi-day shift)
+        # Use original_check_in for rotational step calculation if available
+        original_check_in_str = first_in.get("original_check_in")
+        rotation_check_in_dt = check_in_dt
+        if original_check_in_str:
+            try:
+                rotation_check_in_dt = datetime.datetime.fromisoformat(original_check_in_str)
+            except:
+                pass
         
         # Fetch Shift Policy
         assignment = None
@@ -977,13 +1116,14 @@ def calculate_session_metrics(emp_id, session_logs, db, assignment_map=None, wor
         capacity = (shift.expected_hours if shift and shift.expected_hours is not None else 8.0)
         
         # Handle Rotational Capacity (Advanced)
+        # Use original_check_in_dt for correct rotation step calculation across days
         if shift and shift.shift_type == "rotational" and shift.rotation_pattern and assignment:
             try:
                 seq = shift.rotation_pattern.get("sequence", [])
                 if seq and len(seq) > 0:
-                    # Find which step this is based on start_date of assignment
+                    # Find which step this is based on ORIGINAL check-in date (not segmented midnight time)
                     assignment_start = assignment.start_date
-                    days_since_start = (check_in_dt.date() - assignment_start.date()).days
+                    days_since_start = (rotation_check_in_dt.date() - assignment_start.date()).days
                     step_index = days_since_start % len(seq)
                     current_step = seq[step_index]
                     
@@ -1118,6 +1258,13 @@ def calculate_session_metrics(emp_id, session_logs, db, assignment_map=None, wor
         except:
             pass
                 
+        # Check if any log in session was manually edited or is manual type
+        has_manual_adjustment = False
+        for log in session_logs:
+            if log.get('is_manually_edited') or log.get('raw_status') == 'MANUAL':
+                has_manual_adjustment = True
+                break
+        
         return {
             "employee_id": str(emp_id),
             "employee_pk": str(emp_pk_str) if emp_pk_str else None,
@@ -1132,7 +1279,8 @@ def calculate_session_metrics(emp_id, session_logs, db, assignment_map=None, wor
             "overtime": overtime,
             "status": status,
             "shift_name": shift.name if shift else "Standard",
-            "is_holiday": is_holiday
+            "is_holiday": is_holiday,
+            "has_manual_adjustment": has_manual_adjustment
         }
     except Exception as e:
         print(f"CRITICAL ERROR in calculate_session_metrics: {e}")
@@ -1141,6 +1289,70 @@ def calculate_session_metrics(emp_id, session_logs, db, assignment_map=None, wor
             "status": "error",
             "error": str(e)
         }
+
+def segment_session_by_day(emp_id, session_logs, db, assignment_map=None, work_days_map=None):
+    results = []
+    try:
+        first_in = session_logs[0]
+        last_out = next((l for l in reversed(session_logs) if l["type"] == "check_out"), None)
+        emp_pk_str = first_in.get("employee_pk")
+        emp_name = first_in.get("employee_name")
+        start_dt = datetime.datetime.fromisoformat(first_in["timestamp"])
+        if last_out:
+            end_dt = datetime.datetime.fromisoformat(last_out["timestamp"])
+        else:
+            end_dt = datetime.datetime.now()
+        
+        # Store original check-in for rotational step calculation
+        original_check_in = start_dt.isoformat()
+        cur_start = start_dt
+        while cur_start <= end_dt:
+            day_end = datetime.datetime.combine(cur_start.date(), datetime.time(23, 59, 59))
+            seg_end = end_dt if end_dt <= day_end else day_end
+            seg_break = 0.0
+            for k in range(len(session_logs) - 1):
+                a = session_logs[k]
+                b = session_logs[k + 1]
+                if a["type"] in ["check_out", "break_out"] and b["type"] in ["check_in", "break_in"]:
+                    t1 = datetime.datetime.fromisoformat(a["timestamp"])
+                    t2 = datetime.datetime.fromisoformat(b["timestamp"])
+                    diff_h = (t2 - t1).total_seconds() / 3600
+                    if diff_h < 4:
+                        s1 = max(cur_start, t1)
+                        s2 = min(seg_end, t2)
+                        if s2 > s1:
+                            seg_break += (s2 - s1).total_seconds() / 3600
+            seg_logs = [{
+                "employee_id": str(emp_id),
+                "employee_pk": emp_pk_str,
+                "employee_name": emp_name,
+                "timestamp": cur_start.isoformat(),
+                "type": "check_in"
+            }]
+            if seg_end:
+                seg_logs.append({
+                    "employee_id": str(emp_id),
+                    "employee_pk": emp_pk_str,
+                    "employee_name": emp_name,
+                    "timestamp": seg_end.isoformat(),
+                    "type": "check_out"
+                })
+            metrics = calculate_session_metrics(emp_id, seg_logs, db, assignment_map, work_days_map)
+            metrics["break_hours"] = round(seg_break, 2)
+            metrics["check_in"] = cur_start.isoformat()
+            metrics["check_out"] = seg_end.isoformat() if seg_end else None
+            metrics["segment"] = "daily"
+            metrics["is_real_check_in"] = cur_start == start_dt
+            metrics["is_real_check_out"] = bool(last_out) and seg_end == end_dt
+            # Pass original check-in for proper rotational step calculation
+            metrics["original_check_in"] = original_check_in
+            results.append(metrics)
+            if seg_end.date() == end_dt.date():
+                break
+            cur_start = (day_end + datetime.timedelta(seconds=1)).replace(hour=0, minute=0, second=0, microsecond=0)
+        return results
+    except Exception as e:
+        return []
 
 # --- SHIFT MANAGEMENT ---
 
@@ -1229,3 +1441,669 @@ def ping_device(device_id: int, db: Session = Depends(get_db), current_user = De
     zk_service = ZkTecoService(db)
     result = zk_service.ping_device(device_id)
     return {"status": "success", "online": result["status"] == "online"}
+
+# ============================================
+# Processed Attendance & Manual Edits APIs
+# ============================================
+
+@router.post("/attendance/recalculate")
+def recalculate_attendance(
+    start_date: str = Query(...),
+    end_date: str = Query(...),
+    employee_id: str = Query(None),
+    db: Session = Depends(get_db),
+    current_user = Depends(get_current_user)
+):
+    """
+    Recalculate attendance for a date range and store in processed_attendance table.
+    This is an async operation that processes and stores results.
+    Now properly handles multi-day shifts by segmenting sessions across days.
+    """
+    import logging
+    logger = logging.getLogger(__name__)
+    logger.info(f"🔄 Recalculating attendance from {start_date} to {end_date}")
+    
+    try:
+        from datetime import datetime, timedelta
+        from sqlalchemy import func
+        
+        # Parse dates
+        start = datetime.strptime(start_date, "%Y-%m-%d")
+        end = datetime.strptime(end_date, "%Y-%m-%d")
+        
+        # Get employees
+        if employee_id:
+            employees = db.query(employee_models.Employee).filter(
+                employee_models.Employee.code == employee_id
+            ).all()
+        else:
+            employees = db.query(employee_models.Employee).filter(
+                employee_models.Employee.status == 'active'
+            ).all()
+        
+        processed_count = 0
+        
+        for emp in employees:
+            # Get attendance logs for this employee in date range
+            logs = db.query(hr_models.AttendanceLog).filter(
+                hr_models.AttendanceLog.employee_pk == emp.id,
+                func.date(hr_models.AttendanceLog.timestamp) >= start.date(),
+                func.date(hr_models.AttendanceLog.timestamp) <= end.date()
+            ).order_by(hr_models.AttendanceLog.timestamp).all()
+            
+            # Convert to dict format for processing
+            raw_logs = [{
+                "id": log.id,
+                "employee_pk": str(emp.id),
+                "employee_id": emp.code,
+                "employee_name": emp.full_name,
+                "timestamp": log.timestamp.isoformat(),
+                "type": log.type,
+            } for log in logs]
+            
+            # Sort by timestamp
+            raw_logs.sort(key=lambda x: x["timestamp"])
+            
+            # Filter out duplicate movements:
+            # 1. Same type within 30 minutes - keep only the first
+            # 2. Different types within 30 minutes - keep only the first (cancel second)
+            filtered_logs = []
+            for i, log in enumerate(raw_logs):
+                if i == 0:
+                    filtered_logs.append(log)
+                else:
+                    prev_log = filtered_logs[-1]
+                    t1 = datetime.fromisoformat(prev_log["timestamp"])
+                    t2 = datetime.fromisoformat(log["timestamp"])
+                    diff_minutes = (t2 - t1).total_seconds() / 60
+                    # If same type and less than 30 minutes, skip this log
+                    if log["type"] == prev_log["type"] and abs(diff_minutes) < 30:
+                        continue
+                    # If different types and less than 30 minutes, skip this log (cancel second movement)
+                    if log["type"] != prev_log["type"] and abs(diff_minutes) < 30:
+                        continue
+                    filtered_logs.append(log)
+            
+            # Process sessions
+            i = 0
+            while i < len(filtered_logs):
+                log = filtered_logs[i]
+                if log["type"] != "check_in":
+                    i += 1
+                    continue
+                
+                # Start a new session
+                start_log = log
+                end_log = None
+                session_logs = [log]
+                
+                # Look for the matching check_out
+                j = i + 1
+                while j < len(filtered_logs):
+                    next_log = filtered_logs[j]
+                    if next_log["type"] == "check_out":
+                        end_log = next_log
+                        session_logs.append(next_log)
+                        i = j
+                        break
+                    if next_log["type"] == "check_in":
+                        # Check if this check_in is actually a mislabeled check_out
+                        t1 = datetime.fromisoformat(log["timestamp"])
+                        t2 = datetime.fromisoformat(next_log["timestamp"])
+                        # If diff > 1 hour and same day, treat as check_out
+                        if t1.date() == t2.date() and (t2 - t1).total_seconds() > 3600:
+                            fake_out = next_log.copy()
+                            fake_out["type"] = "check_out"
+                            end_log = fake_out
+                            session_logs.append(fake_out)
+                            i = j
+                            break
+                        # New session started without check_out
+                        break
+                    session_logs.append(next_log)
+                    j += 1
+                
+                # Process the session - segment by day if multi-day
+                first_log = session_logs[0]
+                last_log = session_logs[-1] if session_logs else None
+                
+                if first_log and last_log:
+                    first_ts = datetime.fromisoformat(first_log["timestamp"])
+                    last_ts = datetime.fromisoformat(last_log["timestamp"])
+                    
+                    # Only segment if spans multiple days
+                    if first_ts.date() != last_ts.date():
+                        # Multi-day session - segment by day
+                        cur_start = first_ts
+                        original_check_in = first_ts.isoformat()
+                        
+                        while cur_start <= last_ts:
+                            day_end = datetime.combine(cur_start.date(), datetime.time(23, 59, 59))
+                            seg_end = last_ts if last_ts <= day_end else day_end
+                            
+                            # Calculate break for this segment
+                            seg_break = 0.0
+                            for k in range(len(session_logs) - 1):
+                                a = session_logs[k]
+                                b = session_logs[k + 1]
+                                if a["type"] in ["check_out", "break_out"] and b["type"] in ["check_in", "break_in"]:
+                                    t1 = datetime.fromisoformat(a["timestamp"])
+                                    t2 = datetime.fromisoformat(b["timestamp"])
+                                    diff_h = (t2 - t1).total_seconds() / 3600
+                                    if diff_h < 4:
+                                        s1 = max(cur_start, t1)
+                                        s2 = min(seg_end, t2)
+                                        if s2 > s1:
+                                            seg_break += (s2 - s1).total_seconds() / 3600
+                            
+                            # Calculate work hours for this segment
+                            seg_check_in = cur_start
+                            seg_check_out = seg_end
+                            seg_work_hours = 0.0
+                            if seg_check_in and seg_check_out:
+                                seg_work_hours = round((seg_check_out - seg_check_in).total_seconds() / 3600, 2)
+                                seg_work_hours = max(0, seg_work_hours - seg_break)
+                            
+                            # Store in processed_attendance
+                            date_key = cur_start.date()
+                            
+                            # Get shift assignment for this date
+                            shift = None
+                            expected_hours = 8.0
+                            try:
+                                assignments = db.query(hr_models.EmployeeShiftAssignment).options(
+                                    joinedload(hr_models.EmployeeShiftAssignment.shift)
+                                ).filter(
+                                    hr_models.EmployeeShiftAssignment.employee_id == emp.id,
+                                    hr_models.EmployeeShiftAssignment.start_date <= datetime.combine(date_key, datetime.min.time()),
+                                    or_(hr_models.EmployeeShiftAssignment.end_date == None, hr_models.EmployeeShiftAssignment.end_date >= datetime.combine(date_key, datetime.min.time()))
+                                ).all()
+                                
+                                for a in assignments:
+                                    if a.shift:
+                                        shift = a.shift
+                                        expected_hours = shift.expected_hours if shift.expected_hours else 8.0
+                                        break
+                            except:
+                                pass
+                            
+                            # Get or create processed record
+                            existing = db.query(hr_models.ProcessedAttendance).filter(
+                                hr_models.ProcessedAttendance.employee_pk == emp.id,
+                                func.date(hr_models.ProcessedAttendance.work_date) == date_key
+                            ).first()
+                            
+                            if existing:
+                                existing.check_in = seg_check_in if cur_start == first_ts else datetime.combine(date_key, datetime.min.time())
+                                existing.check_out = seg_check_out
+                                existing.work_hours = seg_work_hours
+                                existing.expected_hours = expected_hours
+                                existing.shift_id = shift.id if shift else None
+                                existing.is_calculated = True
+                                existing.calculated_at = datetime.utcnow()
+                                if not existing.has_manual_adjustment:
+                                    existing.adjusted_work_hours = None
+                                    existing.adjustment_reason = None
+                            else:
+                                new_record = hr_models.ProcessedAttendance(
+                                    employee_pk=emp.id,
+                                    work_date=datetime.combine(date_key, datetime.min.time()),
+                                    check_in=seg_check_in if cur_start == first_ts else datetime.combine(date_key, datetime.min.time()),
+                                    check_out=seg_check_out,
+                                    work_hours=seg_work_hours,
+                                    expected_hours=expected_hours,
+                                    shift_id=shift.id if shift else None,
+                                    is_calculated=True,
+                                    calculated_at=datetime.utcnow()
+                                )
+                                db.add(new_record)
+                            
+                            processed_count += 1
+                            
+                            if seg_end.date() == last_ts.date():
+                                break
+                            # Move to next day at midnight
+                            next_day = cur_start.date() + timedelta(days=1)
+                            cur_start = datetime.combine(next_day, datetime.min.time())
+                    else:
+                        # Single day session - calculate directly
+                        check_in = None
+                        check_out = None
+                        for sl in session_logs:
+                            if sl["type"] == "check_in" and not check_in:
+                                check_in = datetime.fromisoformat(sl["timestamp"])
+                            if sl["type"] == "check_out":
+                                check_out = datetime.fromisoformat(sl["timestamp"])
+                        
+                        # Calculate break
+                        break_duration = 0.0
+                        for k in range(len(session_logs) - 1):
+                            if session_logs[k]["type"] in ["check_out", "break_out"] and session_logs[k+1]["type"] in ["check_in", "break_in"]:
+                                t1 = datetime.fromisoformat(session_logs[k]["timestamp"])
+                                t2 = datetime.fromisoformat(session_logs[k+1]["timestamp"])
+                                diff = (t2 - t1).total_seconds() / 3600
+                                if diff < 4:
+                                    break_duration += diff
+                        
+                        work_hours = 0.0
+                        if check_in and check_out:
+                            work_hours = round((check_out - check_in).total_seconds() / 3600, 2)
+                            work_hours = max(0, work_hours - break_duration)
+                        
+                        date_key = check_in.date() if check_in else start.date()
+                        
+                        # Get shift assignment for this date
+                        shift = None
+                        expected_hours = 8.0
+                        try:
+                            assignments = db.query(hr_models.EmployeeShiftAssignment).options(
+                                joinedload(hr_models.EmployeeShiftAssignment.shift)
+                            ).filter(
+                                hr_models.EmployeeShiftAssignment.employee_id == emp.id,
+                                hr_models.EmployeeShiftAssignment.start_date <= datetime.combine(date_key, datetime.min.time()),
+                                or_(hr_models.EmployeeShiftAssignment.end_date == None, hr_models.EmployeeShiftAssignment.end_date >= datetime.combine(date_key, datetime.min.time()))
+                            ).all()
+                            
+                            for a in assignments:
+                                if a.shift:
+                                    shift = a.shift
+                                    expected_hours = shift.expected_hours if shift.expected_hours else 8.0
+                                    break
+                        except:
+                            pass
+                        
+                        # Get or create processed record
+                        existing = db.query(hr_models.ProcessedAttendance).filter(
+                            hr_models.ProcessedAttendance.employee_pk == emp.id,
+                            func.date(hr_models.ProcessedAttendance.work_date) == date_key
+                        ).first()
+                        
+                        if existing:
+                            existing.check_in = check_in
+                            existing.check_out = check_out
+                            existing.work_hours = work_hours
+                            existing.expected_hours = expected_hours
+                            existing.shift_id = shift.id if shift else None
+                            existing.is_calculated = True
+                            existing.calculated_at = datetime.utcnow()
+                            if not existing.has_manual_adjustment:
+                                existing.adjusted_work_hours = None
+                                existing.adjustment_reason = None
+                        else:
+                            new_record = hr_models.ProcessedAttendance(
+                                employee_pk=emp.id,
+                                work_date=datetime.combine(date_key, datetime.min.time()),
+                                check_in=check_in,
+                                check_out=check_out,
+                                work_hours=work_hours,
+                                expected_hours=expected_hours,
+                                shift_id=shift.id if shift else None,
+                                is_calculated=True,
+                                calculated_at=datetime.utcnow()
+                            )
+                            db.add(new_record)
+                        
+                        processed_count += 1
+                
+                i += 1
+        
+        db.commit()
+        logger.info(f"✅ Processed {processed_count} attendance records")
+        
+        return {
+            "status": "success",
+            "message": f"تم إعادة احتساب {processed_count} سجل",
+            "processed_count": processed_count
+        }
+    
+    except Exception as e:
+        logger.error(f"❌ Error recalculating attendance: {str(e)}")
+        db.rollback()
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.put("/attendance/{log_id}/edit")
+def edit_attendance_log(
+    log_id: int,
+    edit_data: dict,
+    db: Session = Depends(get_db),
+    current_user = Depends(get_current_user)
+):
+    """
+    Manually edit an attendance log record.
+    edit_data should contain: new_timestamp, edit_reason (optional)
+    """
+    import logging
+    logger = logging.getLogger(__name__)
+    
+    # Get the log
+    log = db.query(hr_models.AttendanceLog).filter(
+        hr_models.AttendanceLog.id == log_id
+    ).first()
+    
+    if not log:
+        raise HTTPException(status_code=404, detail="سجل الحضور غير موجود")
+    
+    # Store original timestamp
+    original_timestamp = log.timestamp
+    
+    # Update the log
+    if "new_timestamp" in edit_data:
+        from datetime import datetime
+        try:
+            new_timestamp = datetime.fromisoformat(edit_data["new_timestamp"].replace("Z", "+00:00"))
+            log.timestamp = new_timestamp
+        except:
+            raise HTTPException(status_code=400, detail="تنسيق التاريخ غير صحيح")
+    
+    # Mark as manually edited
+    log.is_manually_edited = True
+    log.edited_by = current_user.id
+    log.edited_at = datetime.utcnow()
+    log.original_timestamp = original_timestamp
+    
+    if "edit_reason" in edit_data:
+        log.edit_reason = edit_data["edit_reason"]
+    
+    db.commit()
+    
+    logger.info(f"✏️ Log {log_id} edited by {current_user.email}")
+    
+    return {
+        "status": "success",
+        "message": "تم تعديل السجل بنجاح",
+        "log": {
+            "id": log.id,
+            "timestamp": log.timestamp.isoformat(),
+            "is_manually_edited": log.is_manually_edited,
+            "edited_by": log.edited_by,
+            "edited_at": log.edited_at.isoformat() if log.edited_at else None
+        }
+    }
+
+@router.get("/attendance/processed")
+def get_processed_attendance(
+    start_date: str = Query(...),
+    end_date: str = Query(...),
+    employee_id: str = Query(None),
+    department: str = Query(None),
+    db: Session = Depends(get_db),
+    current_user = Depends(get_current_user)
+):
+    """
+    Get stored processed attendance records.
+    Returns data from processed_attendance table if available.
+    """
+    from datetime import datetime
+    
+    try:
+        start = datetime.strptime(start_date, "%Y-%m-%d")
+        end = datetime.strptime(end_date, "%Y-%m-%d")
+    except:
+        raise HTTPException(status_code=400, detail="تنسيق التاريخ غير صحيح")
+    
+    query = db.query(hr_models.ProcessedAttendance).filter(
+        hr_models.ProcessedAttendance.work_date >= start,
+        hr_models.ProcessedAttendance.work_date <= end
+    )
+    
+    if department:
+        query = query.join(employee_models.Employee, hr_models.ProcessedAttendance.employee_pk == employee_models.Employee.id)
+        try:
+            dept_uuid = uuid.UUID(department)
+            query = query.filter(employee_models.Employee.department_id == dept_uuid)
+        except (ValueError, TypeError):
+            query = query.filter(employee_models.Employee.department_name.ilike(f"%{department}%"))
+    
+    if employee_id:
+        # Find employee by code
+        emp = db.query(employee_models.Employee).filter(
+            employee_models.Employee.code == employee_id
+        ).first()
+        if emp:
+            query = query.filter(hr_models.ProcessedAttendance.employee_pk == emp.id)
+    
+    records = query.order_by(hr_models.ProcessedAttendance.work_date.desc()).all()
+    
+    # Batch load employees to avoid N+1
+    employee_pks = list({rec.employee_pk for rec in records if rec.employee_pk})
+    employee_map = {}
+    if employee_pks:
+        employees = db.query(employee_models.Employee).filter(
+            employee_models.Employee.id.in_(employee_pks)
+        ).all()
+        employee_map = {e.id: e for e in employees}
+    
+    results = []
+    for rec in records:
+        emp = employee_map.get(rec.employee_pk) if rec.employee_pk else None
+        results.append({
+            "id": rec.id,
+            "employee_id": emp.code if emp else "Unknown",
+            "employee_name": emp.full_name if emp else "Unknown",
+            "work_date": rec.work_date.isoformat() if rec.work_date else None,
+            "check_in": rec.check_in.isoformat() if rec.check_in else None,
+            "check_out": rec.check_out.isoformat() if rec.check_out else None,
+            "work_hours": rec.work_hours,
+            "overtime_hours": rec.overtime_hours,
+            "late_minutes": rec.late_minutes,
+            "early_leave_minutes": rec.early_leave_minutes,
+            "status": rec.status,
+            "has_manual_adjustment": rec.has_manual_adjustment,
+            "adjusted_work_hours": rec.adjusted_work_hours,
+            "adjustment_reason": rec.adjustment_reason,
+            "calculated_at": rec.calculated_at.isoformat() if rec.calculated_at else None
+        })
+    
+    return results
+
+@router.put("/attendance/processed/{record_id}/adjust")
+def adjust_processed_attendance(
+    record_id: int,
+    adjustment_data: dict,
+    db: Session = Depends(get_db),
+    current_user = Depends(get_current_user)
+):
+    """
+    Manually adjust the calculated work hours for a processed attendance record.
+    This is different from editing the raw log - it adjusts the final calculated hours.
+    """
+    import logging
+    from datetime import datetime
+    logger = logging.getLogger(__name__)
+    
+    # Get the record
+    record = db.query(hr_models.ProcessedAttendance).filter(
+        hr_models.ProcessedAttendance.id == record_id
+    ).first()
+    
+    if not record:
+        raise HTTPException(status_code=404, detail="السجل المعالج غير موجود")
+    
+    # Apply adjustment
+    if "adjusted_work_hours" in adjustment_data:
+        record.adjusted_work_hours = adjustment_data["adjusted_work_hours"]
+        record.has_manual_adjustment = True
+    
+    if "adjustment_reason" in adjustment_data:
+        record.adjustment_reason = adjustment_data["adjustment_reason"]
+    
+    record.adjusted_by = current_user.id
+    record.adjusted_at = datetime.utcnow()
+    
+    db.commit()
+    
+    logger.info(f"⚖️ Processed attendance {record_id} adjusted by {current_user.email}")
+    
+    return {
+        "status": "success",
+        "message": "تم تعديل السجل المعالج بنجاح",
+        "record": {
+            "id": record.id,
+            "work_hours": record.work_hours,
+            "adjusted_work_hours": record.adjusted_work_hours,
+            "has_manual_adjustment": record.has_manual_adjustment
+        }
+    }
+
+
+@router.post("/attendance/manual")
+def add_manual_attendance_log(
+    log_data: dict,
+    db: Session = Depends(get_db),
+    current_user = Depends(get_current_user)
+):
+    """
+    Manually add a new attendance log.
+    log_data should contain: employee_code, timestamp, type (check_in/check_out), reason (optional)
+    """
+    import logging
+    from datetime import datetime
+    logger = logging.getLogger(__name__)
+    
+    # Validate required fields
+    if "employee_id" not in log_data and "employee_code" not in log_data:
+        raise HTTPException(status_code=400, detail="معرف الموظف مطلوب")
+    if "timestamp" not in log_data:
+        raise HTTPException(status_code=400, detail="الوقت مطلوب")
+    if "type" not in log_data:
+        raise HTTPException(status_code=400, detail="نوع الحركة مطلوب")
+    
+    # Get employee code - support both formats
+    employee_code = log_data.get("employee_code") or log_data.get("employee_id")
+    
+    # Find employee by code
+    from models.employee_models import Employee
+    employee = db.query(Employee).filter(
+        Employee.code == employee_code
+    ).first()
+    
+    if not employee:
+        # Try to find by employee_id in attendance_logs
+        existing_log = db.query(hr_models.AttendanceLog).filter(
+            hr_models.AttendanceLog.employee_id == employee_code
+        ).first()
+        
+        if existing_log:
+            # Use the existing employee_id
+            employee_code = existing_log.employee_id
+        else:
+            raise HTTPException(status_code=404, detail=f"الموظف غير موجود: {employee_code}")
+    else:
+        employee_code = employee.code
+    
+    # Parse timestamp
+    try:
+        timestamp = datetime.fromisoformat(log_data["timestamp"].replace("Z", "+00:00"))
+    except:
+        raise HTTPException(status_code=400, detail="تنسيق التاريخ غير صحيح")
+    
+    # Create the log
+    new_log = hr_models.AttendanceLog(
+        employee_pk=employee.id if employee else None,
+        employee_id=employee_code,
+        timestamp=timestamp,
+        type=log_data["type"],
+        # Mark as manually created
+        is_manually_edited=True,
+        edited_by=current_user.id,
+        edited_at=datetime.utcnow(),
+        edit_reason=log_data.get("reason", "إضافة يدوية"),
+        # Mark as protected from sync
+        raw_status="MANUAL"
+    )
+    
+    db.add(new_log)
+    db.commit()
+    db.refresh(new_log)
+    
+    logger.info(f"➕ Manual attendance log added by {current_user.email}: {employee_code} - {log_data['type']}")
+    
+    return {
+        "status": "success",
+        "message": "تمت إضافة الحركة يدوياً بنجاح",
+        "log": {
+            "id": new_log.id,
+            "employee_id": new_log.employee_id,
+            "timestamp": new_log.timestamp.isoformat(),
+            "type": new_log.type,
+            "is_manually_edited": new_log.is_manually_edited
+        }
+    }
+
+
+@router.delete("/attendance/{log_id}")
+def delete_attendance_log(
+    log_id: int,
+    db: Session = Depends(get_db),
+    current_user = Depends(get_current_user)
+):
+    """
+    Delete an attendance log (soft delete by marking as manually deleted).
+    """
+    import logging
+    from datetime import datetime
+    logger = logging.getLogger(__name__)
+    
+    # Get the log
+    log = db.query(hr_models.AttendanceLog).filter(
+        hr_models.AttendanceLog.id == log_id
+    ).first()
+    
+    if not log:
+        raise HTTPException(status_code=404, detail="سجل الحضور غير موجود")
+    
+    # Mark as deleted instead of actually deleting (for audit trail)
+    log.is_manually_edited = True
+    log.edited_by = current_user.id
+    log.edited_at = datetime.utcnow()
+    log.edit_reason = "تم الحذف يدوياً"
+    log.raw_status = "DELETED"
+    log.type = "deleted"
+    
+    db.commit()
+    
+    logger.info(f"🗑️ Attendance log {log_id} deleted by {current_user.email}")
+    
+    return {
+        "status": "success",
+        "message": "تم حذف السجل بنجاح (تم الحفاظ على سجل المحاولة)"
+    }
+
+
+@router.put("/attendance/{log_id}/protect")
+def protect_attendance_log(
+    log_id: int,
+    protect_data: dict,
+    db: Session = Depends(get_db),
+    current_user = Depends(get_current_user)
+):
+    """
+    Protect an attendance log from being overwritten by device sync.
+    """
+    import logging
+    from datetime import datetime
+    logger = logging.getLogger(__name__)
+    
+    log = db.query(hr_models.AttendanceLog).filter(
+        hr_models.AttendanceLog.id == log_id
+    ).first()
+    
+    if not log:
+        raise HTTPException(status_code=404, detail="سجل الحضور غير موجود")
+    
+    protect = protect_data.get("protected", True)
+    
+    # Add protection status field if not exists (will be added to DB separately)
+    log.is_manually_edited = True
+    log.edit_reason = f"محمي من المزامنة: {protect_data.get('reason', '')}" if protect else "غير محمي"
+    
+    db.commit()
+    
+    logger.info(f"🛡️ Attendance log {log_id} protection set to {protect} by {current_user.email}")
+    
+    return {
+        "status": "success",
+        "message": f"تم {'حماية' if protect else 'إلغاء حماية'} السجل بنجاح",
+        "log_id": log_id,
+        "protected": protect
+    }

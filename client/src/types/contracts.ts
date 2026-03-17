@@ -73,6 +73,8 @@ export interface FinancialTransaction {
 export interface ContractSummary {
   id: string;
   no: string;
+  serial_number?: number;
+  shipping_type?: 'bulk' | 'container';
   type: 'Import' | 'Export';
   client: string;
   commodity: string;
@@ -84,6 +86,8 @@ export interface ContractSummary {
 
 export interface ContractFormData {
   contract_no: string;
+  serial_number?: number;
+  shipping_type?: 'bulk' | 'container';
   contract_type: 'fixed_price' | 'stock_market';
   direction: 'export' | 'import';
   issue_date: string | null;
@@ -186,6 +190,8 @@ export interface Contract extends ContractFormData {
 export interface ContractPricingReview {
   id: string;
   contract_no: string;
+  serial_number?: number;
+  shipping_type?: 'bulk' | 'container';
   status: string;
   buyer_name: string;
   destination: string;

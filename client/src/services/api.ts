@@ -12,7 +12,7 @@ if (import.meta.env.DEV) {
 
 const api = axios.create({
   baseURL: API_BASE_URL,
-  timeout: 300000, // زيادة المهلة إلى 5 دقائق (300,000 مللي ثانية)
+  timeout: 300000, // 5 minutes for long operations
   headers: {
     'Content-Type': 'application/json',
   },
@@ -21,14 +21,8 @@ const api = axios.create({
 // Add auth token to requests
 api.interceptors.request.use(
   (config) => {
-    if (import.meta.env.DEV) {
-      const fullUrl = `${config.baseURL || ''}${config.url || ''}`;
-      console.log(`🚀 API Request: ${config.method?.toUpperCase()} ${fullUrl}`);
-    }
     const token = localStorage.getItem('access_token');
-    if (import.meta.env.DEV) {
-      console.log(`🔑 Token check: ${token ? 'Present' : 'Missing'}`);
-    }
+
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
     }
@@ -57,12 +51,30 @@ api.interceptors.response.use(
     }
 
     if (error.response?.status === 401) {
-      // Check if user is not already on login page
-      if (!window.location.pathname.includes('/login')) {
+      // Check if this is an actual authentication issue vs. other errors
+      const token = localStorage.getItem('access_token');
+      const isLoginRequest = error.config?.url?.includes('/login') || error.config?.url?.includes('/auth');
+      const isPublicEndpoint = error.config?.url?.includes('/public/');
+      
+      // Only log out if:
+      // 1. User had a token (was logged in)
+      // 2. This is not a login request
+      // 3. This is not a public endpoint
+      // 4. User is not already on login page
+      if (token && !isLoginRequest && !isPublicEndpoint && !window.location.pathname.includes('/login')) {
+        console.warn('401 error on protected endpoint - clearing auth and redirecting to login');
         localStorage.removeItem('access_token');
         localStorage.removeItem('user_id');
         localStorage.removeItem('user_role');
         window.location.href = '/login';
+      } else {
+        // For other 401 cases (no token, public endpoint, login request), just reject without redirect
+        console.warn('401 error but not redirecting:', {
+          hasToken: !!token,
+          isLoginRequest,
+          isPublicEndpoint,
+          currentPath: window.location.pathname
+        });
       }
     }
     return Promise.reject(error);

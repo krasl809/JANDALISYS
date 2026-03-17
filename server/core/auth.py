@@ -217,10 +217,19 @@ def require_permission(permission_name: str):
              logger.warning(f"Inactive user access attempt: {current_user.email}")
              raise HTTPException(status_code=400, detail="Inactive user")
 
-        # Admin bypass
+        # Admin bypass - check both role field AND RBAC system
         if current_user.role == "admin": 
-            logger.debug(f"Admin bypass granted for {current_user.email}")
+            logger.debug(f"Admin bypass granted for {current_user.email} via role field")
             return current_user 
+        
+        # Also check if user has admin role in RBAC system
+        try:
+            user_roles = rbac_crud.get_user_roles(db, current_user.id)
+            if "admin" in user_roles:
+                logger.debug(f"Admin bypass granted for {current_user.email} via RBAC roles: {user_roles}")
+                return current_user
+        except Exception as e:
+            logger.warning(f"Error checking RBAC roles: {e}")
 
         # Check permission via RBAC Logic
         has_perm, msg = rbac_crud.check_user_permission(db, current_user.id, permission_name)

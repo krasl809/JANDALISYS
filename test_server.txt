@@ -1,0 +1,2 @@
+Status: 200
+Response: {"employees":[{"id":"21c3c670-963e-4acc-8cc5-eb018f01f8fe","employee_id":"1","name":"Employee 1","first_name":"Employee","last_name":"1","email":null,"department":null,"department_id":null,"company":null,"position":null,"status":"active","hire_date":"2026-02-22","is_active":true,"user_id":null,"has_system_access":false,"shift_assignments":[]}],"total":182,"active_total":182,"page":1,"limit":1}

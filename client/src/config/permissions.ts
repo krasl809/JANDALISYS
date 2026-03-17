@@ -15,6 +15,11 @@ export const PERMISSIONS = {
     DOWNLOAD_ARCHIVE: 'archive_download',
     DELETE_ARCHIVE: 'archive_delete',
     MANAGE_ARCHIVE: 'archive_write', // Includes settings and folder management
+    
+    // Survey System Permissions
+    VIEW_SURVEYS: 'view_surveys',
+    MANAGE_SURVEYS: 'manage_surveys',
+    VIEW_SURVEY_ANALYTICS: 'view_survey_analytics',
 };
 
 export const ROUTE_PERMISSIONS: Record<string, string> = {
@@ -38,4 +43,12 @@ export const ROUTE_PERMISSIONS: Record<string, string> = {
     '/employees/:id': PERMISSIONS.VIEW_HR,
     '/archive': PERMISSIONS.VIEW_ARCHIVE,
     '/archive/dashboard': PERMISSIONS.VIEW_ARCHIVE,
+    
+    // Survey Routes
+    '/admin/surveys': PERMISSIONS.VIEW_SURVEYS,
+    '/admin/surveys/create': PERMISSIONS.MANAGE_SURVEYS,
+    '/admin/surveys/templates': PERMISSIONS.VIEW_SURVEYS,
+    '/admin/surveys/:id/edit': PERMISSIONS.MANAGE_SURVEYS,
+    '/admin/surveys/:id/analytics': PERMISSIONS.VIEW_SURVEY_ANALYTICS,
+    '/admin/surveys/:id/responses': PERMISSIONS.VIEW_SURVEY_ANALYTICS,
 };

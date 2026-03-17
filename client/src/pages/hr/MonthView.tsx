@@ -1,11 +1,11 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, useState } from 'react';
 import {
     Box, Typography, Paper, Avatar, TablePagination,
-    useTheme, IconButton, Tooltip, Divider, Theme
+    useTheme, IconButton, Tooltip, Divider, Theme, Chip, Button, Dialog, DialogTitle, DialogContent, DialogActions, TextField, DialogContentText
 } from '@mui/material';
 import { alpha } from '@mui/material/styles';
-import { ChevronLeft, ChevronRight, Today } from '@mui/icons-material';
-import { format, parseISO, startOfMonth, endOfMonth, eachDayOfInterval, isToday, isWeekend, addMonths, subMonths } from 'date-fns';
+import { ChevronLeft, ChevronRight, Today, Edit, CalendarToday, DateRange } from '@mui/icons-material';
+import { format, parseISO, startOfMonth, endOfMonth, eachDayOfInterval, isToday, addMonths, subMonths, isFriday } from 'date-fns';
 import { ar, enUS } from 'date-fns/locale';
 import { useTranslation } from 'react-i18next';
 import { LocalizationProvider, DatePicker } from '@mui/x-date-pickers';
@@ -53,6 +53,8 @@ const getAttendanceStatusColors = (colors: any) => ({
     absent: colors.secondary,
     ongoing: colors.primary,
     overtime: alpha(colors.primary, 0.8),
+    multiDay: '#9C27B0', // Purple for multi-day attendance (48 hours split across days)
+    manualAdjustment: '#FF9800', // Orange for manually adjusted/added records
 });
 
 interface AttendanceRecord {
@@ -77,6 +79,10 @@ interface AttendanceRecord {
     device?: string;
     device_ip?: string;
     employee_pk?: string;
+    // Manual adjustment fields
+    has_manual_adjustment?: boolean;
+    adjusted_work_hours?: number;
+    adjustment_reason?: string;
 }
 
 interface MonthViewProps {
@@ -88,6 +94,8 @@ interface MonthViewProps {
     rowsPerPage: number;
     handlePageChange: (event: React.MouseEvent<HTMLButtonElement> | null, newPage: number) => void;
     handleRowsPerPageChange: (event: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => void;
+    onDateRangeChange?: (startDate: Date, endDate: Date) => void;
+    onSingleDaySelect?: (date: Date) => void;
 }
 
 const MonthView: React.FC<MonthViewProps> = React.memo(({
@@ -98,7 +106,9 @@ const MonthView: React.FC<MonthViewProps> = React.memo(({
     page,
     rowsPerPage,
     handlePageChange,
-    handleRowsPerPageChange
+    handleRowsPerPageChange,
+    onDateRangeChange,
+    onSingleDaySelect
 }) => {
     const theme = useTheme();
     const COLORS = useMemo(() => getAttendanceColors(theme), [theme]);
@@ -130,6 +140,17 @@ const MonthView: React.FC<MonthViewProps> = React.memo(({
         filters.setCurrentMonth(new Date());
     };
 
+    // Custom date selection state
+    const [customDateDialog, setCustomDateDialog] = useState(false);
+    const [customDate, setCustomDate] = useState<Date | null>(null);
+    
+    const [customRangeDialog, setCustomRangeDialog] = useState(false);
+    const [customStartDate, setCustomStartDate] = useState<Date | null>(null);
+    const [customEndDate, setCustomEndDate] = useState<Date | null>(null);
+
+    // Date range selection state
+    const [selectedRange, setSelectedRange] = useState<{ start: Date | null; end: Date | null }>({ start: null, end: null });
+
     // Memoized employee attendance mapping
     const employeeAttendanceMap = useMemo(() => {
         const map: { [employeeId: string]: { [dateKey: string]: AttendanceRecord[] } } = {};
@@ -155,7 +176,31 @@ const MonthView: React.FC<MonthViewProps> = React.memo(({
         return employees.slice(page * rowsPerPage, (page + 1) * rowsPerPage);
     }, [employees, page, rowsPerPage]);
 
-    const getStatusColor = (status: string) => {
+    const getStatusColor = (status: string, session?: AttendanceRecord) => {
+        // Check for multi-day attendance (48+ hours distributed across days or work hours > 12)
+        if (session) {
+            const workHours = session.actual_work || 0;
+            const hasCheckOut = session.check_out;
+            
+            // If work hours exceed 12 hours, it's likely multi-day attendance
+            if (workHours > 12 && hasCheckOut) {
+                return ATTENDANCE_COLORS.multiDay;
+            }
+            
+            // Check if check-in and check-out span different dates
+            if (hasCheckOut && session.check_out) {
+                try {
+                    const checkInDate = format(parseISO(session.check_in), 'yyyy-MM-dd');
+                    const checkOutDate = format(parseISO(session.check_out), 'yyyy-MM-dd');
+                    if (checkInDate !== checkOutDate) {
+                        return ATTENDANCE_COLORS.multiDay;
+                    }
+                } catch (e) {
+                    // If parsing fails, continue with normal status
+                }
+            }
+        }
+        
         if (status.includes('late') && status.includes('early_leave')) return ATTENDANCE_COLORS.late; // Priority to late or a mix
         switch (status) {
             case 'present': return ATTENDANCE_COLORS.present;
@@ -167,19 +212,72 @@ const MonthView: React.FC<MonthViewProps> = React.memo(({
         }
     };
 
+    // Handle day click to select specific day
+    const handleDayClick = (day: Date) => {
+        onSingleDaySelect?.(day);
+    };
+
+    // Handle date range selection (Ctrl+Click or Shift+Click)
+    const handleDayRangeClick = (day: Date, event: React.MouseEvent) => {
+        if (event.ctrlKey || event.metaKey) {
+            // Multi-select mode
+            if (!selectedRange.start) {
+                setSelectedRange({ start: day, end: day });
+            } else if (!selectedRange.end) {
+                const newEnd = day > selectedRange.start ? day : selectedRange.start;
+                const newStart = day < selectedRange.start ? day : selectedRange.start;
+                setSelectedRange({ start: newStart, end: newEnd });
+            } else {
+                // Reset and start new selection
+                setSelectedRange({ start: day, end: day });
+            }
+        } else if (event.shiftKey && selectedRange.start) {
+            // Extend selection
+            const newEnd = day;
+            const newStart = selectedRange.start;
+            setSelectedRange({ 
+                start: newStart < newEnd ? newStart : newEnd, 
+                end: newStart < newEnd ? newEnd : newStart 
+            });
+        } else {
+            // Single selection
+            setSelectedRange({ start: day, end: day });
+            onSingleDaySelect?.(day);
+        }
+    };
+
+    // Apply range selection
+    const applyRangeSelection = () => {
+        if (selectedRange.start && selectedRange.end) {
+            onDateRangeChange?.(selectedRange.start, selectedRange.end);
+        }
+    };
+
+    // Clear range selection
+    const clearRangeSelection = () => {
+        setSelectedRange({ start: null, end: null });
+    };
+
     return (
-        <Box sx={{ mt: 2 }}>
+        <Box sx={{ mt: 2, width: '100%', overflowX: 'auto' }}>
             <Paper 
                 elevation={0}
                 sx={{
                     borderRadius: '16px',
-                    overflow: 'hidden',
+                    overflow: 'visible',
                     backgroundColor: COLORS.white,
                     boxShadow: SHADOWS.md,
-                    border: 'none'
+                    border: 'none',
+                    width: '100%'
                 }}
             >
-                <Box sx={{ display: 'flex', flexDirection: 'column', minHeight: 400, maxHeight: 800 }}>
+                <Box sx={{ 
+                    display: 'flex', 
+                    flexDirection: 'column', 
+                    minHeight: 300,
+                    height: 'auto',
+                    overflow: 'hidden'
+                }}>
                     {/* Month Header */}
                     <Box sx={{
                         display: 'flex',
@@ -283,6 +381,146 @@ const MonthView: React.FC<MonthViewProps> = React.memo(({
                                 <Box sx={{ width: 10, height: 10, borderRadius: '50%', bgcolor: alpha(COLORS.secondary, 0.2) }} />
                                 <Typography variant="caption" fontWeight="700" sx={{ color: COLORS.dark }}>{t('Weekend')}</Typography>
                             </Box>
+                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                                <Box sx={{ width: 10, height: 10, borderRadius: '50%', bgcolor: '#9C27B0' }} />
+                                <Typography variant="caption" fontWeight="700" sx={{ color: COLORS.dark }}>{t('Multi-day')}</Typography>
+                            </Box>
+                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                                <Box sx={{ width: 10, height: 10, borderRadius: '50%', bgcolor: '#FF9800', border: `2px solid ${COLORS.white}`, boxShadow: '0 1px 3px rgba(0,0,0,0.3)' }} />
+                                <Typography variant="caption" fontWeight="700" sx={{ color: COLORS.dark }}>{t('Manual')}</Typography>
+                            </Box>
+                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                                <Button
+                                    variant="outlined"
+                                    size="small"
+                                    startIcon={<CalendarToday />}
+                                    onClick={() => {
+                                        // Single day selection logic
+                                        const today = new Date();
+                                        onSingleDaySelect?.(today);
+                                    }}
+                                    sx={{
+                                        borderRadius: '8px',
+                                        textTransform: 'none',
+                                        fontWeight: 700,
+                                        color: COLORS.secondary,
+                                        borderColor: alpha(COLORS.secondary, 0.2),
+                                        '&:hover': {
+                                            borderColor: COLORS.primary,
+                                            color: COLORS.primary,
+                                            bgcolor: alpha(COLORS.primary, 0.05)
+                                        }
+                                    }}
+                                >
+                                    {t('Today')}
+                                </Button>
+                                <Button
+                                    variant="outlined"
+                                    size="small"
+                                    startIcon={<DateRange />}
+                                    onClick={() => {
+                                        // Date range selection logic
+                                        const startOfMonthDate = startOfMonth(new Date());
+                                        const endOfMonthDate = endOfMonth(new Date());
+                                        onDateRangeChange?.(startOfMonthDate, endOfMonthDate);
+                                    }}
+                                    sx={{
+                                        borderRadius: '8px',
+                                        textTransform: 'none',
+                                        fontWeight: 700,
+                                        color: COLORS.secondary,
+                                        borderColor: alpha(COLORS.secondary, 0.2),
+                                        '&:hover': {
+                                            borderColor: COLORS.primary,
+                                            color: COLORS.primary,
+                                            bgcolor: alpha(COLORS.primary, 0.05)
+                                        }
+                                    }}
+                                >
+                                    {t('This Month')}
+                                </Button>
+                                <Button
+                                    variant="outlined"
+                                    size="small"
+                                    startIcon={<CalendarToday />}
+                                    onClick={() => setCustomDateDialog(true)}
+                                    sx={{
+                                        borderRadius: '8px',
+                                        textTransform: 'none',
+                                        fontWeight: 700,
+                                        color: COLORS.secondary,
+                                        borderColor: alpha(COLORS.secondary, 0.2),
+                                        '&:hover': {
+                                            borderColor: COLORS.primary,
+                                            color: COLORS.primary,
+                                            bgcolor: alpha(COLORS.primary, 0.05)
+                                        }
+                                    }}
+                                >
+                                    {t('Select Day')}
+                                </Button>
+                                <Button
+                                    variant="outlined"
+                                    size="small"
+                                    startIcon={<DateRange />}
+                                    onClick={() => setCustomRangeDialog(true)}
+                                    sx={{
+                                        borderRadius: '8px',
+                                        textTransform: 'none',
+                                        fontWeight: 700,
+                                        color: COLORS.secondary,
+                                        borderColor: alpha(COLORS.secondary, 0.2),
+                                        '&:hover': {
+                                            borderColor: COLORS.primary,
+                                            color: COLORS.primary,
+                                            bgcolor: alpha(COLORS.primary, 0.05)
+                                        }
+                                    }}
+                                >
+                                    {t('Select Range')}
+                                </Button>
+                                {/* Range Selection Controls */}
+                                <Box sx={{ display: 'flex', gap: 1, alignItems: 'center' }}>
+                                    <Button
+                                        variant="contained"
+                                        size="small"
+                                        onClick={applyRangeSelection}
+                                        disabled={!selectedRange.start || !selectedRange.end}
+                                        sx={{
+                                            borderRadius: '8px',
+                                            textTransform: 'none',
+                                            fontWeight: 700,
+                                            bgcolor: COLORS.primary,
+                                            color: 'white',
+                                            '&:hover': { bgcolor: COLORS.primary },
+                                            '&:disabled': { bgcolor: alpha(COLORS.secondary, 0.3), color: COLORS.secondary }
+                                        }}
+                                    >
+                                        {t('Apply Range')}
+                                    </Button>
+                                    <Button
+                                        variant="outlined"
+                                        size="small"
+                                        onClick={clearRangeSelection}
+                                        disabled={!selectedRange.start && !selectedRange.end}
+                                        sx={{
+                                            borderRadius: '8px',
+                                            textTransform: 'none',
+                                            fontWeight: 700,
+                                            color: COLORS.secondary,
+                                            borderColor: alpha(COLORS.secondary, 0.2),
+                                            '&:hover': {
+                                                borderColor: COLORS.primary,
+                                                color: COLORS.primary,
+                                                bgcolor: alpha(COLORS.primary, 0.05)
+                                            },
+                                            '&:disabled': { color: COLORS.secondary, borderColor: alpha(COLORS.secondary, 0.1) }
+                                        }}
+                                    >
+                                        {t('Clear Range')}
+                                    </Button>
+                                </Box>
+                            </Box>
                         </Box>
                     </Box>
 
@@ -290,16 +528,18 @@ const MonthView: React.FC<MonthViewProps> = React.memo(({
                     <Box sx={{ 
                         display: 'flex', 
                         flexGrow: 1, 
-                        overflow: 'auto', 
+                        overflowX: 'auto',
+                        overflowY: 'auto', 
                         position: 'relative',
                         backgroundColor: COLORS.bg,
+                        maxWidth: '100%',
                         // Custom scrollbar
-                        '&::-webkit-scrollbar': { width: '6px', height: '6px' },
+                        '&::-webkit-scrollbar': { width: '8px', height: '8px' },
                         '&::-webkit-scrollbar-track': { background: 'transparent' },
                         '&::-webkit-scrollbar-thumb': {
-                            backgroundColor: alpha(COLORS.secondary, 0.2),
-                            borderRadius: '10px',
-                            '&:hover': { backgroundColor: alpha(COLORS.secondary, 0.3) }
+                            backgroundColor: alpha(COLORS.secondary, 0.3),
+                            borderRadius: '4px',
+                            '&:hover': { backgroundColor: alpha(COLORS.secondary, 0.5) }
                         }
                     }}>
                         {/* Employee Names Column */}
@@ -368,10 +608,14 @@ const MonthView: React.FC<MonthViewProps> = React.memo(({
                         </Box>
 
                         {/* Days Columns */}
-                        <Box sx={{ display: 'flex', flexGrow: 1, overflowX: 'visible' }}>
+                        <Box sx={{ display: 'flex', flexGrow: 1, overflowX: 'auto' }}>
                             {days.map((day, dIdx) => {
-                                const isDayWeekend = isWeekend(day);
+                                const isDayWeekend = isFriday(day);
                                 const isDayToday = isToday(day);
+                                const isInRange = selectedRange.start && selectedRange.end && 
+                                    day >= selectedRange.start && day <= selectedRange.end;
+                                const isRangeStart = selectedRange.start && day.getTime() === selectedRange.start.getTime();
+                                const isRangeEnd = selectedRange.end && day.getTime() === selectedRange.end.getTime();
                                 
                                 return (
                                     <Box key={dIdx} sx={{
@@ -379,7 +623,18 @@ const MonthView: React.FC<MonthViewProps> = React.memo(({
                                         flex: 1,
                                         position: 'relative',
                                         borderInlineEnd: `1px solid ${alpha(COLORS.secondary, 0.05)}`,
-                                        backgroundColor: isDayWeekend ? alpha(COLORS.secondary, 0.03) : 'transparent'
+                                        backgroundColor: isDayWeekend ? alpha(COLORS.secondary, 0.03) : 'transparent',
+                                        // Visual indicators for date range selection
+                                        ...(isInRange && {
+                                            backgroundColor: alpha(COLORS.primary, 0.05),
+                                            boxShadow: `inset 0 0 0 2px ${alpha(COLORS.primary, 0.3)}`,
+                                        }),
+                                        ...(isRangeStart && {
+                                            borderLeft: `3px solid ${COLORS.primary}`,
+                                        }),
+                                        ...(isRangeEnd && {
+                                            borderRight: `3px solid ${COLORS.primary}`,
+                                        }),
                                     }}>
                                         {/* Day Header */}
                                         <Box sx={{
@@ -393,6 +648,11 @@ const MonthView: React.FC<MonthViewProps> = React.memo(({
                                             position: 'sticky',
                                             top: 0,
                                             zIndex: 5,
+                                            // Highlight header if in range
+                                            ...(isInRange && {
+                                                backgroundColor: alpha(COLORS.primary, 0.12),
+                                                boxShadow: `inset 0 0 0 2px ${alpha(COLORS.primary, 0.4)}`,
+                                            }),
                                         }}>
                                             <Typography variant="caption" fontWeight="800" sx={{ color: isDayToday ? COLORS.primary : COLORS.secondary, textTransform: 'uppercase', fontSize: '0.65rem' }}>
                                                 {format(day, 'EEE', { locale: dateLocale })}
@@ -408,24 +668,36 @@ const MonthView: React.FC<MonthViewProps> = React.memo(({
                                             const isEvenRow = eIdx % 2 === 0;
 
                                             return (
-                                                <Box key={employee.id} sx={{
-                                                    height: 55,
-                                                    borderBottom: `1px solid ${alpha(COLORS.secondary, 0.05)}`,
-                                                    backgroundColor: isEvenRow ? 'transparent' : alpha(COLORS.bg, 0.2),
-                                                    display: 'flex',
-                                                    alignItems: 'center',
-                                                    justifyContent: 'center',
-                                                    px: 0.5,
-                                                    position: 'relative',
-                                                    '&:hover': {
-                                                        backgroundColor: alpha(COLORS.primary, 0.04)
-                                                    }
-                                                }}>
+                                                <Box 
+                                                    key={employee.id} 
+                                                    sx={{
+                                                        height: 55,
+                                                        borderBottom: `1px solid ${alpha(COLORS.secondary, 0.05)}`,
+                                                        backgroundColor: isEvenRow ? 'transparent' : alpha(COLORS.bg, 0.2),
+                                                        display: 'flex',
+                                                        alignItems: 'center',
+                                                        justifyContent: 'center',
+                                                        px: 0.5,
+                                                        position: 'relative',
+                                                        cursor: 'pointer',
+                                                        '&:hover': {
+                                                            backgroundColor: alpha(COLORS.primary, 0.04)
+                                                        },
+                                                        // Highlight cell if in range
+                                                        ...(isInRange && {
+                                                            backgroundColor: alpha(COLORS.primary, 0.08),
+                                                            boxShadow: `inset 0 0 0 1px ${alpha(COLORS.primary, 0.3)}`,
+                                                        }),
+                                                    }}
+                                                    onClick={(e) => handleDayRangeClick(day, e)}
+                                                >
                                                     {employeeAttendance.length > 0 ? (
                                                         employeeAttendance.map((session, sIdx) => {
-                                                            const statusColor = getStatusColor(session.status);
+                                                            const statusColor = getStatusColor(session.status, session);
                                                             const isLate = session.late_minutes && session.late_minutes > 0;
                                                             const isEarlyLeave = session.early_leave_minutes && session.early_leave_minutes > 0;
+                                                            const isMultiDay = statusColor === ATTENDANCE_COLORS.multiDay;
+                                                            const isManuallyAdjusted = session.has_manual_adjustment;
 
                                                             return (
                                                                 <Tooltip 
@@ -449,6 +721,18 @@ const MonthView: React.FC<MonthViewProps> = React.memo(({
                                                                                 <Typography variant="caption" display="block" sx={{ color: COLORS.white, opacity: 0.9 }}>
                                                                                     <strong>{t('Work')}:</strong> {session.actual_work}h
                                                                                 </Typography>
+                                                                                {session.has_manual_adjustment && (
+                                                                                    <>
+                                                                                        <Typography variant="caption" display="block" sx={{ color: '#FF9800', fontWeight: 'bold' }}>
+                                                                                            ✏️ {t('Manually Adjusted')}
+                                                                                        </Typography>
+                                                                                        {session.adjusted_work_hours !== undefined && session.adjusted_work_hours !== null && (
+                                                                                            <Typography variant="caption" display="block" sx={{ color: '#FF9800', opacity: 0.9 }}>
+                                                                                                {t('Adjusted Hours')}: {session.adjusted_work_hours}h
+                                                                                            </Typography>
+                                                                                        )}
+                                                                                    </>
+                                                                                )}
                                                                                 {isLate && (
                                                                                     <Typography variant="caption" display="block" sx={{ color: COLORS.warning, fontWeight: 'bold' }}>
                                                                                         ⚠ {t('Late Arrival')}: {session.late_minutes} {t('min')}
@@ -499,21 +783,49 @@ const MonthView: React.FC<MonthViewProps> = React.memo(({
                                                                             }
                                                                         }}
                                                                     >
-                                                                        <Typography variant="caption" sx={{ fontSize: '0.65rem', lineHeight: 1, fontWeight: 900 }}>
+                                                                        <Typography variant="caption" sx={{ 
+                                                                            fontSize: '0.65rem', 
+                                                                            lineHeight: 1, 
+                                                                            fontWeight: 900,
+                                                                            color: COLORS.white
+                                                                        }}>
                                                                             {session.actual_work > 0 ? `${session.actual_work}h` : format(parseISO(session.check_in), 'HH:mm')}
                                                                         </Typography>
                                                                         
-                                                                        {/* Markers for Late/Early Leave */}
-                                                                        {(isLate || isEarlyLeave) && (
+                                                                        {/* Orange dot marker for manually added/modified/deleted records */}
+                                                                        {isManuallyAdjusted && (
                                                                             <Box sx={{ 
                                                                                 position: 'absolute', 
-                                                                                top: -2, 
-                                                                                right: -2, 
-                                                                                width: 8, 
-                                                                                height: 8, 
+                                                                                top: -3, 
+                                                                                right: -3, 
+                                                                                width: 10, 
+                                                                                height: 10, 
                                                                                 borderRadius: '50%', 
-                                                                                bgcolor: isLate ? COLORS.error : COLORS.warning,
-                                                                                border: `1.5px solid ${COLORS.white}`
+                                                                                bgcolor: '#FF9800',
+                                                                                border: `2px solid ${COLORS.white}`,
+                                                                                display: 'flex',
+                                                                                alignItems: 'center',
+                                                                                justifyContent: 'center',
+                                                                                zIndex: 10,
+                                                                                boxShadow: '0 2px 4px rgba(0,0,0,0.3)'
+                                                                            }} />
+                                                                        )}
+                                                                        {/* Markers for Late/Early Leave/Multi-day (without manual) */}
+                                                                        {(!isManuallyAdjusted) && (isLate || isEarlyLeave || isMultiDay) && (
+                                                                            <Box sx={{ 
+                                                                                position: 'absolute', 
+                                                                                top: -3, 
+                                                                                right: -3, 
+                                                                                width: 10, 
+                                                                                height: 10, 
+                                                                                borderRadius: '50%', 
+                                                                                bgcolor: isMultiDay ? '#9C27B0' : (isLate ? COLORS.error : COLORS.warning),
+                                                                                border: `2px solid ${COLORS.white}`,
+                                                                                display: 'flex',
+                                                                                alignItems: 'center',
+                                                                                justifyContent: 'center',
+                                                                                zIndex: 10,
+                                                                                boxShadow: '0 2px 4px rgba(0,0,0,0.3)'
                                                                             }} />
                                                                         )}
                                                                     </Box>
@@ -625,16 +937,23 @@ const MonthView: React.FC<MonthViewProps> = React.memo(({
                 rowsPerPage={rowsPerPage}
                 onRowsPerPageChange={handleRowsPerPageChange}
                 rowsPerPageOptions={[10, 25, 50, 100]}
+                showFirstButton
+                showLastButton
                 sx={{ 
-                    mt: 3,
-                    px: 2,
+                    position: 'sticky',
+                    bottom: 0,
+                    zIndex: 100,
+                    mt: 'auto',
+                    mx: 0,
+                    p: 1.5,
                     backgroundColor: COLORS.white,
-                    borderRadius: '12px',
-                    boxShadow: SHADOWS.xs,
+                    borderTop: `1px solid ${alpha(COLORS.secondary, 0.1)}`,
+                    borderRadius: '0 0 16px 16px',
+                    boxShadow: '0 -2px 10px rgba(0,0,0,0.05)',
                     color: COLORS.secondary,
                     '& .MuiTablePagination-selectLabel, & .MuiTablePagination-displayedRows': {
                         fontWeight: 600,
-                        fontSize: '0.8rem'
+                        fontSize: '0.85rem'
                     },
                     '& .MuiTablePagination-select': {
                         fontWeight: 700,
@@ -651,6 +970,194 @@ const MonthView: React.FC<MonthViewProps> = React.memo(({
                     }
                 }}
             />
+
+            {/* Custom Date Dialog */}
+            <Dialog 
+                open={customDateDialog} 
+                onClose={() => setCustomDateDialog(false)}
+                maxWidth="sm"
+                fullWidth
+            >
+                <DialogTitle sx={{ 
+                    bgcolor: COLORS.primary, 
+                    color: 'white',
+                    fontWeight: 800,
+                    fontSize: '1.1rem'
+                }}>
+                    {t('Select Specific Day')}
+                </DialogTitle>
+                <DialogContent sx={{ py: 3 }}>
+                    <DialogContentText sx={{ mb: 2, color: COLORS.secondary }}>
+                        {t('Choose a specific day to view attendance records')}
+                    </DialogContentText>
+                    <LocalizationProvider dateAdapter={AdapterDateFns} adapterLocale={dateLocale}>
+                        <DatePicker
+                            label={t('Select Date')}
+                            value={customDate}
+                            onChange={(newValue) => setCustomDate(newValue)}
+                            slotProps={{
+                                textField: {
+                                    fullWidth: true,
+                                    size: 'medium',
+                                    sx: {
+                                        '& .MuiOutlinedInput-root': {
+                                            borderRadius: '12px',
+                                            '& fieldset': { borderColor: alpha(COLORS.secondary, 0.2) },
+                                            '&:hover fieldset': { borderColor: COLORS.primary },
+                                        }
+                                    }
+                                }
+                            }}
+                        />
+                    </LocalizationProvider>
+                </DialogContent>
+                <DialogActions sx={{ px: 3, pb: 2 }}>
+                    <Button 
+                        onClick={() => setCustomDateDialog(false)}
+                        sx={{
+                            borderRadius: '8px',
+                            textTransform: 'none',
+                            fontWeight: 700,
+                            color: COLORS.secondary,
+                            borderColor: alpha(COLORS.secondary, 0.2),
+                            '&:hover': {
+                                borderColor: COLORS.primary,
+                                color: COLORS.primary,
+                                bgcolor: alpha(COLORS.primary, 0.05)
+                            }
+                        }}
+                    >
+                        {t('Cancel')}
+                    </Button>
+                    <Button 
+                        onClick={() => {
+                            if (customDate) {
+                                onSingleDaySelect?.(customDate);
+                                setCustomDateDialog(false);
+                                setCustomDate(null);
+                            }
+                        }}
+                        variant="contained"
+                        disabled={!customDate}
+                        sx={{
+                            borderRadius: '8px',
+                            textTransform: 'none',
+                            fontWeight: 700,
+                            bgcolor: COLORS.primary,
+                            '&:hover': { bgcolor: COLORS.primary },
+                            '&:disabled': { bgcolor: alpha(COLORS.secondary, 0.3) }
+                        }}
+                    >
+                        {t('View Attendance')}
+                    </Button>
+                </DialogActions>
+            </Dialog>
+
+            {/* Custom Date Range Dialog */}
+            <Dialog 
+                open={customRangeDialog} 
+                onClose={() => setCustomRangeDialog(false)}
+                maxWidth="sm"
+                fullWidth
+            >
+                <DialogTitle sx={{ 
+                    bgcolor: COLORS.primary, 
+                    color: 'white',
+                    fontWeight: 800,
+                    fontSize: '1.1rem'
+                }}>
+                    {t('Select Date Range')}
+                </DialogTitle>
+                <DialogContent sx={{ py: 3 }}>
+                    <DialogContentText sx={{ mb: 2, color: COLORS.secondary }}>
+                        {t('Choose a date range to view attendance records')}
+                    </DialogContentText>
+                    <Box sx={{ display: 'flex', gap: 2, flexDirection: isRtl ? 'row-reverse' : 'row' }}>
+                        <LocalizationProvider dateAdapter={AdapterDateFns} adapterLocale={dateLocale}>
+                            <DatePicker
+                                label={t('Start Date')}
+                                value={customStartDate}
+                                onChange={(newValue) => setCustomStartDate(newValue)}
+                                slotProps={{
+                                    textField: {
+                                        fullWidth: true,
+                                        size: 'medium',
+                                        sx: {
+                                            '& .MuiOutlinedInput-root': {
+                                                borderRadius: '12px',
+                                                '& fieldset': { borderColor: alpha(COLORS.secondary, 0.2) },
+                                                '&:hover fieldset': { borderColor: COLORS.primary },
+                                            }
+                                        }
+                                    }
+                                }}
+                            />
+                        </LocalizationProvider>
+                        <LocalizationProvider dateAdapter={AdapterDateFns} adapterLocale={dateLocale}>
+                            <DatePicker
+                                label={t('End Date')}
+                                value={customEndDate}
+                                onChange={(newValue) => setCustomEndDate(newValue)}
+                                minDate={customStartDate || undefined}
+                                slotProps={{
+                                    textField: {
+                                        fullWidth: true,
+                                        size: 'medium',
+                                        sx: {
+                                            '& .MuiOutlinedInput-root': {
+                                                borderRadius: '12px',
+                                                '& fieldset': { borderColor: alpha(COLORS.secondary, 0.2) },
+                                                '&:hover fieldset': { borderColor: COLORS.primary },
+                                            }
+                                        }
+                                    }
+                                }}
+                            />
+                        </LocalizationProvider>
+                    </Box>
+                </DialogContent>
+                <DialogActions sx={{ px: 3, pb: 2 }}>
+                    <Button 
+                        onClick={() => setCustomRangeDialog(false)}
+                        sx={{
+                            borderRadius: '8px',
+                            textTransform: 'none',
+                            fontWeight: 700,
+                            color: COLORS.secondary,
+                            borderColor: alpha(COLORS.secondary, 0.2),
+                            '&:hover': {
+                                borderColor: COLORS.primary,
+                                color: COLORS.primary,
+                                bgcolor: alpha(COLORS.primary, 0.05)
+                            }
+                        }}
+                    >
+                        {t('Cancel')}
+                    </Button>
+                    <Button 
+                        onClick={() => {
+                            if (customStartDate && customEndDate) {
+                                onDateRangeChange?.(customStartDate, customEndDate);
+                                setCustomRangeDialog(false);
+                                setCustomStartDate(null);
+                                setCustomEndDate(null);
+                            }
+                        }}
+                        variant="contained"
+                        disabled={!customStartDate || !customEndDate}
+                        sx={{
+                            borderRadius: '8px',
+                            textTransform: 'none',
+                            fontWeight: 700,
+                            bgcolor: COLORS.primary,
+                            '&:hover': { bgcolor: COLORS.primary },
+                            '&:disabled': { bgcolor: alpha(COLORS.secondary, 0.3) }
+                        }}
+                    >
+                        {t('View Attendance')}
+                    </Button>
+                </DialogActions>
+            </Dialog>
         </Box>
     );
 });

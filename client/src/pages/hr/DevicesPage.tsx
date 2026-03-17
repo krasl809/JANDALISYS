@@ -63,25 +63,8 @@ const DevicesPage: React.FC = () => {
 
     const pingDevice = async (id: number) => {
         setPinging(prev => new Set(prev).add(id));
-        setProgress(prev => ({ ...prev, [id]: 0 }));
-        // Animate progress from 0 to 100 in 1 second
-        const startTime = Date.now();
-        const duration = 1000; // 1 second
-        const interval = setInterval(() => {
-            const elapsed = Date.now() - startTime;
-            const progressValue = Math.min((elapsed / duration) * 100, 100);
-            setProgress(prev => ({ ...prev, [id]: progressValue }));
-            if (progressValue >= 100) {
-                clearInterval(interval);
-            }
-        }, 50);
         try {
             await api.post(`hr/devices/${id}/ping`);
-            // Wait for animation to complete if not yet
-            const elapsed = Date.now() - startTime;
-            if (elapsed < duration) {
-                await new Promise(resolve => setTimeout(resolve, duration - elapsed));
-            }
             // Refresh devices to get updated status
             const res = await api.get('hr/devices');
             setDevices(res.data);
@@ -472,8 +455,7 @@ const DevicesPage: React.FC = () => {
                                 {pinging.has(device.id) && (
                                     <Box sx={{ mt: -2, mb: 2 }}>
                                         <LinearProgress 
-                                            variant="determinate" 
-                                            value={progress[device.id] || 0} 
+                                            variant="indeterminate"
                                             sx={{ 
                                                 height: 4, 
                                                 borderRadius: 2,
@@ -482,7 +464,7 @@ const DevicesPage: React.FC = () => {
                                             }}
                                         />
                                         <Typography variant="caption" sx={{ mt: 0.5, display: 'block', textAlign: 'center', color: COLORS.primary, fontWeight: 800 }}>
-                                            {t('Testing Connection...')} {Math.round(progress[device.id] || 0)}%
+                                            {t('Testing Connection...')}
                                         </Typography>
                                     </Box>
                                 )}

@@ -4,7 +4,7 @@ import { useAuth } from '../../context/AuthContext';
 import api, { validateContractAccess } from '../../services/api';
 import {
   Box, Container, Typography, Tabs, Tab, Button, Card,
-  Table, TableBody, TableCell, TableContainer, TableHead, TableRow,
+  Table, TableBody, TableCell, TableContainer, TableHead, TableRow, TableSortLabel,
   Chip, InputAdornment, TextField, IconButton, Stack, LinearProgress,
   Menu, MenuItem, ListItemIcon, ListItemText, Badge, Divider, Collapse,
   Grid, Paper, Avatar
@@ -67,6 +67,8 @@ const ContractList = () => {
   // --- States ---
   const [currentTab, setCurrentTab] = useState(0);
   const [searchQuery, setSearchQuery] = useState('');
+  const [shippingTypeFilter, setShippingTypeFilter] = useState<string>('all');
+  const [sortConfig, setSortConfig] = useState<{ field: keyof ContractSummary, direction: 'asc' | 'desc' }>({ field: 'serial_number', direction: 'asc' });
   
   // New Contract Menu State (Drop down for Import/Export)
   const [createAnchorEl, setCreateAnchorEl] = useState<null | HTMLElement>(null);
@@ -91,11 +93,22 @@ const ContractList = () => {
       setLoading(true);
       setError(null);
       const skip = (page - 1) * pagination.per_page;
-      const response = await api.get(`contracts/?skip=${skip}&limit=${pagination.per_page}&search=${searchQuery}&tab=${currentTab}`);
+      
+      // Mapping frontend fields to backend column names if necessary
+      const backendSortField = sortConfig.field === 'no' ? 'contract_no' : sortConfig.field;
+      
+      let url = `contracts/?skip=${skip}&limit=${pagination.per_page}&search=${searchQuery}&tab=${currentTab}&sort_by=${backendSortField}&sort_dir=${sortConfig.direction}`;
+      if (shippingTypeFilter !== 'all') {
+        url += `&shipping_type=${shippingTypeFilter}`;
+      }
+      
+      const response = await api.get(url);
       
       const contractsData: ContractSummary[] = response.data.contracts.map((contract: any) => ({
         id: contract.id,
         no: contract.contract_no || 'N/A',
+        serial_number: contract.serial_number,
+        shipping_type: contract.shipping_type,
         type: contract.direction === 'import' ? 'Import' : 'Export',
         client: 'Pending Assignment',
         commodity: contract.items?.[0]?.article_name || 'Multiple Items',
@@ -128,30 +141,21 @@ const ContractList = () => {
   };
 
   useEffect(() => {
-    fetchContracts();
-  }, []);
+    fetchContracts(pagination.page);
+  }, [sortConfig, currentTab, shippingTypeFilter]); // Re-fetch when sorting, tab, or filter changes
 
-  // --- Filtering Logic ---
+  // --- Filtering Logic (Client side for search on current page or refinement) ---
   const filteredContracts = useMemo(() => {
     return contracts.filter(contract => {
-      // 1. Filter by Tab
-      const status = contract.status.toLowerCase();
-      const matchTab = 
-        currentTab === 0 ? true :
-        currentTab === 1 ? (status === 'pending' || status === 'draft') :
-        currentTab === 2 ? (status === 'active' || status === 'posted') :
-        currentTab === 3 ? status === 'completed' : true;
-
-      // 2. Filter by Search
+      // 1. Filter by Search
       const searchLower = searchQuery.toLowerCase();
-      const matchSearch = searchQuery === '' || 
+      return searchQuery === '' || 
         contract.no.toLowerCase().includes(searchLower) ||
+        (contract.serial_number?.toString().includes(searchLower)) ||
         contract.client.toLowerCase().includes(searchLower) ||
         contract.commodity.toLowerCase().includes(searchLower);
-
-      return matchTab && matchSearch;
     });
-  }, [contracts, currentTab, searchQuery]);
+  }, [contracts, searchQuery]);
 
   // --- Metrics Calculation ---
   const dashboardStats = useMemo(() => {
@@ -174,14 +178,25 @@ const ContractList = () => {
     return { active, pending, totalVal, totalVol, typeData, statusData };
   }, [contracts, palette, t]);
 
-  // --- Handlers ---
-  
-  // 1. Create Menu Handlers
+  // Ensure issue_date is always set to today if not provided
+  useEffect(() => {
+    const timer = setTimeout(() => {
+        fetchContracts(1);
+    }, 500);
+    return () => clearTimeout(timer);
+  }, [searchQuery]);
   const handleCreateMenuOpen = (event: React.MouseEvent<HTMLElement>) => setCreateAnchorEl(event.currentTarget);
   const handleCreateMenuClose = () => setCreateAnchorEl(null);
   const handleCreate = (type: 'import' | 'export') => {
     handleCreateMenuClose();
     navigate('/contracts/new', { state: { mode: type } });
+  };
+
+  const handleSort = (field: keyof ContractSummary) => {
+    setSortConfig(prev => ({
+      field,
+      direction: prev.field === field && prev.direction === 'asc' ? 'desc' : 'asc'
+    }));
   };
 
   // 2. Action Menu Handlers
@@ -416,6 +431,26 @@ const ContractList = () => {
                 }}
                 sx={{ width: { xs: '100%', md: 350 } }}
             />
+            
+            <TextField
+                select
+                size="small"
+                value={shippingTypeFilter}
+                onChange={(e) => setShippingTypeFilter(e.target.value)}
+                sx={{ 
+                    width: { xs: '100%', md: 150 },
+                    '& .MuiOutlinedInput-root': {
+                        borderRadius: '8px',
+                        bgcolor: palette.mode === 'light' ? '#f8f9fa' : alpha(palette.background.default, 0.5),
+                    }
+                }}
+            >
+                <MenuItem value="all">{t('All Types')}</MenuItem>
+                <MenuItem value="bulk">{t('contracts.bulk')}</MenuItem>
+                <MenuItem value="container">{t('contracts.container')}</MenuItem>
+                <MenuItem value="bags">{t('contracts.bags')}</MenuItem>
+            </TextField>
+
             <Button 
               variant="outlined" 
               startIcon={<FilterList />} 
@@ -443,13 +478,87 @@ const ContractList = () => {
         <Table>
             <TableHead sx={{ bgcolor: palette.mode === 'light' ? '#f8f9fa' : alpha(palette.background.default, 0.8) }}>
                 <TableRow>
-                    <TableCell sx={{ fontWeight: 600, color: 'text.secondary', fontSize: '0.75rem', textTransform: 'uppercase', borderBottom: `1px solid ${palette.divider}` }}>{t('Contract No')}</TableCell>
-                    <TableCell sx={{ fontWeight: 600, color: 'text.secondary', fontSize: '0.75rem', textTransform: 'uppercase', borderBottom: `1px solid ${palette.divider}` }}>{t('Type')}</TableCell>
-                    <TableCell sx={{ fontWeight: 600, color: 'text.secondary', fontSize: '0.75rem', textTransform: 'uppercase', borderBottom: `1px solid ${palette.divider}` }}>{t('Counterparty')}</TableCell>
-                    <TableCell sx={{ fontWeight: 600, color: 'text.secondary', fontSize: '0.75rem', textTransform: 'uppercase', borderBottom: `1px solid ${palette.divider}` }}>{t('Commodity')}</TableCell>
-                    <TableCell sx={{ fontWeight: 600, color: 'text.secondary', fontSize: '0.75rem', textTransform: 'uppercase', borderBottom: `1px solid ${palette.divider}` }}>{t('Value')}</TableCell>
-                    <TableCell sx={{ fontWeight: 600, color: 'text.secondary', fontSize: '0.75rem', textTransform: 'uppercase', borderBottom: `1px solid ${palette.divider}` }}>{t('Status')}</TableCell>
-                    <TableCell sx={{ fontWeight: 600, color: 'text.secondary', fontSize: '0.75rem', textTransform: 'uppercase', borderBottom: `1px solid ${palette.divider}` }}>{t('Progress')}</TableCell>
+                    <TableCell sx={{ fontWeight: 600, color: 'text.secondary', fontSize: '0.75rem', textTransform: 'uppercase', borderBottom: `1px solid ${palette.divider}` }}>
+                      <TableSortLabel
+                        active={sortConfig.field === 'serial_number'}
+                        direction={sortConfig.field === 'serial_number' ? sortConfig.direction : 'asc'}
+                        onClick={() => handleSort('serial_number')}
+                      >
+                        {t('contracts.serial_number')}
+                      </TableSortLabel>
+                    </TableCell>
+                    <TableCell sx={{ fontWeight: 600, color: 'text.secondary', fontSize: '0.75rem', textTransform: 'uppercase', borderBottom: `1px solid ${palette.divider}` }}>
+                      <TableSortLabel
+                        active={sortConfig.field === 'no'}
+                        direction={sortConfig.field === 'no' ? sortConfig.direction : 'asc'}
+                        onClick={() => handleSort('no')}
+                      >
+                        {t('Contract No')}
+                      </TableSortLabel>
+                    </TableCell>
+                    <TableCell sx={{ fontWeight: 600, color: 'text.secondary', fontSize: '0.75rem', textTransform: 'uppercase', borderBottom: `1px solid ${palette.divider}` }}>
+                      <TableSortLabel
+                        active={sortConfig.field === 'type'}
+                        direction={sortConfig.field === 'type' ? sortConfig.direction : 'asc'}
+                        onClick={() => handleSort('type')}
+                      >
+                        {t('Type')}
+                      </TableSortLabel>
+                    </TableCell>
+                    <TableCell sx={{ fontWeight: 600, color: 'text.secondary', fontSize: '0.75rem', textTransform: 'uppercase', borderBottom: `1px solid ${palette.divider}` }}>
+                        <TableSortLabel
+                            active={sortConfig.field === 'shipping_type'}
+                            direction={sortConfig.field === 'shipping_type' ? sortConfig.direction : 'asc'}
+                            onClick={() => handleSort('shipping_type' as any)}
+                        >
+                            {t('contracts.shipping_type')}
+                        </TableSortLabel>
+                    </TableCell>
+                    <TableCell sx={{ fontWeight: 600, color: 'text.secondary', fontSize: '0.75rem', textTransform: 'uppercase', borderBottom: `1px solid ${palette.divider}` }}>
+                      <TableSortLabel
+                        active={sortConfig.field === 'client'}
+                        direction={sortConfig.field === 'client' ? sortConfig.direction : 'asc'}
+                        onClick={() => handleSort('client')}
+                      >
+                        {t('Counterparty')}
+                      </TableSortLabel>
+                    </TableCell>
+                    <TableCell sx={{ fontWeight: 600, color: 'text.secondary', fontSize: '0.75rem', textTransform: 'uppercase', borderBottom: `1px solid ${palette.divider}` }}>
+                      <TableSortLabel
+                        active={sortConfig.field === 'commodity'}
+                        direction={sortConfig.field === 'commodity' ? sortConfig.direction : 'asc'}
+                        onClick={() => handleSort('commodity')}
+                      >
+                        {t('Commodity')}
+                      </TableSortLabel>
+                    </TableCell>
+                    <TableCell sx={{ fontWeight: 600, color: 'text.secondary', fontSize: '0.75rem', textTransform: 'uppercase', borderBottom: `1px solid ${palette.divider}` }}>
+                      <TableSortLabel
+                        active={sortConfig.field === 'value'}
+                        direction={sortConfig.field === 'value' ? sortConfig.direction : 'asc'}
+                        onClick={() => handleSort('value')}
+                      >
+                        {t('Value')}
+                      </TableSortLabel>
+                    </TableCell>
+                    <TableCell sx={{ fontWeight: 600, color: 'text.secondary', fontSize: '0.75rem', textTransform: 'uppercase', borderBottom: `1px solid ${palette.divider}` }}>
+                      <TableSortLabel
+                        active={sortConfig.field === 'status'}
+                        direction={sortConfig.field === 'status' ? sortConfig.direction : 'asc'}
+                        onClick={() => handleSort('status')}
+                      >
+                        {t('Status')}
+                      </TableSortLabel>
+                    </TableCell>
+                    <TableCell sx={{ fontWeight: 600, color: 'text.secondary', fontSize: '0.75rem', textTransform: 'uppercase', borderBottom: `1px solid ${palette.divider}` }}>
+                      <TableSortLabel
+                        active={sortConfig.field === 'progress'}
+                        direction={sortConfig.field === 'progress' ? sortConfig.direction : 'asc'}
+                        onClick={() => handleSort('progress')}
+                      >
+                        {t('Progress')}
+                      </TableSortLabel>
+                    </TableCell>
                     <TableCell sx={{ borderBottom: `1px solid ${palette.divider}` }}></TableCell>
                 </TableRow>
             </TableHead>
@@ -498,6 +607,9 @@ const ContractList = () => {
                               }
                             }}
                         >
+                            <TableCell sx={{ fontWeight: 600, color: 'text.secondary', fontSize: '0.875rem', borderBottom: `1px solid ${palette.divider}` }}>
+                                {row.serial_number || '-'}
+                            </TableCell>
                             <TableCell sx={{ fontWeight: 700, color: palette.gradients.primary.main, fontSize: '0.875rem', borderBottom: `1px solid ${palette.divider}` }}>
                                 {row.no}
                             </TableCell>
@@ -516,6 +628,22 @@ const ContractList = () => {
                                         '& .MuiChip-icon': { color: 'inherit' }
                                     }} 
                                 />
+                            </TableCell>
+                            <TableCell sx={{ borderBottom: `1px solid ${palette.divider}` }}>
+                                {row.shipping_type && (
+                                    <Chip 
+                                        label={t(`contracts.${row.shipping_type}`)} 
+                                        size="small" 
+                                        variant="outlined"
+                                        sx={{ 
+                                            borderRadius: '6px',
+                                            height: 20,
+                                            fontSize: '0.65rem',
+                                            fontWeight: 600,
+                                            textTransform: 'capitalize'
+                                        }} 
+                                    />
+                                )}
                             </TableCell>
                             <TableCell sx={{ fontWeight: 600, fontSize: '0.875rem', borderBottom: `1px solid ${palette.divider}` }}>{row.client}</TableCell>
                             <TableCell sx={{ borderBottom: `1px solid ${palette.divider}` }}>

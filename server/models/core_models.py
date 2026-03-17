@@ -133,6 +133,8 @@ class Contract(Base):
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     contract_no = Column(String(255), unique=True)
+    serial_number = Column(Integer, unique=True, nullable=True) # الرقم التسلسلي
+    shipping_type = Column(String(20), nullable=True) # bulk or container
     
     # Contract direction (Export/Import) - uses String for simplicity
     direction = Column(String(20), default="export")

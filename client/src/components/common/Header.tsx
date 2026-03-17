@@ -2,7 +2,7 @@ import React, { useState, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
 import { AppBar, Toolbar, IconButton, Box, Badge, InputBase, Tooltip, Avatar, Stack, Menu, MenuItem, Typography, Divider, ListItemIcon } from '@mui/material';
-import { Menu as MenuIcon, Search as SearchIcon, NotificationsNone, Language, DarkMode, LightMode, Settings, Logout } from '@mui/icons-material';
+import { Menu as MenuIcon, Search as SearchIcon, NotificationsNone, Language, DarkMode, LightMode, Settings, Logout, ChevronLeft, ChevronRight } from '@mui/icons-material';
 import { alpha, styled, useTheme } from '@mui/material/styles';
 import { useColorMode } from '../../context/ThemeContext';
 import { useAuth } from '../../context/AuthContext';
@@ -73,7 +73,7 @@ const StyledInputBase = styled(InputBase)(({ theme }) => ({
   } 
 }));
 
-const Header: React.FC<{ handleDrawerToggle: () => void }> = ({ handleDrawerToggle }) => {
+const Header: React.FC<{ handleDrawerToggle: () => void; sidebarCollapsed?: boolean; onSidebarToggle?: () => void }> = ({ handleDrawerToggle, sidebarCollapsed, onSidebarToggle }) => {
   const { t, i18n } = useTranslation();
   const theme = useTheme();
   const navigate = useNavigate();
@@ -157,6 +157,29 @@ const Header: React.FC<{ handleDrawerToggle: () => void }> = ({ handleDrawerTogg
         >
           <MenuIcon />
         </IconButton>
+
+        {/* Sidebar Toggle Button */}
+        {onSidebarToggle && (
+          <Tooltip title={sidebarCollapsed ? t('Show Sidebar') : t('Hide Sidebar')}>
+            <IconButton
+              onClick={onSidebarToggle}
+              size="small"
+              sx={{
+                marginInlineEnd: 1,
+                display: { xs: 'none', md: 'flex' },
+                color: mode === 'light' ? COLORS.dark : 'text.primary',
+                bgcolor: mode === 'light' ? alpha(COLORS.bg, 0.5) : 'transparent',
+                borderRadius: '8px',
+                '&:hover': { 
+                  bgcolor: alpha(COLORS.primary, 0.1),
+                  color: COLORS.primary
+                }
+              }}
+            >
+              {sidebarCollapsed ? <ChevronRight /> : <ChevronLeft />}
+            </IconButton>
+          </Tooltip>
+        )}
 
         <Box sx={{ display: { xs: 'none', sm: 'block' } }}>
           <SearchBox>

@@ -34,18 +34,23 @@ export const usePresence = (contractId: string | undefined, userName: string | u
         heartbeatIntervalRef.current = null;
       }
 
-      const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-      const host = window.location.host;
-      let wsUrl: string;
-      const apiBaseUrl = import.meta.env.VITE_API_URL || '';
-      
-      if (import.meta.env.DEV) {
-        wsUrl = `ws://${window.location.hostname}:8000/ws`;
-      } else if (apiBaseUrl.startsWith('http')) {
-        wsUrl = apiBaseUrl.replace(/^http/, 'ws').replace(/\/api\/?$/, '/ws');
-      } else {
-        wsUrl = `${protocol}//${host}/ws`;
-      }
+  const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+  const host = window.location.host;
+  let wsUrl: string;
+  const apiBaseUrl = import.meta.env.VITE_API_URL || '';
+  
+  // Use consistent WebSocket URL logic across all environments
+  if (apiBaseUrl.startsWith('http')) {
+    // If API_URL is a full URL (e.g. http://10.0.0.10:8000/api)
+    // Convert http(s) to ws(s) and replace /api with /ws
+    wsUrl = apiBaseUrl.replace(/^http/, 'ws').replace(/\/api\/?$/, '/ws');
+  } else if (import.meta.env.DEV) {
+    // In dev mode, use the same host as API
+    wsUrl = `${protocol}//${window.location.hostname}:8000/ws`;
+  } else {
+    // In production, use relative path for proxy/Nginx
+    wsUrl = `${protocol}//${host}/ws`;
+  }
 
       console.log(`🔌 Presence WebSocket connecting to: ${wsUrl}`);
       const socket = new WebSocket(wsUrl);

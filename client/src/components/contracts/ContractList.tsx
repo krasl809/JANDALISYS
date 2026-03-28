@@ -1,36 +1,51 @@
-import React, { useState, useMemo, useEffect } from 'react';
+import { useMemo, useState, useEffect, cloneElement, ReactElement, MouseEvent } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import api, { validateContractAccess } from '../../services/api';
 import {
   Box, Container, Typography, Tabs, Tab, Button, Card,
   Table, TableBody, TableCell, TableContainer, TableHead, TableRow, TableSortLabel,
-  Chip, InputAdornment, TextField, IconButton, Stack, LinearProgress,
+  Chip, TextField, IconButton, Stack, LinearProgress,
   Menu, MenuItem, ListItemIcon, ListItemText, Badge, Divider, Collapse,
-  Grid, Paper, Avatar
+  Grid, Paper, Avatar, InputAdornment
 } from '@mui/material';
 import Grid2 from '@mui/material/Grid2';
-import { 
-  Add, Search, FilterList, MoreVert, ArrowUpward, ArrowDownward, 
+import {
+  Add, Search, FilterList, ArrowUpward, ArrowDownward,
   KeyboardArrowDown, Edit, Visibility, DeleteOutline, ContentCopy, Timeline,
-  ChevronLeft, ChevronRight, List as ListIcon,
-  AttachMoney, Assignment, LocalShipping, Warning, CheckCircle
+  AttachMoney, Assignment, LocalShipping, Warning, CheckCircle,
+  ChevronLeft, ChevronRight, MoreVert
 } from '@mui/icons-material';
 import { alpha, useTheme } from '@mui/material/styles';
 import { useTranslation } from 'react-i18next';
 import { useConfirm } from '../../context/ConfirmContext';
-import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip as RechartsTooltip, Legend, BarChart, Bar, XAxis, YAxis, CartesianGrid } from 'recharts';
+import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip as RechartsTooltip, Legend } from 'recharts';
 
 import { ContractSummary } from '../../types/contracts';
 import ShipmentMap from './ShipmentMap';
 
 // --- KPI Card Component ---
-const KpiCard = ({ title, value, subtitle, icon, color, trend }: any) => {
+interface KpiCardProps {
+  title: string;
+  value: string | number;
+  subtitle?: string;
+  icon: ReactElement;
+  color: string;
+  trend?: 'up' | 'down';
+}
+
+const KpiCard = ({ title, value, subtitle, icon, color, trend }: KpiCardProps) => {
   const theme = useTheme();
   return (
     <Card sx={{ height: '100%', p: 2.5, position: 'relative', overflow: 'hidden', boxShadow: theme.shadows[2] }}>
       <Box sx={{ position: 'absolute', top: -10, right: -10, opacity: 0.1, transform: 'rotate(15deg)' }}>
-        {React.cloneElement(icon, { sx: { fontSize: 100, color: color } })}
+        {cloneElement(icon, {
+          sx: {
+            fontSize: 100,
+            color: color,
+            ...(icon.props.sx || {})
+          }
+        })}
       </Box>
       <Stack spacing={1}>
         <Box display="flex" alignItems="center" gap={1.5}>
@@ -59,15 +74,15 @@ const KpiCard = ({ title, value, subtitle, icon, color, trend }: any) => {
 const ContractList = () => {
   const navigate = useNavigate();
   const theme = useTheme();
-  const { palette, boxShadows }: any = theme;
+  const { palette, boxShadows } = theme as any;
   const { t } = useTranslation();
-  const { confirm, alert } = useConfirm();
-  const { hasPermission } = useAuth();
+  const { confirm } = useConfirm();
+  const { user, hasPermission } = useAuth();
   
   // --- States ---
-  const [currentTab, setCurrentTab] = useState(0);
-  const [searchQuery, setSearchQuery] = useState('');
-  const [shippingTypeFilter, setShippingTypeFilter] = useState<string>('all');
+   const [currentTab, setCurrentTab] = useState(0);
+   const [searchQuery, setSearchQuery] = useState('');
+   const [shippingTypeFilter, setShippingTypeFilter] = useState('all');
   const [sortConfig, setSortConfig] = useState<{ field: keyof ContractSummary, direction: 'asc' | 'desc' }>({ field: 'serial_number', direction: 'asc' });
   
   // New Contract Menu State (Drop down for Import/Export)
@@ -104,28 +119,36 @@ const ContractList = () => {
       
       const response = await api.get(url);
       
-      const contractsData: ContractSummary[] = response.data.contracts.map((contract: any) => ({
-        id: contract.id,
-        no: contract.contract_no || 'N/A',
-        serial_number: contract.serial_number,
-        shipping_type: contract.shipping_type,
-        type: contract.direction === 'import' ? 'Import' : 'Export',
-        client: 'Pending Assignment',
-        commodity: contract.items?.[0]?.article_name || 'Multiple Items',
-        qty: contract.items?.[0]?.qty_ton || 0,
-        value: 0,
-        status: contract.status === 'draft' ? 'Draft' :
-                contract.status === 'posted' || contract.status === 'confirmed' ? 'Active' :
-                contract.status === 'completed' || contract.status === 'executed' ? 'Completed' : 'Pending',
-        progress: contract.status === 'completed' || contract.status === 'executed' ? 100 :
-                  contract.status === 'posted' || contract.status === 'confirmed' ? 50 : 0
-      }));
+        const contractsData: ContractSummary[] = response.data.contracts.map((contract: Record<string, unknown>) => {
+          const items = Array.isArray(contract.items) ? contract.items : [];
+          return {
+            id: contract.id,
+            no: contract.contract_no || 'N/A',
+            serial_number: contract.serial_number,
+            shipping_type: contract.shipping_type,
+            type: contract.direction === 'import' ? 'Import' : 'Export',
+            client: contract.direction === 'import' ?
+                    (contract as any).buyer?.contact_name || 'Unknown Buyer' :
+                    (contract as any).seller?.contact_name || 'Unknown Seller',
+            commodity: items.length > 0 ?
+                      (items.length === 1 ? items[0].article_name : 'Multiple Items') :
+                      'No Items',
+            qty: items.reduce((sum: number, item: any) => sum + (parseFloat(item.qty_ton) || 0), 0) || 0,
+            value: items.reduce((sum: number, item: any) => sum + (parseFloat(item.total) || 0), 0) || 0,
+            status: contract.status === 'draft' ? 'Draft' :
+                    contract.status === 'pending' || contract.status === 'active' || contract.status === 'posted' ? 'Active' :
+                    contract.status === 'completed' ? 'Completed' :
+                    contract.status === 'cancelled' ? 'Cancelled' : 'Pending',
+            progress: contract.status === 'completed' ? 100 :
+                      contract.status === 'pending' || contract.status === 'active' || contract.status === 'posted' ? 50 : 0
+          };
+        });
       
       setContracts(contractsData);
       setPagination(response.data.pagination);
     } catch (error: unknown) {
       console.error('Failed to fetch contracts:', error);
-      const apiError = error as { response?: { status?: number } };
+      const apiError = error as { response?: { status?: number }; message?: string };
       if (apiError.response?.status === 401) {
         setError('Authentication failed. Please log in again.');
       } else if (apiError.response?.status === 403) {
@@ -185,7 +208,7 @@ const ContractList = () => {
     }, 500);
     return () => clearTimeout(timer);
   }, [searchQuery]);
-  const handleCreateMenuOpen = (event: React.MouseEvent<HTMLElement>) => setCreateAnchorEl(event.currentTarget);
+  const handleCreateMenuOpen = (event: MouseEvent<HTMLElement>) => setCreateAnchorEl(event.currentTarget);
   const handleCreateMenuClose = () => setCreateAnchorEl(null);
   const handleCreate = (type: 'import' | 'export') => {
     handleCreateMenuClose();
@@ -200,7 +223,7 @@ const ContractList = () => {
   };
 
   // 2. Action Menu Handlers
-  const handleActionOpen = (event: React.MouseEvent<HTMLElement>, id: string) => {
+  const handleActionOpen = (event: MouseEvent<HTMLElement>, id: string) => {
     event.stopPropagation(); // Stop row click event
     setActionAnchorEl(event.currentTarget);
     setSelectedContractId(id);
@@ -227,10 +250,10 @@ const ContractList = () => {
         try {
           await api.delete(`contracts/${contract.id}`);
           setContracts(prev => prev.filter(c => c.id !== contract.id));
-        } catch (error: unknown) {
+        } catch (error) {
           console.error('Failed to delete contract:', error);
           const apiError = error as { response?: { data?: { detail?: string } }; message?: string };
-          alert(`Failed to delete contract: ${apiError.response?.data?.detail || apiError.message || 'Unknown error'}`, t('Error'), 'error');
+          console.error(`Failed to delete contract: ${apiError.response?.data?.detail || apiError.message || 'Unknown error'}`);
         }
       }
     }

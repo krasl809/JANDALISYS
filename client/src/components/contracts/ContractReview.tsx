@@ -45,7 +45,7 @@ const ContractReview: React.FC = () => {
   };
 
   const filteredContracts = useMemo(() => {
-    let result = contracts.filter(c => 
+    const result = contracts.filter(c => 
       c.contract_no.toLowerCase().includes(searchTerm.toLowerCase()) ||
       c.serial_number?.toString().includes(searchTerm) ||
       c.buyer_name?.toLowerCase().includes(searchTerm.toLowerCase())

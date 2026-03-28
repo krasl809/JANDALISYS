@@ -76,6 +76,17 @@ class Employee(Base):
     phone = Column(String(50))
     address = Column(Text)
     
+    # Manager Fields
+    direct_manager = Column(String(255))
+    facility_manager = Column(String(255))
+    central_manager = Column(String(255))
+    hr_manager = Column(String(255))
+    ceo = Column(String(255))
+    
+    # Leave Balance Fields
+    remaining_leave_balance = Column(Integer, default=0)
+    beginning_year_leave_balance = Column(Integer, default=0)
+    
     created_at = Column(DateTime, default=func.now())
     updated_at = Column(DateTime, default=func.now(), onupdate=func.now())
 

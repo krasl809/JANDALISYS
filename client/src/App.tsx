@@ -3,6 +3,7 @@ import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-d
 import * as Sentry from "@sentry/react";
 import { AppThemeProvider } from './context/ThemeContext';
 import { CircularProgress, Box } from '@mui/material';
+import ErrorBoundary from './components/common/ErrorBoundary';
 
 // Initialize Sentry
 const SENTRY_DSN = import.meta.env.VITE_SENTRY_DSN;
@@ -140,17 +141,17 @@ function App() {
               <Route path="/settings/agents" element={<AgentsList />} />
 
               {/* HR Module */}
-              <Route path="/hr" element={<ProtectedRoute><HrDashboard /></ProtectedRoute>} />
-              <Route path="/hr/leave" element={<ProtectedRoute><LeaveDashboard /></ProtectedRoute>} />
-              <Route path="/hr/leave/new" element={<ProtectedRoute><LeaveRequestForm /></ProtectedRoute>} />
-              <Route path="/hr/leave/:id" element={<ProtectedRoute><LeaveRequestForm /></ProtectedRoute>} />
-              <Route path="/hr/leave/settings" element={<ProtectedRoute><LeaveSettingsPage /></ProtectedRoute>} />
-              <Route path="/hr/leave/workflow-settings" element={<ProtectedRoute><ApprovalWorkflowSettings /></ProtectedRoute>} />
-              <Route path="/hr/leave/approvals" element={<ProtectedRoute><LeaveApprovalPage /></ProtectedRoute>} />
-              <Route path="/hr/attendance" element={<ProtectedRoute><AttendancePage /></ProtectedRoute>} />
+              <Route path="/hr" element={<ProtectedRoute><ErrorBoundary><HrDashboard /></ErrorBoundary></ProtectedRoute>} />
+              <Route path="/hr/leave" element={<ProtectedRoute><ErrorBoundary><LeaveDashboard /></ErrorBoundary></ProtectedRoute>} />
+              <Route path="/hr/leave/new" element={<ProtectedRoute><ErrorBoundary><LeaveRequestForm /></ErrorBoundary></ProtectedRoute>} />
+              <Route path="/hr/leave/:id" element={<ProtectedRoute><ErrorBoundary><LeaveRequestForm /></ErrorBoundary></ProtectedRoute>} />
+              <Route path="/hr/leave/settings" element={<ProtectedRoute><ErrorBoundary><LeaveSettingsPage /></ErrorBoundary></ProtectedRoute>} />
+              <Route path="/hr/leave/workflow-settings" element={<ProtectedRoute><ErrorBoundary><ApprovalWorkflowSettings /></ErrorBoundary></ProtectedRoute>} />
+              <Route path="/hr/leave/approvals" element={<ProtectedRoute><ErrorBoundary><LeaveApprovalPage /></ErrorBoundary></ProtectedRoute>} />
+              <Route path="/hr/attendance" element={<ProtectedRoute><ErrorBoundary><AttendancePage /></ErrorBoundary></ProtectedRoute>} />
 
-              <Route path="/hr/devices" element={<ProtectedRoute><DevicesPage /></ProtectedRoute>} />
-              <Route path="/hr/shifts" element={<ProtectedRoute><ShiftSettingsPage /></ProtectedRoute>} />
+              <Route path="/hr/devices" element={<ProtectedRoute><ErrorBoundary><DevicesPage /></ErrorBoundary></ProtectedRoute>} />
+              <Route path="/hr/shifts" element={<ProtectedRoute><ErrorBoundary><ShiftSettingsPage /></ErrorBoundary></ProtectedRoute>} />
 
               {/* Archive Module */}
               <Route path="/archive" element={<ProtectedRoute><ArchiveBrowser /></ProtectedRoute>} />

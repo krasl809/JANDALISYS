@@ -1,4 +1,5 @@
-import React, { useEffect, useState, useMemo, useCallback, lazy, Suspense } from 'react';
+import React, { useEffect, useState, useMemo, useCallback, lazy, Suspense, useRef } from 'react';
+import { useDebounce } from '../../hooks/useDebounce';
 import {
     Box, Typography, Paper, Chip, Button, Grid, Card,
     MenuItem, FormControl, InputLabel, Select, Divider,
@@ -21,6 +22,8 @@ import {
 import api from '../../services/api';
 import { useTranslation } from 'react-i18next';
 import { useConfirm } from '../../context/ConfirmContext';
+import { LRUCache, createCacheKey } from '../../utils/lruCache';
+import { getAttendanceColors, getAttendanceShadows, getAttendanceStatusColors } from '../../utils/attendanceTheme';
 
 const MonthView = lazy(() => import('./MonthView'));
 const TransactionsView = lazy(() => import('./TransactionsView'));
@@ -28,57 +31,6 @@ import { format, parseISO, startOfMonth, endOfMonth, isSameDay, isToday, differe
 import { AdapterDateFns } from '@mui/x-date-pickers/AdapterDateFns';
 import { LocalizationProvider, DatePicker } from '@mui/x-date-pickers';
 import { alpha, Theme } from '@mui/material/styles';
-
-// Material Dashboard 2 Pro Style Constants
-const getAttendanceColors = (theme: Theme) => {
-    const isDark = theme.palette.mode === 'dark';
-    return {
-        primary: theme.palette.primary.main,
-        secondary: theme.palette.text.secondary,
-        info: theme.palette.info.main,
-        success: theme.palette.success.main,
-        warning: theme.palette.warning.main,
-        error: theme.palette.error.main,
-        dark: theme.palette.text.primary,
-        light: theme.palette.background.default,
-        bg: theme.palette.background.default,
-        white: theme.palette.background.paper,
-        pureWhite: isDark ? theme.palette.background.paper : '#FFFFFF',
-        gradientPrimary: `linear-gradient(135deg, ${theme.palette.primary.main} 0%, ${theme.palette.primary.dark} 100%)`,
-        gradientSuccess: `linear-gradient(135deg, ${theme.palette.success.main} 0%, ${theme.palette.success.dark} 100%)`,
-        gradientInfo: `linear-gradient(135deg, ${theme.palette.info.main} 0%, ${theme.palette.info.dark} 100%)`,
-        gradientWarning: `linear-gradient(135deg, ${theme.palette.warning.main} 0%, ${theme.palette.warning.dark} 100%)`,
-        gradientError: `linear-gradient(135deg, ${theme.palette.error.main} 0%, ${theme.palette.error.dark} 100%)`,
-        gradientDark: isDark 
-            ? `linear-gradient(135deg, ${theme.palette.grey[800]} 0%, ${theme.palette.common.black} 100%)`
-            : `linear-gradient(135deg, #344767 0%, #192941 100%)`,
-    };
-};
-
-const getAttendanceShadows = (theme: Theme) => {
-    const isDark = theme.palette.mode === 'dark';
-    const shadowColor = isDark ? 'rgba(0, 0, 0, 0.5)' : 'rgba(50, 50, 93, 0.1)';
-    return {
-        xs: isDark ? '0 1px 3px rgba(0, 0, 0, 0.4)' : '0 1px 5px rgba(0, 0, 0, 0.05)',
-        sm: isDark ? '0 4px 6px rgba(0, 0, 0, 0.5)' : '0 3px 8px rgba(0, 0, 0, 0.08)',
-        md: isDark ? '0 8px 16px rgba(0, 0, 0, 0.6)' : `0 7px 14px ${shadowColor}`,
-        lg: isDark ? '0 12px 24px rgba(0, 0, 0, 0.7)' : `0 15px 35px ${shadowColor}`,
-    };
-};
-
-const getAttendanceStatusColors = (theme: Theme) => {
-    const colors = getAttendanceColors(theme);
-    return {
-        present: colors.success,
-        late: colors.warning,
-        earlyLeave: colors.info,
-        absent: colors.secondary,
-        holiday: alpha(colors.primary, 0.8),
-        ongoing: colors.primary,
-        overtime: alpha(colors.primary, 0.8),
-        partial: alpha(colors.warning, 0.8)
-    };
-};
 
 const round = (val: number, precision: number) => Math.round(val * Math.pow(10, precision)) / Math.pow(10, precision);
 
@@ -132,35 +84,80 @@ const useAttendanceData = (filters: any) => {
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
     const [lastFetchTime, setLastFetchTime] = useState<number>(0);
-    const [cache, setCache] = useState<Map<string, { data: any; timestamp: number }>>(new Map());
+    const [page, setPage] = useState(0);
+    const [pageSize, setPageSize] = useState(50);
+    const [totalCount, setTotalCount] = useState(0);
+    
+    // LRU Cache with max 50 entries and 45 second TTL
+    const cacheRef = useRef<LRUCache<any>>(new LRUCache(50, 45000));
+    const abortControllerRef = useRef<AbortController | null>(null);
+    const lastFetchTimeRef = useRef<number>(0);
+    const isInitialMount = useRef(true);
+    const isFetchingRef = useRef(false);
 
     const { alert: showAlert } = useConfirm();
     const { t } = useTranslation();
 
-    // Generate cache key from filters
-    const getCacheKey = (f: any) => {
-        return `${f.viewMode}-${f.currentMonth}-${f.startDate}-${f.endDate}-${f.selectedEmployee}-${f.selectedDepartment}-${f.selectedStatus}-${f.selectedShift}-${f.debouncedSearch}-${f.rawView}`;
-    };
+    // Generate cache key from filters using utility function - memoized to prevent unnecessary re-renders
+    const getCacheKey = useCallback((f: any) => {
+        return createCacheKey({
+            viewMode: f.viewMode,
+            currentMonth: f.currentMonth,
+            startDate: f.startDate,
+            endDate: f.endDate,
+            selectedEmployee: f.selectedEmployee,
+            selectedDepartment: f.selectedDepartment,
+            selectedStatus: f.selectedStatus,
+            selectedShift: f.selectedShift,
+            debouncedSearch: f.debouncedSearch,
+            rawView: f.rawView
+        });
+    }, []);
 
-    const fetchLogs = useCallback(async (silent = false) => {
+    const fetchLogs = useCallback(async (silent = false, retryCount = 0) => {
+        // Prevent multiple simultaneous calls
+        if (isFetchingRef.current && retryCount === 0) {
+            console.warn('Fetch already in progress, skipping...');
+            return;
+        }
+        
+        // Cancel any previous request
+        if (abortControllerRef.current) {
+            abortControllerRef.current.abort();
+        }
+        abortControllerRef.current = new AbortController();
+        
+        isFetchingRef.current = true;
         if (!silent) setLoading(true);
         setError(null);
         
         // Check cache first (cache 45s to reduce server load)
         const cacheKey = getCacheKey(filters);
-        const cached = cache.get(cacheKey);
-        const now = Date.now();
-        const CACHE_TTL_MS = 45000;
-        if (cached && (now - cached.timestamp) < CACHE_TTL_MS) {
+        const cached = cacheRef.current.get(cacheKey);
+        if (cached) {
+            isFetchingRef.current = false;
             if (filters.viewMode === 'transactions') {
-                setTransactions(cached.data);
-                setTotalTransactions(cached.data.length);
+                setTransactions(cached);
+                setTotalTransactions(cached.length);
             } else {
-                setRows(cached.data);
+                setRows(cached);
             }
             if (!silent) setLoading(false);
             return;
         }
+        
+        // Rate limiting: prevent multiple simultaneous calls
+        const now = Date.now();
+        const lastFetch = lastFetchTimeRef.current || 0;
+        const minInterval = 1000; // Minimum 1 second between requests
+        
+        if (now - lastFetch < minInterval && retryCount === 0) {
+            console.warn('Rate limiting: Too many requests, delaying...');
+            setTimeout(() => fetchLogs(silent, 0), minInterval - (now - lastFetch));
+            return;
+        }
+        
+        lastFetchTimeRef.current = now;
         
         // If in transactions view, fetch raw transactions (paginated for performance)
         if (filters.viewMode === 'transactions') {
@@ -177,12 +174,13 @@ const useAttendanceData = (filters: any) => {
                 params.append('limit', '5000');
                 params.append('offset', '0');
 
-                const res = await api.get(`hr/attendance?${params}`);
+                const res = await api.get(`hr/attendance?${params}`, { signal: abortControllerRef.current.signal });
                 const data = res.data || [];
                 setTransactions(data);
                 setTotalTransactions(data.length);
-                setCache(prev => new Map(prev).set(cacheKey, { data, timestamp: now }));
+                cacheRef.current.set(cacheKey, data);
             } catch (error: any) {
+                if (error.name === 'AbortError') return;
                 console.error('Error fetching transactions:', error);
             } finally {
                 if (!silent) setLoading(false);
@@ -200,7 +198,7 @@ const useAttendanceData = (filters: any) => {
                 const startStr = format(monthStart, 'yyyy-MM-dd');
                 const endStr = format(monthEnd, 'yyyy-MM-dd');
                 const dept = filters.selectedDepartment ? `&department=${encodeURIComponent(filters.selectedDepartment)}` : '';
-                const res = await api.get(`hr/attendance/processed?start_date=${startStr}&end_date=${endStr}${dept}`);
+                const res = await api.get(`hr/attendance/processed?start_date=${startStr}&end_date=${endStr}${dept}`, { signal: abortControllerRef.current.signal });
                 const processed = res.data || [];
                 const mapped: AttendanceRecord[] = processed.map((r: any) => ({
                     id: String(r.id),
@@ -220,15 +218,16 @@ const useAttendanceData = (filters: any) => {
                     adjustment_reason: r.adjustment_reason
                 }));
                 setRows(mapped);
-                setCache(prev => new Map(prev).set(cacheKey, { data: mapped, timestamp: now }));
+                cacheRef.current.set(cacheKey, mapped);
                 if (!silent) setLoading(false);
                 return;
-            } catch (_) {
+            } catch (error: any) {
+                if (error.name === 'AbortError') return;
                 // Fall back to full attendance API
             }
         }
 
-        // Normal attendance data fetch (with server-side limit for stability)
+        // Normal attendance data fetch (with server-side pagination for performance)
         try {
             const params = new URLSearchParams();
             if (!filters.debouncedSearch) {
@@ -248,23 +247,50 @@ const useAttendanceData = (filters: any) => {
             if (filters.selectedShift) params.append('shift', filters.selectedShift);
             if (filters.debouncedSearch) params.append('search', filters.debouncedSearch);
             if (filters.rawView) params.append('raw', 'true');
-            params.append('limit', '20000');
+            
+            // Proper pagination with limit/offset
+            params.append('limit', String(pageSize));
+            params.append('offset', String(page * pageSize));
 
-            const res = await api.get(`hr/attendance?${params}`);
-            setRows(res.data as AttendanceRecord[]);
-            setCache(prev => new Map(prev).set(cacheKey, { data: res.data, timestamp: now }));
+            const res = await api.get(`hr/attendance?${params}`, { signal: abortControllerRef.current.signal });
+            const data = res.data;
+            setRows(data.items || data);
+            setTotalCount(data.total || data.length);
+            cacheRef.current.set(cacheKey, data);
         } catch (error: any) {
+            if (error.name === 'AbortError') return;
+            
+            // Handle 429 (Too Many Requests) with exponential backoff
+            if (error?.response?.status === 429 && retryCount < 3) {
+                const delay = Math.pow(2, retryCount) * 1000; // 1s, 2s, 4s
+                console.warn(`Rate limited on attendance fetch. Retrying in ${delay}ms...`);
+                setTimeout(() => fetchLogs(silent, retryCount + 1), delay);
+                return;
+            }
+            
             console.error('Error fetching attendance:', error);
             const errorMessage = error.response?.data?.detail || error.message || 'فشل في تحميل بيانات الحضور';
             setError(errorMessage);
             if (!silent) showAlert(`فشل في تحميل بيانات الحضور: ${errorMessage}`, t('Error'), 'error');
         } finally {
+            isFetchingRef.current = false;
             if (!silent) setLoading(false);
         }
-    }, [filters.viewMode, filters.currentMonth, filters.startDate, filters.endDate, filters.selectedEmployee, filters.selectedDepartment, filters.debouncedSearch, filters.rawView, filters.selectedStatus, filters.selectedShift, showAlert, t, cache, getCacheKey]);
+    }, [filters.viewMode, filters.currentMonth, filters.startDate, filters.endDate, filters.selectedEmployee, filters.selectedDepartment, filters.debouncedSearch, filters.rawView, filters.selectedStatus, filters.selectedShift, showAlert, t, getCacheKey, page, pageSize]);
 
     useEffect(() => {
-        fetchLogs();
+        // Only fetch on initial mount or when fetchLogs function reference changes
+        // This prevents infinite loops from rapid filter changes
+        if (isInitialMount.current) {
+            isInitialMount.current = false;
+            fetchLogs();
+        } else {
+            // For subsequent changes, use a debounce to prevent rapid successive calls
+            const timeoutId = setTimeout(() => {
+                fetchLogs();
+            }, 100);
+            return () => clearTimeout(timeoutId);
+        }
     }, [fetchLogs]);
 
     // Clear cache when filters change significantly
@@ -272,7 +298,20 @@ const useAttendanceData = (filters: any) => {
         // Keep cache but update on next fetch
     }, [filters.viewMode, filters.currentMonth, filters.selectedEmployee, filters.selectedDepartment]);
 
-    return { rows, transactions, totalTransactions, loading, error, refetch: fetchLogs, clearCache: () => setCache(new Map()) };
+    return {
+        rows,
+        transactions,
+        totalTransactions,
+        loading,
+        error,
+        refetch: fetchLogs,
+        clearCache: () => cacheRef.current.clear(),
+        page,
+        pageSize,
+        totalCount,
+        setPage,
+        setPageSize
+    };
 };
 
 const useAttendanceFilters = () => {
@@ -288,15 +327,7 @@ const useAttendanceFilters = () => {
     const [currentMonth, setCurrentMonth] = useState(new Date());
     
     // Debounced search value for performance
-    const [debouncedSearch, setDebouncedSearch] = useState('');
-    
-    // Debounce search - wait 300ms after typing stops
-    useEffect(() => {
-        const timer = setTimeout(() => {
-            setDebouncedSearch(search);
-        }, 300);
-        return () => clearTimeout(timer);
-    }, [search]);
+    const debouncedSearch = useDebounce(search, 300);
 
     const handleDateChange = useCallback((newDate: Date) => {
         if (!startDate) {
@@ -334,7 +365,7 @@ const useAttendanceFilters = () => {
         setSelectedStatus('');
         setSelectedShift('');
         setSearch('');
-        setDebouncedSearch('');
+        // debouncedSearch will automatically update via useDebounce hook
     }, []);
 
     return {
@@ -375,11 +406,18 @@ const RecentActivitySidebar = () => {
     const [recentLogs, setRecentLogs] = useState<any[]>([]);
     const [loading, setLoading] = useState(true);
 
-    const fetchRecentActivity = useCallback(async () => {
+    const fetchRecentActivity = useCallback(async (retryCount = 0) => {
         try {
             const res = await api.get('hr/recent-activity');
             setRecentLogs(res.data);
-        } catch (error) {
+        } catch (error: any) {
+            // Handle 429 (Too Many Requests) with exponential backoff
+            if (error?.response?.status === 429 && retryCount < 3) {
+                const delay = Math.pow(2, retryCount) * 1000; // 1s, 2s, 4s
+                console.warn(`Rate limited on recent activity. Retrying in ${delay}ms...`);
+                setTimeout(() => fetchRecentActivity(retryCount + 1), delay);
+                return;
+            }
             console.error('Failed to fetch recent activity:', error);
         } finally {
             setLoading(false);
@@ -388,7 +426,7 @@ const RecentActivitySidebar = () => {
 
     useEffect(() => {
         fetchRecentActivity();
-        const interval = setInterval(fetchRecentActivity, 60000); // Update every 60 seconds
+        const interval = setInterval(() => fetchRecentActivity(), 120000); // Update every 2 minutes (reduced from 60 seconds)
         return () => clearInterval(interval);
     }, [fetchRecentActivity]);
 
@@ -536,21 +574,43 @@ const DeviceStatusWidget = () => {
     const shadows = getAttendanceShadows(theme);
     const [devices, setDevices] = useState<any[]>([]);
     const [loading, setLoading] = useState(true);
+    const fetchDevicesRef = useRef<boolean>(false);
+    const retryCountRef = useRef<number>(0);
+    const maxRetries = 3;
 
-    const fetchDevices = async () => {
+    const fetchDevices = async (retryCount = 0) => {
+        // Prevent multiple simultaneous calls
+        if (fetchDevicesRef.current) return;
+        
         try {
+            fetchDevicesRef.current = true;
             const res = await api.get('hr/devices');
             setDevices(res.data);
-        } catch (error) {
+            retryCountRef.current = 0; // Reset retry count on success
+        } catch (error: any) {
+            // Handle 429 (Too Many Requests) with exponential backoff
+            if (error?.response?.status === 429 && retryCount < maxRetries) {
+                const delay = Math.pow(2, retryCount) * 1000; // 1s, 2s, 4s
+                console.warn(`Rate limited. Retrying in ${delay}ms...`);
+                setTimeout(() => {
+                    fetchDevicesRef.current = false;
+                    fetchDevices(retryCount + 1);
+                }, delay);
+                return;
+            }
             console.error('Failed to fetch devices:', error);
         } finally {
+            fetchDevicesRef.current = false;
             setLoading(false);
         }
     };
 
     useEffect(() => {
-        fetchDevices();
-        const interval = setInterval(fetchDevices, 120000); // Update every 2 minutes
+        // Only fetch once on mount
+        if (!fetchDevicesRef.current) {
+            fetchDevices();
+        }
+        const interval = setInterval(() => fetchDevices(), 300000); // Update every 5 minutes (reduced from 2 minutes)
         return () => clearInterval(interval);
     }, []);
 
@@ -868,18 +928,28 @@ const AttendanceMoreActions = React.memo(({
         handleClose();
     };
 
-    const handleExport = () => {
+    const handleExport = async () => {
         if (!rows || rows.length === 0) return;
 
         // Add BOM for Excel UTF-8 support (Arabic characters)
         const BOM = '\uFEFF';
-        const headers = filters.rawView 
+        const headers = filters.rawView
             ? [t('ID'), t('Employee ID'), t('Name'), t('Timestamp'), t('Type'), t('Status'), t('Device')]
             : [t('Employee ID'), t('Name'), t('Date'), t('Check In'), t('Check Out'), t('Work Hours'), t('Status')];
 
-        const csvContent = [
-            headers.join(','),
-            ...rows.map(row => {
+        // Use streaming export for large datasets to avoid memory issues
+        const CHUNK_SIZE = 1000;
+        const totalChunks = Math.ceil(rows.length / CHUNK_SIZE);
+        
+        // Create a writable stream using Blob and URL.createObjectURL
+        const chunks: string[] = [BOM + headers.join(',') + '\n'];
+        
+        for (let i = 0; i < totalChunks; i++) {
+            const start = i * CHUNK_SIZE;
+            const end = Math.min(start + CHUNK_SIZE, rows.length);
+            const chunk = rows.slice(start, end);
+            
+            const csvChunk = chunk.map(row => {
                 if (filters.rawView) {
                     return [
                         row.id,
@@ -901,10 +971,17 @@ const AttendanceMoreActions = React.memo(({
                         row.status
                     ].join(',');
                 }
-            })
-        ].join('\n');
+            }).join('\n');
+            
+            chunks.push(csvChunk);
+            
+            // Yield to main thread every chunk to prevent UI blocking
+            if (i < totalChunks - 1) {
+                await new Promise(resolve => setTimeout(resolve, 0));
+            }
+        }
 
-        const blob = new Blob([BOM + csvContent], { type: 'text/csv;charset=utf-8;' });
+        const blob = new Blob(chunks, { type: 'text/csv;charset=utf-8;' });
         const link = document.createElement('a');
         const url = URL.createObjectURL(blob);
         link.setAttribute('href', url);
@@ -913,6 +990,7 @@ const AttendanceMoreActions = React.memo(({
         document.body.appendChild(link);
         link.click();
         document.body.removeChild(link);
+        URL.revokeObjectURL(url);
         handleClose();
     };
 

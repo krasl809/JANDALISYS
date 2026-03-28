@@ -32,11 +32,13 @@ class TestPasswordHashing:
         assert verify_password("WrongPassword", hashed) is False
     
     def test_password_minimum_length(self):
-        """Test that short passwords are rejected"""
-        with pytest.raises(Exception) as exc_info:
-            get_password_hash("short")
-        
-        assert "8 characters" in str(exc_info.value) or "Password" in str(exc_info.value)
+        """Test that short passwords are now accepted (no minimum length requirement)"""
+        # Short passwords should now be accepted
+        hashed = get_password_hash("short")
+        assert hashed is not None
+        assert len(hashed) > 0
+        # Verify the short password works
+        assert verify_password("short", hashed) is True
     
     def test_password_truncation(self):
         """Test that very long passwords are handled correctly (bcrypt 72 byte limit)"""

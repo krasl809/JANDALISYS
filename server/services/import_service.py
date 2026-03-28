@@ -21,7 +21,14 @@ class EmployeeImportService:
             "department": ["department", "dept", "division", "unit", "القسم", "الادارة", "الوحدة", "الدائرة"],
             "position": ["position", "job title", "designation", "role", "المنصب", "المسمى الوظيفي", "الوظيفة"],
             "joining_date": ["joining date", "join date", "hire date", "started at", "تاريخ الانضمام", "تاريخ التعيين", "تاريخ المباشرة", "تاريخ التوظيف"],
-            "company": ["company", "organization", "firm", "الشركة", "اسم الشركة", "المنشأة"]
+            "company": ["company", "organization", "firm", "الشركة", "اسم الشركة", "المنشأة"],
+            "direct_manager": ["direct manager", "manager", "supervisor", "المسؤول المباشر", "المدير المباشر", "المشرف"],
+            "facility_manager": ["facility manager", "site manager", "مدير المنشأة", "مدير الموقع"],
+            "central_manager": ["central manager", "department manager", "المدير المركزي", "مدير القسم"],
+            "hr_manager": ["hr manager", "human resources manager", "مدير الموارد البشرية", "مدير شؤون الموظفين"],
+            "ceo": ["ceo", "chief executive officer", "المدير التنفيذي", "الرئيس التنفيذي"],
+            "remaining_leave_balance": ["remaining leave", "leave balance", "رصيد الإجازات المتبقي", "الإجازات المتبقية"],
+            "beginning_year_leave_balance": ["beginning leave", "year start leave", "رصيد الإجازات أول السنة", "إجازات بداية السنة"]
         }
 
     async def analyze_file(self, file: UploadFile):
@@ -84,6 +91,7 @@ class EmployeeImportService:
         - Update vs Create Logic
         - Transaction Safety
         - Detailed Error Report
+        - Auto-create User accounts with employee code as username/password
         """
         results = {
             "created": 0,
@@ -93,12 +101,14 @@ class EmployeeImportService:
         }
         
         mappings = options.get("mappings", {})
-        # Mappings should be { "db_field": "excel_col_index" } 
+        # Mappings should be { "db_field": "excel_col_index" }
         
         skip_duplicates = options.get("skipDuplicates", True)
         update_existing = options.get("updateExisting", False) # New option
-        create_users = options.get("createUsers", False) 
+        create_users = options.get("createUsers", True)  # Changed default to True
         auto_create_dept = options.get("autoCreateDepartments", True) # New option
+        use_employee_code_as_password = options.get("useEmployeeCodeAsPassword", True)  # Use employee code as password
+        force_password_change = options.get("forcePasswordChange", True)  # Force password change on first login
         
         # Cache for Master Data to reduce DB hits
         dept_cache = {d.name.lower(): d.id for d in self.db.query(department_models.Department).all()}
@@ -144,19 +154,45 @@ class EmployeeImportService:
                         results["skipped"] += 1
                         continue
                     
-                    # Update Logic
-                    existing_emp.first_name = emp_data["first_name"]
-                    existing_emp.last_name = emp_data.get("last_name", "")
-                    existing_emp.full_name = f"{emp_data['first_name']} {emp_data.get('last_name', '')}".strip()
-                    existing_emp.position = emp_data.get("position")
-                    existing_emp.department_name = emp_data.get("department") # Cache name
-                    existing_emp.company = emp_data.get("company") # Update company
-                    if dept_id: existing_emp.department_id = dept_id
-                    
+                    # Update Logic - Only update non-empty fields
+                    if emp_data.get("first_name"):
+                        existing_emp.first_name = emp_data["first_name"]
+                    if emp_data.get("last_name"):
+                        existing_emp.last_name = emp_data["last_name"]
+                    if emp_data.get("first_name") or emp_data.get("last_name"):
+                        existing_emp.full_name = f"{emp_data.get('first_name', existing_emp.first_name)} {emp_data.get('last_name', existing_emp.last_name)}".strip()
+                    if emp_data.get("position"):
+                        existing_emp.position = emp_data["position"]
+                    if emp_data.get("department"):
+                        existing_emp.department_name = emp_data["department"]
+                    if emp_data.get("company"):
+                        existing_emp.company = emp_data["company"]
+                    if dept_id:
+                        existing_emp.department_id = dept_id
+                    if emp_data.get("work_email"):
+                        existing_emp.work_email = emp_data["work_email"]
+                    if emp_data.get("phone"):
+                        existing_emp.phone = emp_data["phone"]
                     if emp_data.get("joining_date"):
                         existing_emp.joining_date = emp_data["joining_date"]
+                    # New fields for managers
+                    if emp_data.get("direct_manager"):
+                        existing_emp.direct_manager = emp_data["direct_manager"]
+                    if emp_data.get("facility_manager"):
+                        existing_emp.facility_manager = emp_data["facility_manager"]
+                    if emp_data.get("central_manager"):
+                        existing_emp.central_manager = emp_data["central_manager"]
+                    if emp_data.get("hr_manager"):
+                        existing_emp.hr_manager = emp_data["hr_manager"]
+                    if emp_data.get("ceo"):
+                        existing_emp.ceo = emp_data["ceo"]
+                    # New fields for leave balance
+                    if emp_data.get("remaining_leave_balance"):
+                        existing_emp.remaining_leave_balance = emp_data["remaining_leave_balance"]
+                    if emp_data.get("beginning_year_leave_balance"):
+                        existing_emp.beginning_year_leave_balance = emp_data["beginning_year_leave_balance"]
 
-                    self.db.flush() 
+                    self.db.flush()
                     results["updated"] += 1
                     target_emp = existing_emp
 
@@ -174,6 +210,15 @@ class EmployeeImportService:
                         company=emp_data.get("company"),
                         department_id=dept_id,
                         status="active",
+                        # New fields for managers
+                        direct_manager=emp_data.get("direct_manager"),
+                        facility_manager=emp_data.get("facility_manager"),
+                        central_manager=emp_data.get("central_manager"),
+                        hr_manager=emp_data.get("hr_manager"),
+                        ceo=emp_data.get("ceo"),
+                        # New fields for leave balance
+                        remaining_leave_balance=emp_data.get("remaining_leave_balance"),
+                        beginning_year_leave_balance=emp_data.get("beginning_year_leave_balance"),
                         joining_date=emp_data.get("joining_date") or datetime.date.today()
                     )
                     self.db.add(target_emp)
@@ -182,8 +227,13 @@ class EmployeeImportService:
                     results["created"] += 1
 
                 # 4. Handle System Access (User Creation)
-                if create_users and emp_data.get("work_email"):
-                    self._handle_user_creation(target_emp, emp_data["work_email"])
+                if create_users:
+                    self._handle_user_creation(
+                        target_emp,
+                        emp_data.get("work_email"),
+                        use_employee_code_as_password,
+                        force_password_change
+                    )
                 
             except Exception as e:
                 # Rollback changes for this specific row if an error occurs
@@ -209,22 +259,44 @@ class EmployeeImportService:
                 data[field] = val
         return data
 
-    def _handle_user_creation(self, employee, email):
-        """Create or Link User account"""
-        if employee.user_id: 
+    def _handle_user_creation(self, employee, email=None, use_employee_code_as_password=True, force_password_change=True):
+        """Create or Link User account using employee code as username and password"""
+        if employee.user_id:
             return # Already linked
 
-        existing_user = self.db.query(core_models.User).filter(core_models.User.email == email).first()
+        # Use employee code as username (without @company.com)
+        username = employee.code
+        
+        # Check if user already exists by username (employee code) or email
+        existing_user = None
+        if email:
+            existing_user = self.db.query(core_models.User).filter(
+                (core_models.User.email == username) | (core_models.User.email == email)
+            ).first()
+        else:
+            existing_user = self.db.query(core_models.User).filter(
+                core_models.User.email == username
+            ).first()
+        
         if not existing_user:
-            # Generate smart password or default
-            # Professional: Send email invitation? For now, default password.
-            temp_pass = get_password_hash("Jandali@2025") 
+            # Use employee code as default password if enabled
+            if use_employee_code_as_password:
+                temp_pass = get_password_hash(employee.code)
+            else:
+                # Generate a random password (12 characters)
+                import secrets
+                import string
+                alphabet = string.ascii_letters + string.digits
+                random_password = ''.join(secrets.choice(alphabet) for i in range(12))
+                temp_pass = get_password_hash(random_password)
+            
             new_user = core_models.User(
                 name=employee.full_name,
-                email=email,
+                email=username,  # Use employee code as username
                 password=temp_pass,
                 role="user",
-                is_active=True
+                is_active=True,
+                force_password_change=force_password_change  # Force password change on first login
             )
             self.db.add(new_user)
             self.db.flush()

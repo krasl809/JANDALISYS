@@ -89,8 +89,11 @@ const EmployeeImport: React.FC = () => {
   const [selectedRows, setSelectedRows] = useState<Set<number>>(new Set());
 
   // Import Options
-  const [skipDuplicates, setSkipDuplicates] = useState(false);
-  const [updateExisting, setUpdateExisting] = useState(true);
+   const [skipDuplicates, setSkipDuplicates] = useState(false);
+   const [updateExisting, setUpdateExisting] = useState(true);
+   const [createUsers, setCreateUsers] = useState(true); // New option for auto-creating users
+   const [useEmployeeCodeAsPassword, setUseEmployeeCodeAsPassword] = useState(true);
+   const [forcePasswordChange, setForcePasswordChange] = useState(true);
 
   // Import Progress
   const [importing, setImporting] = useState(false);
@@ -108,6 +111,13 @@ const EmployeeImport: React.FC = () => {
     { key: 'position', label: 'المسمى الوظيفي', required: false },
     { key: 'joining_date', label: 'تاريخ التعيين', required: false },
     { key: 'phone', label: 'رقم الهاتف', required: false },
+    { key: 'direct_manager', label: 'المسؤول المباشر', required: false },
+    { key: 'facility_manager', label: 'مدير المنشآة', required: false },
+    { key: 'central_manager', label: 'المدير المركزي', required: false },
+    { key: 'hr_manager', label: 'مدير الموارد البشرية', required: false },
+    { key: 'ceo', label: 'المدير التنفيذي', required: false },
+    { key: 'remaining_leave_balance', label: 'رصيد الإجازات المتبقي', required: false },
+    { key: 'beginning_year_leave_balance', label: 'رصيد الإجازات أول السنة', required: false },
   ];
 
   const steps = ['رفع الملف', 'ربط الأعمدة', 'معاينة البيانات', 'خيارات الاستيراد', 'التنفيذ'];
@@ -231,6 +241,17 @@ const EmployeeImport: React.FC = () => {
         else if (header.includes('position') || header.includes('المسمى')) matchedField = 'position';
         else if (header.includes('date') || header.includes('تاريخ')) matchedField = 'joining_date';
         else if (header.includes('phone') || header.includes('هاتف')) matchedField = 'phone';
+        else if (header.includes('manager') || header.includes('مسؤول') || header.includes('مدير')) {
+          if (header.includes('direct') || header.includes('مباشر')) matchedField = 'direct_manager';
+          else if (header.includes('facility') || header.includes('منشأة')) matchedField = 'facility_manager';
+          else if (header.includes('central') || header.includes('مركزي')) matchedField = 'central_manager';
+          else if (header.includes('hr') || header.includes('موارد بشرية')) matchedField = 'hr_manager';
+          else if (header.includes('ceo') || header.includes('executive') || header.includes('تنفيذي')) matchedField = 'ceo';
+        }
+        else if (header.includes('leave') || header.includes('إجازة')) {
+          if (header.includes('remaining') || header.includes('متبقي')) matchedField = 'remaining_leave_balance';
+          else if (header.includes('beginning') || header.includes('أول')) matchedField = 'beginning_year_leave_balance';
+        }
       }
 
       // Sync field names with Employee model
@@ -270,7 +291,7 @@ const EmployeeImport: React.FC = () => {
     if (!validateMappings()) {
       setNotification({
         open: true,
-        message: 'يجب ربط الحقول المطلوبة (الاسم والبريد الإلكتروني) قبل الاستيراد',
+        message: 'يجب ربط الحقول المطلوبة (الرقم الوظيفي والاسم) قبل الاستيراد',
         severity: 'error'
       });
       return;
@@ -290,16 +311,18 @@ const EmployeeImport: React.FC = () => {
         }
       });
 
-      const payload = {
-        data: selectedData,
-        options: {
-          mappings: backendMappings,
-          skipDuplicates,
-          updateExisting,
-          autoCreateDepartments: true, // Professional default
-          createUsers: false // Keep it safe for now
-        }
-      };
+       const payload = {
+         data: selectedData,
+         options: {
+           mappings: backendMappings,
+           skipDuplicates,
+           updateExisting,
+           autoCreateDepartments: true, // Professional default
+           createUsers: createUsers, // Enable user creation
+           useEmployeeCodeAsPassword: useEmployeeCodeAsPassword, // Use employee code as password
+           forcePasswordChange: forcePasswordChange // Force password change on first login
+         }
+       };
 
       const response = await api.post('hr/employees/import/execute', payload, {
         onUploadProgress: (progressEvent) => {
@@ -597,6 +620,45 @@ const EmployeeImport: React.FC = () => {
                           </Typography>
                         </Box>
                       </Box>
+
+                   <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+                         <Checkbox
+                           checked={createUsers}
+                           onChange={(e) => setCreateUsers(e.target.checked)}
+                         />
+                         <Box>
+                           <Typography variant="body2">إنشاء حسابات مستخدمين تلقائيًا</Typography>
+                           <Typography variant="caption" color="text.secondary">
+                             سيتم استخدام الرقم الوظيفي كاسم مستخدم وكلمة مرور افتراضية
+                           </Typography>
+                         </Box>
+                       </Box>
+
+                       <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+                         <Checkbox
+                           checked={useEmployeeCodeAsPassword}
+                           onChange={(e) => setUseEmployeeCodeAsPassword(e.target.checked)}
+                         />
+                         <Box>
+                           <Typography variant="body2">استخدام الرقم الوظيفي ككلمة مرور</Typography>
+                           <Typography variant="caption" color="text.secondary">
+                             إذا تم التفعيل، سيتم استخدام الرقم الوظيفي ككلمة مرور أولية للمستخدم
+                           </Typography>
+                         </Box>
+                       </Box>
+
+                       <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+                         <Checkbox
+                           checked={forcePasswordChange}
+                           onChange={(e) => setForcePasswordChange(e.target.checked)}
+                         />
+                         <Box>
+                           <Typography variant="body2">إجبار تغيير كلمة المرور عند أول تسجيل دخول</Typography>
+                           <Typography variant="caption" color="text.secondary">
+                             سيُطلب من المستخدم تغيير كلمة المرور عند أول تسجيل دخول له
+                           </Typography>
+                         </Box>
+                       </Box>
                     </Stack>
                   </Box>
 

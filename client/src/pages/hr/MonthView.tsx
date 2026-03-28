@@ -1,4 +1,5 @@
-import React, { useMemo, useState } from 'react';
+import * as React from 'react';
+import { useMemo, useState } from 'react';
 import {
     Box, Typography, Paper, Avatar, TablePagination,
     useTheme, IconButton, Tooltip, Divider, Theme, Chip, Button, Dialog, DialogTitle, DialogContent, DialogActions, TextField, DialogContentText
@@ -10,52 +11,7 @@ import { ar, enUS } from 'date-fns/locale';
 import { useTranslation } from 'react-i18next';
 import { LocalizationProvider, DatePicker } from '@mui/x-date-pickers';
 import { AdapterDateFns } from '@mui/x-date-pickers/AdapterDateFns';
-
-// --- Theme-Aware Utilities ---
-const getAttendanceColors = (theme: Theme) => {
-    const isDark = theme.palette.mode === 'dark';
-    return {
-        primary: theme.palette.primary.main,
-        secondary: theme.palette.text.secondary,
-        info: theme.palette.info.main,
-        success: theme.palette.success.main,
-        warning: theme.palette.warning.main,
-        error: theme.palette.error.main,
-        dark: isDark ? theme.palette.text.primary : '#344767',
-        light: isDark ? theme.palette.grey[800] : '#E9ECEF',
-        bg: theme.palette.background.default,
-        white: theme.palette.background.paper,
-        pureWhite: '#FFFFFF',
-        gradientPrimary: `linear-gradient(135deg, ${theme.palette.primary.main} 0%, ${theme.palette.primary.dark} 100%)`,
-        gradientSuccess: `linear-gradient(135deg, ${theme.palette.success.main} 0%, ${theme.palette.success.dark} 100%)`,
-        gradientInfo: `linear-gradient(135deg, ${theme.palette.info.main} 0%, ${theme.palette.info.dark} 100%)`,
-        gradientWarning: `linear-gradient(135deg, ${theme.palette.warning.main} 0%, ${theme.palette.warning.dark} 100%)`,
-        gradientError: `linear-gradient(135deg, ${theme.palette.error.main} 0%, ${theme.palette.error.dark} 100%)`,
-        gradientDark: `linear-gradient(135deg, ${isDark ? theme.palette.grey[900] : '#344767'} 0%, ${isDark ? theme.palette.common.black : '#192941'} 100%)`,
-    };
-};
-
-const getAttendanceShadows = (theme: Theme) => {
-    const isDark = theme.palette.mode === 'dark';
-    const shadowColor = isDark ? 'rgba(0, 0, 0, 0.4)' : 'rgba(50, 50, 93, 0.1)';
-    return {
-        xs: isDark ? '0 1px 5px rgba(0, 0, 0, 0.3)' : '0 1px 5px rgba(0, 0, 0, 0.05)',
-        sm: isDark ? '0 3px 8px rgba(0, 0, 0, 0.4)' : '0 3px 8px rgba(0, 0, 0, 0.08)',
-        md: `0 7px 14px ${shadowColor}`,
-        lg: `0 15px 35px ${shadowColor}`,
-    };
-};
-
-const getAttendanceStatusColors = (colors: any) => ({
-    present: colors.success,
-    late: colors.error,
-    earlyLeave: colors.warning,
-    absent: colors.secondary,
-    ongoing: colors.primary,
-    overtime: alpha(colors.primary, 0.8),
-    multiDay: '#9C27B0', // Purple for multi-day attendance (48 hours split across days)
-    manualAdjustment: '#FF9800', // Orange for manually adjusted/added records
-});
+import { getAttendanceColors, getAttendanceShadows, getAttendanceStatusColors } from '../../utils/attendanceTheme';
 
 interface AttendanceRecord {
     id: string;
@@ -109,11 +65,11 @@ const MonthView: React.FC<MonthViewProps> = React.memo(({
     handleRowsPerPageChange,
     onDateRangeChange,
     onSingleDaySelect
-}) => {
+}: MonthViewProps) => {
     const theme = useTheme();
     const COLORS = useMemo(() => getAttendanceColors(theme), [theme]);
     const SHADOWS = useMemo(() => getAttendanceShadows(theme), [theme]);
-    const ATTENDANCE_COLORS = useMemo(() => getAttendanceStatusColors(COLORS), [COLORS]);
+    const ATTENDANCE_COLORS = useMemo(() => getAttendanceStatusColors(theme), [theme]);
 
     const { t, i18n } = useTranslation();
     const isRtl = i18n.language === 'ar';
@@ -127,6 +83,17 @@ const MonthView: React.FC<MonthViewProps> = React.memo(({
         const end = endOfMonth(currentMonth);
         return eachDayOfInterval({ start, end });
     }, [currentMonth]);
+
+    // Memoized employee logs map for efficient lookup
+    const employeeLogsMap = useMemo(() => {
+        const map = new Map<string, AttendanceRecord[]>();
+        rows.forEach(record => {
+            const existing = map.get(record.employee_id) || [];
+            existing.push(record);
+            map.set(record.employee_id, existing);
+        });
+        return map;
+    }, [rows]);
 
     const handlePrevMonth = () => {
         filters.setCurrentMonth(subMonths(currentMonth, 1));
@@ -886,7 +853,7 @@ const MonthView: React.FC<MonthViewProps> = React.memo(({
                                     </Typography>
                                 </Box>
                                 {paginatedEmployees.map((employee, eIdx) => {
-                                    const employeeLogs = rows.filter(r => r.employee_id === employee.employee_id);
+                                    const employeeLogs = employeeLogsMap.get(employee.employee_id) || [];
                                     const totalWork = employeeLogs.reduce((sum, log) => sum + (log.actual_work || 0), 0);
                                     const totalOT = employeeLogs.reduce((sum, log) => sum + (log.overtime || 0), 0);
                                     const isEvenRow = eIdx % 2 === 0;

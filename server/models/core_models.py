@@ -59,6 +59,7 @@ class User(Base):
     is_active = Column(Boolean, default=True)
     created_at = Column(DateTime, default=func.now())
     language = Column(String(10), default="en")
+    force_password_change = Column(Boolean, default=False)  # Force password change on first login
     # employee_id removed - separate Employee table used now
 
 class Buyer(Base):

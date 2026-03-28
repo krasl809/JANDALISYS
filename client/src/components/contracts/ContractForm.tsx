@@ -1027,7 +1027,7 @@ const ContractForm: React.FC<ContractFormProps> = ({ mode: propMode }) => {
 
   const { filteredLedger, totalDebit, totalCredit, netBalance } = useMemo(() => {
     const isImport = mode === 'import';
-    let list: FinancialTransaction[] = [...ledger];
+    const list: FinancialTransaction[] = [...ledger];
     
     // Add virtual invoice for import fixed price if no real invoices exist
     if (isImport && !isStockMarket && totalAmount > 0 && !list.some(t => t.type === 'Invoice')) {

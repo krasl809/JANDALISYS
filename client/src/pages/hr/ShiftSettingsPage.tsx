@@ -174,12 +174,8 @@ const ShiftSettingsPage: React.FC = () => {
             setShifts(shiftsData);
             
             // Handle employees data - ensure we get the employees array
-            const employeesData = Array.isArray(empRes.data) ? empRes.data : 
+            const employeesData = Array.isArray(empRes.data) ? empRes.data :
                                  (empRes.data?.employees || empRes.data?.data || []);
-            
-            console.log('Shifts data:', shiftsData.length, 'items');
-            console.log('Employees data:', employeesData.length, 'items');
-            console.log('Sample employee:', employeesData[0]);
             
             setEmployees(employeesData);
         } catch (error: unknown) {

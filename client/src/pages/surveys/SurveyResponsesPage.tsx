@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, FC, memo } from 'react';
 import {
   Box,
   Typography,
@@ -56,7 +56,7 @@ import {
   SurveyQuestion,
 } from '../../types/surveys';
 
-const SurveyResponsesPage: React.FC = () => {
+const SurveyResponsesPage: FC = memo(() => {
   const theme = useTheme();
   const { t, i18n } = useTranslation();
   const navigate = useNavigate();
@@ -540,6 +540,6 @@ const SurveyResponsesPage: React.FC = () => {
       </Dialog>
     </Box>
   );
-};
+});
 
 export default SurveyResponsesPage;

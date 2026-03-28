@@ -56,10 +56,6 @@ def verify_password(plain_password: str, hashed_password: str) -> bool:
 def get_password_hash(password: str) -> str:
     """تشفير كلمة المرور"""
     try:
-        # Validate minimum password length
-        if len(password) < 8:
-            raise ValueError("Password must be at least 8 characters long")
-        
         # Truncate to bcrypt limit
         pwd_bytes = password.encode('utf-8')[:MAX_PASSWORD_LENGTH]
         

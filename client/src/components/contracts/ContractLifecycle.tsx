@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect, ReactNode, ReactElement } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { 
   Box, Container, Typography, Card, Divider, Chip, 
@@ -51,11 +51,11 @@ const ColorlibStepIconRoot = styled('div')<{ ownerState: { completed?: boolean; 
 interface ColorlibStepIconProps {
   active?: boolean;
   completed?: boolean;
-  icon: React.ReactNode;
+  icon: ReactNode;
 }
 
 function ColorlibStepIcon(props: ColorlibStepIconProps) {
-  const icons: { [index: string]: React.ReactElement } = { 
+  const icons: { [index: string]: ReactElement } = {
     1: <Description />, 
     2: <LocalShipping />, 
     3: <AccountBalance /> 
@@ -150,10 +150,11 @@ const ContractLifecycle = () => {
   }
 
   const currentStep = getStep(contract.status);
-  const avgPrice = contract.items?.length 
-    ? contract.items.reduce((acc, item) => acc + parseFloat(item.price || '0'), 0) / contract.items.length 
+  const items = Array.isArray(contract.items) ? contract.items : [];
+  const avgPrice = items.length
+    ? items.reduce((acc, item) => acc + parseFloat(item.price || '0'), 0) / items.length
     : 0;
-  const totalValue = contract.items?.reduce((acc, item) => acc + (item.total || 0), 0) || 0;
+  const totalValue = items.reduce((acc, item) => acc + (item.total || 0), 0) || 0;
 
   return (
     <Container maxWidth={false} sx={{ mt: 4, pb: 4 }}>

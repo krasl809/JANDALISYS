@@ -9,7 +9,7 @@ import {
 } from '@mui/material';
 import {
   Person, Work, Folder, Preview, CheckCircle,
-  Business
+  Business, SupervisorAccount
 } from '@mui/icons-material';
 
 import api from '../../services/api';
@@ -21,6 +21,7 @@ import PersonalInfoSection from './PersonalInfoSection';
 import EmploymentInfoSection from './EmploymentInfoSection';
 import DocumentsSection from './DocumentsSection';
 import SystemAccessSection from './SystemAccessSection';
+import ManagersAndLeaveSection from './ManagersAndLeaveSection';
 import PreviewSection from './PreviewSection';
 import SuccessModal from './SuccessModal';
 
@@ -252,9 +253,10 @@ const EmployeeForm: React.FC<EmployeeFormProps> = () => {
       const tabsMap: Record<string, number> = {
         personal: 0,
         employment: 1,
-        system: 2,
-        documents: 3,
-        preview: 4
+        managers: 2,
+        system: 3,
+        documents: 4,
+        preview: 5
       };
       setActiveTab(tabsMap[tabParam] || 0);
     }
@@ -262,7 +264,7 @@ const EmployeeForm: React.FC<EmployeeFormProps> = () => {
 
   const handleTabChange = (_: React.SyntheticEvent, newValue: number) => {
     setActiveTab(newValue);
-    const tabs = ['personal', 'employment', 'system', 'documents', 'preview'];
+    const tabs = ['personal', 'employment', 'managers', 'system', 'documents', 'preview'];
     setSearchParams({ tab: tabs[newValue] });
   };
 
@@ -424,7 +426,7 @@ const EmployeeForm: React.FC<EmployeeFormProps> = () => {
     </MDBox>
   );
 
-  const steps = ['Personal Info', 'Employment', 'System Access', 'Documents', 'Preview'];
+  const steps = ['Personal Info', 'Employment', 'Managers & Leave', 'System Access', 'Documents', 'Preview'];
 
   return (
     <Container maxWidth="xl" sx={{ mt: 4, mb: 12 }}>
@@ -506,6 +508,7 @@ const EmployeeForm: React.FC<EmployeeFormProps> = () => {
         >
           <Tab icon={<Person fontSize="small" />} iconPosition="start" label="Personal Information" />
           <Tab icon={<Work fontSize="small" />} iconPosition="start" label="Employment Details" />
+          <Tab icon={<SupervisorAccount fontSize="small" />} iconPosition="start" label="Managers & Leave" />
           <Tab icon={<Business fontSize="small" />} iconPosition="start" label="System Access" />
           <Tab icon={<Folder fontSize="small" />} iconPosition="start" label="Documents" />
           <Tab icon={<Preview fontSize="small" />} iconPosition="start" label="Preview & Submit" />
@@ -541,6 +544,13 @@ const EmployeeForm: React.FC<EmployeeFormProps> = () => {
         </TabPanel>
 
         <TabPanel value={activeTab} index={2}>
+          <ManagersAndLeaveSection
+            formData={formData}
+            onInputChange={handleInputChange}
+          />
+        </TabPanel>
+
+        <TabPanel value={activeTab} index={3}>
           <SystemAccessSection
             formData={formData}
             onInputChange={handleInputChange}
@@ -548,20 +558,20 @@ const EmployeeForm: React.FC<EmployeeFormProps> = () => {
           />
         </TabPanel>
 
-        <TabPanel value={activeTab} index={3}>
+        <TabPanel value={activeTab} index={4}>
           <DocumentsSection
             formData={formData}
             onInputChange={handleInputChange}
           />
         </TabPanel>
 
-        <TabPanel value={activeTab} index={4}>
+        <TabPanel value={activeTab} index={5}>
           <PreviewSection formData={formData} />
         </TabPanel>
       </Card>
 
       {/* Floating Actions */}
-      {activeTab < 4 && (
+      {activeTab < 5 && (
         <Paper elevation={4} sx={{
           position: 'fixed',
           bottom: 0,
